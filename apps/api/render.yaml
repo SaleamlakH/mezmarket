@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: mezmarket-api
+    runtime: node
+    repo: https://github.com/SaleamlakH/mezmarket
+    plan: free
+    region: virginia
+    buildCommand: pnpm install && pnpm build --filter api...
+    startCommand: pnpm --filter api start
+    autoDeploy: false
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CORS_ORIGINS
+        sync: false

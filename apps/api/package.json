@@ -5,9 +5,9 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "prod": "node dist/src/index",
+    "start": "node dist/src/server.js",
     "dev": "tsx watch src/server.ts",
-    "build": "tsc -p",
+    "build": "tsc -p .",
     "lint": "eslint . --fix",
     "typecheck": "tsc --noEmit",
     "test": "echo \"no tests yet\" && exit 0"
