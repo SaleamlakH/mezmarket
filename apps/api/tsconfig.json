@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  // Visit https://aka.ms/tsconfig to read more about this file
+  "compilerOptions": {
+    "rootDir": "./",
+    "outDir": "./dist",
+
+    // See also https://aka.ms/tsconfig/module
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "target": "esnext",
+    "types": ["node"]
+  },
+
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
+}
