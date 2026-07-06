@@ -5,7 +5,7 @@ import prettier from 'eslint-config-prettier';
 export default defineConfig(
   ...tseslint.configs.recommended,
   ...tseslint.configs.strict,
-  globalIgnores(['**/dist/**', '**/node_modules/**']),
+  globalIgnores(['**/dist/**', '**/node_modules/**', 'scripts']),
   {
     rules: {
       'no-console': 'warn',

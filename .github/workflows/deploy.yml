@@ -1,0 +1,128 @@
+name: Deployment
+
+on:
+  push:
+    tags:
+      - api@*
+      - web@*
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache turbo
+        uses: actions/cache@v6
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+  prepare:
+    runs-on: ubuntu-latest
+    needs: [validate]
+    outputs:
+      deploy_api: ${{ steps.resolve.outputs.deploy_api }}
+      deploy_web: ${{ steps.resolve.outputs.deploy_web }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Verify tag is on main
+        run: |
+          if ! git merge-base --is-ancestor $GITHUB_SHA origin/main; then
+            echo  "Tag is not on main. Aborting."
+            exit 1
+          fi
+
+      - name: Resolve deploy target
+        id: resolve
+        run: node scripts/ci/resolve-deploy-target.mjs
+        env:
+          GITHUB_REF: ${{ github.ref }}
+          GITHUB_OUTPUT: ${{ env.GITHUB_OUTPUT }}
+
+  deploy-api:
+    runs-on: ubuntu-latest
+    needs: [validate, prepare]
+    if: needs.prepare.outputs.deploy_api == 'true'
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: 'pnpm'
+
+      - name: Trigger Render Deployment
+        id: trigger
+        run: node scripts/ci/trigger-render.mjs
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+          GITHUB_OUTPUT: ${{ env.GITHUB_OUTPUT }}
+
+      - name: Poll Render until live
+        run: node scripts/ci/poll-render.mjs
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+          RENDER_DEPLOY_ID: ${{ steps.trigger.outputs.render_deploy_id }}
+
+  deploy-web:
+    runs-on: ubuntu-latest
+    needs: [validate, prepare, deploy-api]
+    if: |
+      always() &&
+      needs.validate.result == 'success' &&
+      needs.prepare.outputs.deploy_web == 'true' &&
+      (needs.deploy-api.result == 'success' || needs.deploy-api.result == 'skipped')
+
+    steps:
+      - name: Trigger Vercel Deployment
+        run: curl -X POST "${{ secrets.VERCEL_DEPLOY_HOOK }}"
