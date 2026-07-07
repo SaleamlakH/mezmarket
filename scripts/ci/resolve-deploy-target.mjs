@@ -1,6 +1,6 @@
 import { appendFileSync } from 'fs';
 
-const ref = process.env.GITHUB_REF;
+const ref = process.env.DEPLOY_REF;
 const output = process.env.GITHUB_OUTPUT;
 
 if (!ref || !output) {
