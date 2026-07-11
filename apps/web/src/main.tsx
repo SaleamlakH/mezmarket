@@ -8,6 +8,7 @@ import { createBrowserRouter } from 'react-router';
 import { AuthLayout } from './layouts/AuthLayout.tsx';
 import { LoginPage } from './features/auth/pages/LoginPage.tsx';
 import { SignupPage } from './features/auth/pages/SignupPage.tsx';
+import { ThemeProvider } from './context/theme/ThemeProvider.tsx';
 
 const router = createBrowserRouter([
   {
@@ -31,6 +32,8 @@ const router = createBrowserRouter([
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <RouterProvider router={router} />
+    <ThemeProvider>
+      <RouterProvider router={router} />
+    </ThemeProvider>
   </StrictMode>,
 );
