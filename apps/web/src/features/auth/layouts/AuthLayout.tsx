@@ -1,6 +1,6 @@
+import { Brand } from '@/components/Brand';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { Outlet } from 'react-router';
-import { Brand } from '../components/Brand';
-import { ThemeToggle } from '../components/ThemeToggle';
 
 export function AuthLayout() {
   // Mobile: full-screen bg. Desktop: centers the card.
