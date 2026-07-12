@@ -1,13 +1,15 @@
+import { Link } from 'react-router';
+
 interface BrandProps {
-  size?: 'sm' | 'md';
+  size?: 'md' | 'lg';
 }
 
 export function Brand({ size = 'md' }: BrandProps) {
-  const textSize = size === 'sm' ? 'text-base' : 'text-xl';
+  const textSize = size === 'md' ? 'text-xl' : 'text-3xl';
 
   return (
-    <div className={`font-bold tracking-tight text-(--text) ${textSize}`}>
+    <Link to="/" className={`font-bold tracking-tight text-(--text) ${textSize}`}>
       Mez<span className="text-(--accent)">Market</span>
-    </div>
+    </Link>
   );
 }
