@@ -1,6 +1,6 @@
 import { createBrowserRouter } from 'react-router';
-import { AuthProvider } from './context/auth-provider/AuthProvider';
-import { ThemeProvider } from './context/theme/ThemeProvider';
+import { AuthProvider } from './providers/auth-provider/AuthProvider';
+import { ThemeProvider } from './providers/theme/ThemeProvider';
 import { RouterProvider } from 'react-router/dom';
 import { ProtectedRoute } from './layouts/ProtectedRoute';
 import { AuthLayout } from './features/auth/layouts/AuthLayout';

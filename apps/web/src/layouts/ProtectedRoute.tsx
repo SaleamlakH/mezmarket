@@ -1,5 +1,5 @@
 import { Brand } from '@/components/Brand';
-import { useAuth } from '@/context/auth-provider/useAuth';
+import { useAuth } from '@/providers/auth-provider/useAuth';
 import { Navigate, Outlet } from 'react-router';
 
 export function ProtectedRoute() {

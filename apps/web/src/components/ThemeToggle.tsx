@@ -1,4 +1,4 @@
-import { useTheme } from '@/context/theme/useTheme';
+import { useTheme } from '@/providers/theme/useTheme';
 import { Sun, Moon } from 'lucide-react';
 
 export function ThemeToggle() {

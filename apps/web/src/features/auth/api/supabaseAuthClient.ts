@@ -1,5 +1,5 @@
 import { supabaseClient } from '@/lib/supabase';
-import type { AuthService } from '@/context/auth-provider/types';
+import type { AuthService } from '@/providers/auth-provider/types';
 
 export const supabaseAuthClient: AuthService = {
   async getSession() {
