@@ -45,7 +45,7 @@ export function SignupPage() {
             placeholder="••••••••"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
+            autoComplete="new-password"
           />
         </Field>
 
@@ -56,7 +56,6 @@ export function SignupPage() {
             placeholder="••••••••"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            autoComplete=""
           />
         </Field>
 
