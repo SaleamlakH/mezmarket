@@ -1,8 +1,8 @@
-import { useTheme } from '@/providers/theme/useTheme';
+import { useThemeContext } from '@/providers/theme/useThemeContext';
 import { Sun, Moon } from 'lucide-react';
 
 export function ThemeToggle() {
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme } = useThemeContext();
 
   return (
     <button

@@ -1,11 +1,11 @@
 import { Brand } from '@/components/Brand';
-import { useAuth } from '@/providers/auth-provider/useAuth';
+import { useAuthContext } from '@/providers/auth-provider/useAuthContext';
 import { Navigate, Outlet } from 'react-router';
 
 export function ProtectedRoute() {
   const {
     session: { status },
-  } = useAuth();
+  } = useAuthContext();
 
   if (status === 'loading') {
     return (

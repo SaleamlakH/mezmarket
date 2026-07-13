@@ -1,7 +1,7 @@
 import { supabaseClient } from '@/lib/supabase';
 import type { AuthService } from '@/providers/auth-provider/types';
 
-export const supabaseAuthClient: AuthService = {
+export const supabaseAuthService: AuthService = {
   async getSession() {
     const { data } = await supabaseClient.auth.getSession();
     const session = data.session;

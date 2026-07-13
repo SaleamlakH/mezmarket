@@ -6,7 +6,7 @@ import { ProtectedRoute } from './layouts/ProtectedRoute';
 import { AuthLayout } from './features/auth/layouts/AuthLayout';
 import { LoginPage } from './features/auth/pages/LoginPage';
 import { SignupPage } from './features/auth/pages/SignupPage';
-import { supabaseAuthClient } from './features/auth/api/supabaseAuthClient';
+import { supabaseAuthService } from './features/auth/api/supabaseAuthClient';
 
 const router = createBrowserRouter([
   {
@@ -30,7 +30,7 @@ const router = createBrowserRouter([
 
 export default function App() {
   return (
-    <AuthProvider authService={supabaseAuthClient}>
+    <AuthProvider authService={supabaseAuthService}>
       <ThemeProvider>
         <RouterProvider router={router} />
       </ThemeProvider>
