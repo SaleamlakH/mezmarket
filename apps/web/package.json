@@ -20,6 +20,8 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@mez/types": "workspace:*",
+    "@mez/validation": "workspace:*",
     "@tailwindcss/vite": "^4.3.2",
     "@types/node": "^24.13.2",
     "@types/react": "^19.2.17",
