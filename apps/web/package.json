@@ -8,6 +8,7 @@
     "build": "vite build",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --fix",
+    "lint:check": "eslint .",
     "preview": "vite preview",
     "test": "echo \"no tests yet\" && exit 0"
   },
