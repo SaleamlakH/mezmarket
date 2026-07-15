@@ -1,39 +1,24 @@
 import { useState, useEffect, useMemo } from 'react';
-import type { AuthContextValue, AuthService, Session } from './types';
+import type { AuthContextValue } from './types';
+import type { AuthService, AuthSession } from '@mez/types';
 
 export function useAuthService(authService: AuthService): AuthContextValue {
-  const [session, setSession] = useState<Session>({
-    status: 'loading',
-    sessionToken: null,
-    user: null,
-  });
+  const [session, setSession] = useState<AuthSession>({ user: null, status: 'loading' });
 
   useEffect(() => {
     let cancelled = false;
 
-    authService
-      .getSession()
-      .then((session) => {
-        if (cancelled) return;
-
-        setSession((prevSession) =>
-          session
-            ? { status: 'authed', sessionToken: session.sessionToken, user: session.user }
-            : { ...prevSession, status: 'guest' },
-        );
-      })
-      .catch(() => {
-        if (cancelled) return;
-
-        setSession((prevSession) => ({ ...prevSession, status: 'guest' }));
-      });
+    authService.getSession().then((session) => {
+      if (cancelled) return;
+      setSession(session);
+    });
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authService]);
 
-  const value = useMemo(
+  const value = useMemo<AuthContextValue>(
     () => ({
       session,
       ...authService,

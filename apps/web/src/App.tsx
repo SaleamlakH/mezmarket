@@ -6,7 +6,8 @@ import { ProtectedRoute } from './layouts/ProtectedRoute';
 import { AuthLayout } from './features/auth/layouts/AuthLayout';
 import { LoginPage } from './features/auth/pages/LoginPage';
 import { SignupPage } from './features/auth/pages/SignupPage';
-import { supabaseAuthService } from './features/auth/api/supabaseAuthClient';
+import { createSupabaseAuthService } from './features/auth/api/supabaseAuthService';
+import { supabaseClient } from './lib/supabase';
 
 const router = createBrowserRouter([
   {
@@ -27,6 +28,8 @@ const router = createBrowserRouter([
     ],
   },
 ]);
+
+const supabaseAuthService = createSupabaseAuthService(supabaseClient);
 
 export default function App() {
   return (

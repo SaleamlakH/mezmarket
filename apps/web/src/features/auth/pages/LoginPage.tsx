@@ -1,18 +1,37 @@
-import { useState } from 'react';
 import { Button } from '../../../components/Button';
 import { Field } from '../../../components/Field';
 import { Input } from '../../../components/Input';
 import { PasswordInput } from '../../../components/PasswordInput';
 import { LedgerLine } from '../../../components/LedgerLine';
 import { Link } from 'react-router';
+import { useLoginForm } from '../hooks/useLoginForm';
+import { Toast } from '@/components/Toast';
 
 export function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const {
+    status,
+    values,
+    errors,
+    formError,
+    setFormError,
+    handleChange,
+    handleBlur,
+    handleSubmit,
+  } = useLoginForm();
 
   return (
     <>
+      {/* Error toast*/}
+      {formError && (
+        <Toast
+          message={formError}
+          variant="error"
+          onDismiss={() => setFormError(null)}
+          duration={5000}
+          position="top-right"
+        />
+      )}
+
       {/*headline*/}
       <div className="mt-6 mb-6">
         <h1 className="text-3xl font-bold text-(--text) leading-tighter">
@@ -22,26 +41,28 @@ export function LoginPage() {
         <p className="text-left text-md text-(--text-muted) mt-1">Log in to your ledger</p>
       </div>
 
-      <form className="flex flex-col gap-4 flex-1">
-        <Field id="email" label="Email">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4 flex-1">
+        <Field id="email" label="Email" error={errors?.email}>
           <Input
             type="email"
             id="email"
             name="email"
             placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            value={values.email}
+            onChange={(e) => handleChange('email', e.target.value)}
+            onBlur={() => handleBlur('email')}
             autoComplete="email"
-            required
           />
         </Field>
 
-        <Field id="password" label="Password">
+        <Field id="password" label="Password" error={errors?.password}>
           <PasswordInput
             id="password"
+            name="password"
             placeholder="••••••••"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            value={values.password}
+            onChange={(e) => handleChange('password', e.target.value)}
+            onBlur={() => handleBlur('password')}
             autoComplete="current-password"
           />
         </Field>
@@ -55,11 +76,7 @@ export function LoginPage() {
         {/*spacer*/}
         <div className="flex-1"></div>
 
-        <Button
-          isLoading={isLoading}
-          onClick={() => setIsLoading((prev) => !prev)}
-          className="font-bold"
-        >
+        <Button type="submit" isLoading={status === 'submitting'} className="font-bold">
           Log In
         </Button>
 

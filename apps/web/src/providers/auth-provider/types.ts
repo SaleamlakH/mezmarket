@@ -1,18 +1,5 @@
-export interface User {
-  id: string;
-  email: string;
-}
-
-export interface Session {
-  status: 'loading' | 'authed' | 'guest';
-  sessionToken: string | null;
-  user: User | null;
-}
-
-export interface AuthService {
-  getSession(): Promise<{ sessionToken: string; user: User } | null>;
-}
+import type { AuthService, AuthSession } from '@mez/types';
 
 export interface AuthContextValue extends AuthService {
-  session: Session;
+  session: AuthSession;
 }

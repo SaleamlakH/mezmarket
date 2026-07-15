@@ -1,5 +1,5 @@
+import type { AuthService } from '@mez/types';
 import { AuthContext } from './context';
-import type { AuthService } from './types';
 import { useAuthService } from './useAuthService';
 
 export function AuthProvider({
