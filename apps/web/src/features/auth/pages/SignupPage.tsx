@@ -85,8 +85,6 @@ export function SignupPage() {
           Create Account
         </Button>
 
-        <Button variant="outline">Google</Button>
-
         <p className="text-center text-sm text-(--text-muted)">
           Already have an account?{' '}
           <Link
