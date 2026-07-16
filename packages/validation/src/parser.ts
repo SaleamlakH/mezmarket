@@ -5,7 +5,7 @@ import {
   signupSchema,
   type LoginFormValues,
   type SignupFormValues,
-} from './shema/auth.schema.js';
+} from './schema/auth.schema.js';
 
 function validateInput<T>(schema: ZodType<T>, input: unknown): ValidationResult<T> {
   const result = schema.safeParse(input);
