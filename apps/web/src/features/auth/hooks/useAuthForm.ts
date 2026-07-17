@@ -76,6 +76,7 @@ export function useAuthForm<TValues>({
 
       try {
         await onSubmit(data as TValues);
+        setStatus('success');
         onSuccess();
       } catch (error) {
         setStatus('error');

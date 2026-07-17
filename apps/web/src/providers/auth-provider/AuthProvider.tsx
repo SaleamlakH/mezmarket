@@ -7,7 +7,7 @@ export function AuthProvider({
   children,
 }: {
   authService: AuthService;
-  children: React.JSX.Element;
+  children: React.ReactNode;
 }) {
   const contextValue = useAuthService(authService);
   return <AuthContext value={contextValue}>{children}</AuthContext>;

@@ -5,7 +5,8 @@ export function createSupabaseAuthService(client: SupabaseClient): AuthService {
   return {
     async getSession() {
       const { data, error } = await client.auth.getSession();
-      if (error || !data.session) return { user: null, status: 'guest' };
+      if (error) throw new Error(error.message);
+      if (!data.session) return { user: null, status: 'guest' };
 
       const { id, email, email_confirmed_at } = data.session.user;
 

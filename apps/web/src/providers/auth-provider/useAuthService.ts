@@ -8,10 +8,16 @@ export function useAuthService(authService: AuthService): AuthContextValue {
   useEffect(() => {
     let cancelled = false;
 
-    authService.getSession().then((session) => {
-      if (cancelled) return;
-      setSession(session);
-    });
+    authService
+      .getSession()
+      .then((session) => {
+        if (cancelled) return;
+        setSession(session);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setSession({ user: null, status: 'guest' });
+      });
 
     return () => {
       cancelled = true;
