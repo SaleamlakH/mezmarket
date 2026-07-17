@@ -9,10 +9,12 @@
     "dev": "turbo run dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
+    "lint:check": "turbo run lint:check",
     "format": "prettier --write .",
     "format:check": "turbo run format:check",
     "typecheck": "turbo run typecheck",
-    "test": "turbo run test"
+    "test": "turbo run test",
+    "test:watch": "turbo run test:watch"
   },
   "keywords": [],
   "author": "Sale Habtamu <saleamlak.7h@gmail.com>",
@@ -26,7 +28,8 @@
     "prettier": "3.8.5",
     "turbo": "^2.10.2",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.62.0"
+    "typescript-eslint": "^8.62.0",
+    "vitest": "^4.1.10"
   },
   "packageManager": "pnpm@11.9.0",
   "devEngines": {

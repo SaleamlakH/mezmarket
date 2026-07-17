@@ -1,6 +1,6 @@
 packages:
-  - "apps/*"
-  - "packages/*"
+  - 'apps/*'
+  - 'packages/*'
 
 allowBuilds:
   '@prisma/engines': true
@@ -8,4 +8,4 @@ allowBuilds:
   prisma: true
 
 overrides:
-  "@hono/node-server": "^2.0.0"
+  '@hono/node-server': '^2.0.0'
