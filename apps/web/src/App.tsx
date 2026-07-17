@@ -8,14 +8,18 @@ import { LoginPage } from './features/auth/pages/LoginPage';
 import { SignupPage } from './features/auth/pages/SignupPage';
 import { createSupabaseAuthService } from './features/auth/api/supabaseAuthService';
 import { supabaseClient } from './lib/supabase';
+import { NotFoundPage } from './pages/NotFoundPage';
+import { ErrorPage } from './pages/ErrorPage';
 
 const router = createBrowserRouter([
   {
     path: '/',
     element: <ProtectedRoute />,
+    errorElement: <ErrorPage />,
   },
   {
     element: <AuthLayout />,
+    errorElement: <ErrorPage />,
     children: [
       {
         path: 'login',
@@ -26,6 +30,10 @@ const router = createBrowserRouter([
         element: <SignupPage />,
       },
     ],
+  },
+  {
+    path: '*',
+    element: <NotFoundPage />,
   },
 ]);
 
