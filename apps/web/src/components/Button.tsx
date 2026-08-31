@@ -1,37 +1,41 @@
-interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: Variant;
+import type { ButtonHTMLAttributes, ReactNode } from 'react';
+
+export type ButtonVariant = 'primary' | 'secondary' | 'text' | 'ghost' | 'outline';
+
+export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: ButtonVariant;
   isLoading?: boolean;
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
-type Variant = 'primary' | 'ghost' | 'outline';
+const base =
+  'focus-ring inline-flex items-center justify-center gap-2 rounded-lg px-4 py-[9px] ' +
+  'text-[13px] font-semibold transition-colors disabled:cursor-not-allowed cursor-pointer ' +
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]';
+
+const variants: Record<ButtonVariant, string> = {
+  primary: 'bg-(--accent) text-white hover:bg-(--accent-hover)',
+  secondary:
+    'bg-transparent text-(--text) border border-(--border) hover:border-(--text) hover:bg-(--surface-primary)',
+  text: 'bg-transparent text-(--accent) hover:text-(--accent-hover) hover:underline px-1 py-[9px]',
+  ghost: 'bg-transparent text-(--text-muted) hover:text-(--text) underline underline-offset-2',
+  outline:
+    'bg-transparent border border-(--border) text-(--text) hover:border-(--accent) hover:text-(--accent)',
+};
 
 export function Button({
   variant = 'primary',
   isLoading = false,
   disabled,
-  children,
   className = '',
-  ...props
+  children,
+  ...rest
 }: ButtonProps) {
-  const base =
-    'w-full h-11 rounded-2xl px-4 text-sm transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer';
-
-  const variants: Record<Variant, string> = {
-    primary:
-      'font-bold bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)] active:bg-[var(--accent-hover)]',
-    ghost:
-      'bg-transparent text-[var(--text-muted)] hover:text-[var(--text)] underline underline-offset-2',
-    outline:
-      'font-bold bg-transparent border border-[var(--border)] text-[var(--text)] hover:border-[var(--accent)] hover:text-[var(--accent)]',
-  };
-
+  const idle = disabled
+    ? 'border border-(--border) bg-(--surface-secondary) text-(--text-muted) hover:bg-(--surface-secondary) hover:border-(--border)'
+    : variants[variant];
   return (
-    <button
-      disabled={disabled || isLoading}
-      className={`${base} ${variants[variant]} ${className}`}
-      {...props}
-    >
+    <button disabled={disabled || isLoading} className={`${base} ${idle} ${className}`} {...rest}>
       {isLoading ? (
         <span className="flex items-center justify-center gap-2">
           <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />

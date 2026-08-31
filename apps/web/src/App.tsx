@@ -10,6 +10,7 @@ import { createSupabaseAuthService } from './features/auth/api/supabaseAuthServi
 import { supabaseClient } from './lib/supabase';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { ErrorPage } from './pages/ErrorPage';
+import { DesignSystem } from './DesignSystem';
 
 const router = createBrowserRouter([
   {
@@ -31,6 +32,7 @@ const router = createBrowserRouter([
       },
     ],
   },
+  ...(import.meta.env.DEV ? [{ path: '/design-system', element: <DesignSystem /> }] : []),
   {
     path: '*',
     element: <NotFoundPage />,
