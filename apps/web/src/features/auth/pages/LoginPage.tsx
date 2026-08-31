@@ -76,7 +76,11 @@ export function LoginPage() {
         {/*spacer*/}
         <div className="flex-1"></div>
 
-        <Button type="submit" isLoading={status === 'submitting'} className="font-bold">
+        <Button
+          type="submit"
+          isLoading={status === 'submitting'}
+          className="w-full h-11 rounded-2xl font-bold"
+        >
           Log In
         </Button>
 

@@ -81,7 +81,11 @@ export function SignupPage() {
         {/*spacer*/}
         <div className="flex-1"></div>
 
-        <Button type="submit" isLoading={status === 'submitting'}>
+        <Button
+          type="submit"
+          isLoading={status === 'submitting'}
+          className="w-full h-11 rounded-2xl"
+        >
           Create Account
         </Button>
 
