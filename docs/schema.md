@@ -7,11 +7,11 @@ Conventions: `PK` = primary key (ULID — sortable by creation time), `FK` = for
 **Design notes, up front:**
 
 - **Units live in a single `ProductUnit` table per product** — every transactable unit a product has (its Base Unit, its MOU, any explicitly-added same-dimension Standard Unit, any custom label like `shot`) is one row. This avoids needing three separate tables and a three-way polymorphic reference. Tables that transact in a unit (`StockBatchLine`, `SaleLine`, `Loss`) snapshot the unit's label and the resulting quantity directly as plain fields at the moment of the transaction, and keep an optional `productUnitId` link back to `ProductUnit` purely for traceability — never relied on to display historical facts, since a unit's name or factor can be edited later without rewriting past records.
-- **`Actor` is a supertype** resolving "who did this" to a single FK. Every action-recording table (`StockBatch`, `Container`, `Sale`, `Loss`, `Payment`, `AuditLog`) references `Actor`, never `Owner`/`Staff` directly — an Owner acting within their own business and a Staff member both resolve through the same field.
+- **`BusinessMember` is the single actor reference** for every action-recording table (`StockBatch`, `Container`, `Sale`, `Loss`, `Payment`, `AuditLog`). An Owner gets one `BusinessMember` row per Business they own (`role = OWNER`, created automatically when the Business is created, role locked thereafter), so an Owner acting on their own business and a regular team member resolve through the exact same field — and that reference is inherently scoped to the correct Business.
 - **FIFO cost tracing**: `StockBatchLine.quantityRemaining` tracks stock per purchase lot, and `SaleLineCost` links each sale line to the specific lot(s) it drew from, bu the cost will be snapshot in SaleLineCost
 - **Branch exists but is minimized**: every Business gets one auto-created `main` Branch at signup; every branch-scoped table carries `branchId`, but there is no multi-branch UI or switching in this version of the product — only one Branch per Business is ever created.
 - **Roles are a fixed enum** (`manager`, `cashier`, `server`) — no dynamic role/permission configuration.
-- **Nullable-FK-plus-application-layer-validation**, not database CHECK constraints, is the pattern used wherever a row's fields depend on its own type (`Actor`'s owner/staff pairing, `ProductUnit`'s role/standardUnitId pairing). Prisma's schema DSL has no native way to express a conditional CHECK constraint; the validation lives in the service layer instead, consistent with how every other business rule in this system is enforced.
+- **Nullable-FK-plus-application-layer-validation**, not database CHECK constraints, is the pattern used wherever a row's fields depend on its own type (`BusinessMember.ownerId` only being set when `role = OWNER`, `ProductUnit`'s role/standardUnitId pairing). Prisma's schema DSL has no native way to express a conditional CHECK constraint; the validation lives in the service layer instead, consistent with how every other business rule in this system is enforced.
 
 ---
 
@@ -41,7 +41,7 @@ A person, not scoped to any single business — one Owner can own multiple Busin
 | contactEmail | String? | optional, business-contact purposes only — not the login credential |
 | contactPhone | String? | optional |
 
-Relations: `businesses` (Business[]), `accountIdentity` (AccountIdentity?, 1:1), `actor` (Actor?, 1:1).
+Relations: `businesses` (Business[]), `accountIdentity` (AccountIdentity?, 1:1), `businessMemberships` (BusinessMember[] — one per Business owned, each with `role = OWNER`).
 
 ### `AccountIdentity`
 
@@ -51,14 +51,6 @@ The only place an auth-provider identifier is stored.
 | id | String (PK, ulid) | |
 | ownerId | String (FK → Owner, unique) | |
 | providerUserId | String (unique) | the auth provider's own user id |
-
-### `Actor`
-
-| Field   | Type                                   | Notes                                                                             |
-| ------- | -------------------------------------- | --------------------------------------------------------------------------------- |
-| id      | String (PK, ulid)                      |                                                                                   |
-| ownerId | String? (FK → Owner, unique, nullable) | exactly one of `ownerId`/`staffId` is non-null, enforced at the application layer |
-| staffId | String? (FK → Staff, unique, nullable) |                                                                                   |
 
 ### `Business`
 
@@ -82,20 +74,19 @@ The only place an auth-provider identifier is stored.
 | name       | String                 | default `"main"` — one created automatically at Business signup |
 | address    | String?                |                                                                 |
 
-### `Staff`
+### `BusinessMember`
 
-| Field      | Type                               | Notes                                    |
-| ---------- | ---------------------------------- | ---------------------------------------- |
-| id         | String (PK, ulid)                  |                                          |
-| businessId | String (FK → Business)             |                                          |
-| branchId   | String (FK → Branch)               | defaults to the business's `main` branch |
-| name       | String                             |                                          |
-| role       | enum(`manager`,`cashier`,`server`) | drives permission level                  |
-| active     | Boolean                            |                                          |
+every person who can act within a Business, including the Owner.
 
-Relations: `actor` (Actor?, 1:1).
-
----
+| Field      | Type                                       | Notes                                                                                                                                                                                        |
+| ---------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| id         | String (PK, ulid)                          |                                                                                                                                                                                              |
+| businessId | String (FK → Business)                     |                                                                                                                                                                                              |
+| branchId   | String (FK → Branch)                       | defaults to the business's `main` branch                                                                                                                                                     |
+| ownerId    | String? (FK → Owner, nullable)             | set **only** when `role = OWNER`; null for every other role                                                                                                                                  |
+| name       | String                                     |                                                                                                                                                                                              |
+| role       | enum(`owner`,`manager`,`cashier`,`server`) | drives permission level. A `role = owner` row is created automatically the moment its Business is created, and its role can never be changed thereafter — enforced at the application layer. |
+| active     | Boolean                                    |                                                                                                                                                                                              |
 
 ## 2. Units
 
@@ -184,16 +175,16 @@ No `sku`, no `cost_price` — neither is stored: SKU has no current feature depe
 
 ### `StockBatch`
 
-| Field             | Type                           | Notes                                                                                       |
-| ----------------- | ------------------------------ | ------------------------------------------------------------------------------------------- |
-| id                | String (PK, ulid)              |                                                                                             |
-| businessId        | String (FK → Business)         |                                                                                             |
-| branchId          | String (FK → Branch)           |                                                                                             |
-| supplierName      | String?                        |                                                                                             |
-| referenceNumber   | String?                        |                                                                                             |
-| batchDate         | DateTime                       |                                                                                             |
-| confirmedAt       | DateTime?                      | null = draft (freely editable); non-null = confirmed and locked for ledger-affecting fields |
-| receivedByActorId | String? (FK → Actor, nullable) |                                                                                             |
+| Field              | Type                                    | Notes                                                                                       |
+| ------------------ | --------------------------------------- | ------------------------------------------------------------------------------------------- |
+| id                 | String (PK, ulid)                       |                                                                                             |
+| businessId         | String (FK → Business)                  |                                                                                             |
+| branchId           | String (FK → Branch)                    |                                                                                             |
+| supplierName       | String?                                 |                                                                                             |
+| referenceNumber    | String?                                 |                                                                                             |
+| batchDate          | DateTime                                |                                                                                             |
+| confirmedAt        | DateTime?                               | null = draft (freely editable); non-null = confirmed and locked for ledger-affecting fields |
+| receivedByMemberId | String? (FK → BusinessMember, nullable) |                                                                                             |
 
 Once `confirmedAt` is set, each line's `purchaseUnit`, `purchaseQuantity`, `purchaseUnitCost`, `standardUnit`, `standardQuantity`, and `product` are locked against normal editing — with one deliberate exception: Owner/Manager can perform a direct override edit on a specific, known-wrong line, providing a required reason, captured in `AuditLog` as the field, its old value, and its new value. This is a rare, audited action, not a routine editing path. `supplierName`, `referenceNumber`, and each line's `expiryDate` remain freely editable regardless of confirmation status.
 
@@ -232,7 +223,7 @@ Damage or expiry discovered outside the normal sale flow — always tied to a re
 | resolvedStandardUnitId | String? (FK → StandardUnit, nullable, `onDelete: SetNull`) | traceability only, same pattern as `StockBatchLine` |
 | reason | enum(`DAMAGE`,`EXPIRED`,`OTHER`) | a fixed category, not free text, so losses are reliably reportable/filterable regardless of who recorded them |
 | reasonDetail | String? | optional free text alongside the category |
-| actorId | String (FK → Actor) | restricted to Owner/Manager |
+| businessMemberId | String (FK → BusinessMember) | restricted to Owner/Manager |
 | createdAt | DateTime | |
 
 No total-value field is stored — a Loss's value is `standardQuantity × StockBatchLine.purchaseUnitCost`, computed whenever needed rather than stored redundantly, same reasoning as dropping `SaleLine.lineSubtotal`.
@@ -243,21 +234,22 @@ No total-value field is stored — a Loss's value is `standardQuantity × StockB
 
 ### `Container`
 
-| Field            | Type                           | Notes                                                                                                                                                                                                                                                                                                                                                 |
-| ---------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| id               | String (PK, ulid)              |                                                                                                                                                                                                                                                                                                                                                       |
-| productId        | String (FK → Product)          | must have an MOU                                                                                                                                                                                                                                                                                                                                      |
-| branchId         | String (FK → Branch)           |                                                                                                                                                                                                                                                                                                                                                       |
-| stockBatchLineId | String (FK → StockBatchLine)   | ties a container to the specific purchase lot it was opened from, so partial-container sales get accurate FIFO costing too                                                                                                                                                                                                                            |
-| status           | enum(`OPEN`,`CLOSED`)          | never auto-closes                                                                                                                                                                                                                                                                                                                                     |
-| initialMouQty    | Decimal                        | set when opened                                                                                                                                                                                                                                                                                                                                       |
-| remainingMouQty  | Decimal                        | derived value, see §9                                                                                                                                                                                                                                                                                                                                 |
-| openedByActorId  | String (FK → Actor)            |                                                                                                                                                                                                                                                                                                                                                       |
-| openedAt         | DateTime                       |                                                                                                                                                                                                                                                                                                                                                       |
-| closedByActorId  | String? (FK → Actor, nullable) |                                                                                                                                                                                                                                                                                                                                                       |
-| closedAt         | DateTime?                      |                                                                                                                                                                                                                                                                                                                                                       |
-| deviation        | Decimal?                       | computed automatically at close, not entered manually — `initialMouQty − SUM(sale quantities recorded against this container)` at the moment of close. Positive = physical loss never recorded as a sale (over-pouring/spillage/theft). Negative = an allowed oversell (under-pouring beyond what the container should have held). Null until closed. |
-| closeReason      | String?                        | optional, never required                                                                                                                                                                                                                                                                                                                              |
+| Field            | Type                         | Notes                                                                                                                      |
+| ---------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| id               | String (PK, ulid)            |                                                                                                                            |
+| productId        | String (FK → Product)        | must have an MOU                                                                                                           |
+| branchId         | String (FK → Branch)         |                                                                                                                            |
+| stockBatchLineId | String (FK → StockBatchLine) | ties a container to the specific purchase lot it was opened from, so partial-container sales get accurate FIFO costing too |
+| status           | enum(`OPEN`,`CLOSED`)        | never auto-closes                                                                                                          |
+| initialMouQty    | Decimal                      | set when opened                                                                                                            |
+| remainingMouQty  | Decimal                      | derived value, see §9                                                                                                      |
+| openedByMemberId | String (FK → BusinessMember) |                                                                                                                            |
+| openedAt         | DateTime                     |                                                                                                                            |
+
+| closedByMemberId | String? (FK → BusinessMember, nullable) | |
+
+| deviation | Decimal? | computed automatically at close, not entered manually — `initialMouQty − SUM(sale quantities recorded against this container)` at the moment of close. Positive = physical loss never recorded as a sale (over-pouring/spillage/theft). Negative = an allowed oversell (under-pouring beyond what the container should have held). Null until closed. |
+| closeReason | String? | optional, never required |
 
 Multiple containers of the same product can be open simultaneously. Closing is always a manual action, never automatic even at zero remaining — closing itself is what signals nothing further will be sold from it.
 
@@ -280,24 +272,24 @@ No login — exists so a Pending/Partially-Paid sale can answer "who owes this."
 
 ### `Sale`
 
-| Field                        | Type                                    | Notes                                                                                                                                   |
-| ---------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| id                           | String (PK, ulid)                       |                                                                                                                                         |
-| businessId                   | String (FK → Business)                  |                                                                                                                                         |
-| branchId                     | String (FK → Branch)                    |                                                                                                                                         |
-| invoiceNumber                | String (UQ per branch)                  |                                                                                                                                         |
-| processedByActorId           | String (FK → Actor)                     | who processed it, captured automatically                                                                                                |
-| staffId                      | String? (FK → Staff, nullable)          | Server attribution only, whole-sale-level — a waiter who took the order but didn't process the sale; distinct from `processedByActorId` |
-| customerId                   | String? (FK → Customer, nullable)       |                                                                                                                                         |
-| saleDatetime                 | DateTime                                |                                                                                                                                         |
-| discount                     | Decimal?                                |                                                                                                                                         |
-| taxRateApplied               | Decimal                                 | snapshot of business rate at time of sale                                                                                               |
-| subtotal / taxAmount / total | Decimal                                 |                                                                                                                                         |
-| paymentStatus                | enum(`PAID`,`PENDING`,`PARTIALLY_PAID`) |                                                                                                                                         |
-| amountPaid                   | Decimal                                 | derived value — `SUM(Payment.amount)` for this sale, see §9                                                                             |
-| balanceDue                   | Decimal                                 | derived — `total − amountPaid`                                                                                                          |
-| voidStatus                   | enum(`NONE`,`VOIDED`)                   | Void (shouldn't have happened, full reversal) is kept distinct from Refund (happened, goods returned, per-line restock choice)          |
-| voidReason                   | String?                                 |                                                                                                                                         |
+| Field                        | Type                                    | Notes                                                                                                                                                                          |
+| ---------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| id                           | String (PK, ulid)                       |                                                                                                                                                                                |
+| businessId                   | String (FK → Business)                  |                                                                                                                                                                                |
+| branchId                     | String (FK → Branch)                    |                                                                                                                                                                                |
+| invoiceNumber                | String (UQ per branch)                  |                                                                                                                                                                                |
+| processedByMemberId          | String (FK → BusinessMember)            | who processed it, captured automatically                                                                                                                                       |
+| serverMemberId               | String? (FK → BusinessMember, nullable) | Server attribution only, whole-sale-level — a waiter who took the order but didn't process the sale; distinct from `processedByBusinessMemberId`; always a `role = server` row |
+| customerId                   | String? (FK → Customer, nullable)       |                                                                                                                                                                                |
+| saleDatetime                 | DateTime                                |                                                                                                                                                                                |
+| discount                     | Decimal?                                |                                                                                                                                                                                |
+| taxRateApplied               | Decimal                                 | snapshot of business rate at time of sale                                                                                                                                      |
+| subtotal / taxAmount / total | Decimal                                 |                                                                                                                                                                                |
+| paymentStatus                | enum(`PAID`,`PENDING`,`PARTIALLY_PAID`) |                                                                                                                                                                                |
+| amountPaid                   | Decimal                                 | derived value — `SUM(Payment.amount)` for this sale, see §9                                                                                                                    |
+| balanceDue                   | Decimal                                 | derived — `total − amountPaid`                                                                                                                                                 |
+| voidStatus                   | enum(`NONE`,`VOIDED`)                   | Void (shouldn't have happened, full reversal) is kept distinct from Refund (happened, goods returned, per-line restock choice)                                                 |
+| voidReason                   | String?                                 |                                                                                                                                                                                |
 
 ### `SaleLine`
 
@@ -332,15 +324,15 @@ Links a sale line to the specific purchase lot(s) it drew from — kept as a gen
 
 ### `Payment`
 
-| Field        | Type                                                       | Notes                                                                                                                                                                        |
-| ------------ | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| id           | String (PK, ulid)                                          |                                                                                                                                                                              |
-| saleId       | String (FK → Sale)                                         |                                                                                                                                                                              |
-| amount       | Decimal                                                    |                                                                                                                                                                              |
-| paidAt       | DateTime                                                   |                                                                                                                                                                              |
-| actorId      | String (FK → Actor)                                        | who recorded it                                                                                                                                                              |
-| method       | enum(`CASH`,`CARD`,`BANK_TRANSFER`,`MOBILE_MONEY`,`OTHER`) |                                                                                                                                                                              |
-| methodDetail | String?                                                    | free-text, for the `OTHER` case or extra specificity (e.g. which mobile money provider) — keeps the enum from being a dead end given how much payment methods vary by region |
+| Field            | Type                                                       | Notes                                                                                                                                                                        |
+| ---------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| id               | String (PK, ulid)                                          |                                                                                                                                                                              |
+| saleId           | String (FK → Sale)                                         |                                                                                                                                                                              |
+| amount           | Decimal                                                    |                                                                                                                                                                              |
+| paidAt           | DateTime                                                   |                                                                                                                                                                              |
+| businessMemberId | String (FK → BusinessMember)                               | who recorded it                                                                                                                                                              |
+| method           | enum(`CASH`,`CARD`,`BANK_TRANSFER`,`MOBILE_MONEY`,`OTHER`) |                                                                                                                                                                              |
+| methodDetail     | String?                                                    | free-text, for the `OTHER` case or extra specificity (e.g. which mobile money provider) — keeps the enum from being a dead end given how much payment methods vary by region |
 
 ---
 
@@ -356,7 +348,7 @@ Append-only. Written explicitly by the application's service layer, in the same 
 | entityType | enum(`STOCK_BATCH`,`SALE`,`CONTAINER`,`INVENTORY_ADJUSTMENT`,`STAFF`,`BUSINESS`,`PRODUCT`,…) | |
 | entityId | String | |
 | action | enum(`CREATED`,`CONFIRMED`,`VOIDED`,`CLOSED`,`REFUNDED`,`ADJUSTED`,`UPDATED`,`DEACTIVATED`,…) | |
-| actorId | String (FK → Actor) | |
+| businessMemberId | String (FK → BusinessMember) | |
 | occurredAt | DateTime | |
 | metadata | Json | free-form details not captured by fixed columns |
 
@@ -365,7 +357,7 @@ Append-only. Written explicitly by the application's service layer, in the same 
 ## 8. Key Relationships Summary
 
 ```
-Owner ──< Business ──< Branch ──< Staff
+Owner ──< Business ──< Branch ──< BusinessMember
                     └──< Category
                     └──< Customer
                     └──< Product ──< ProductUnit
@@ -373,10 +365,11 @@ Owner ──< Business ──< Branch ──< Staff
                     └──< Sale ──< SaleLine ──< SaleLineCost >── StockBatchLine
                                 └──< Payment
 
-Owner ──── Actor (1:1, nullable)
-Staff ──── Actor (1:1, nullable)
-   Actor is referenced by: StockBatch.receivedByActorId, Container.openedByActorId/closedByActorId,
-   Sale.processedByActorId, Loss.actorId, Payment.actorId, AuditLog.actorId
+Owner ──< BusinessMember (one per Business owned, role = owner)
+Business ──< BusinessMember (includes the owner + every regular team member)
+   BusinessMember is referenced by: StockBatch.receivedByBusinessMemberId, Container.openedByMemberId/closedByMemberId, Sale.processedByMemberId,
+   Sale.serverMemberId (attribution only), Loss.businessMemberId, Payment.businessMemberId,
+   AuditLog.businessMemberId
 
 Dimension ──< StandardUnit
 Dimension ─── DimensionReference ──> StandardUnit
