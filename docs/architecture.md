@@ -2,6 +2,22 @@
 
 ## Inventory & Sales Management App for Small/Medium Businesses
 
+## Table of Contents
+
+1. [Stack Summary](#1-stack-summary)
+2. [High-Level Shape](#2-high-level-shape)
+3. [Frontend](#3-frontend)
+4. [Backend](#4-backend)
+5. [Database & ORM](#5-database--orm)
+6. [Auth & Authorization](#6-auth--authorization)
+7. [Hosting & Deployment](#7-hosting--deployment)
+8. [Cross-Cutting Concerns](#8-cross-cutting-concerns)
+9. [What This Doc Deliberately Skips](#9-what-this-doc-deliberately-skips-v1)
+10. [Repository Structure](#10-repository-structure)
+11. [Open Decisions](#11-open-decisions)
+
+---
+
 ---
 
 ## 1. Stack Summary
@@ -12,6 +28,7 @@
 | Backend  | Node.js + Express + TypeScript                                                 |
 | Database | PostgreSQL                                                                     |
 | ORM      | Prisma                                                                         |
+| Test     | vitest + react testing library + supertest                                     |
 | Auth     | Supabase Auth (auth only, not DB/storage/functions)                            |
 | Hosting  | Vercel (frontend) + Render or Railway (backend) + Supabase Postgres (database) |
 
@@ -81,7 +98,7 @@ A single Express API serving a single-page React app, backed by one Postgres dat
       adjustments/
       containers/
       sales/
-      identity/    (owners, staff, account_identities)
+      identity/    (Owner, Business, Branch, Staff, Actor, AccountIdentity)
       auth/
     shared/
       middleware/
@@ -89,7 +106,7 @@ A single Express API serving a single-page React app, backed by one Postgres dat
       errors/
     app.ts
   ```
-  Within a module: `routes` stay thin (HTTP only), `controller` handles request/response, `service` holds the actual business logic (unit conversion, container targeting, batch locking, deviation calc) — this is where the PRD's rules live in code.
+  Within a module: `routes` stay thin (HTTP only), `controller` handles request/response, `service` holds the actual business logic (unit conversion, FIFO lot allocation, Loss lot suggestion, container targeting, batch locking, deviation calc) — this is where the PRD's rules live in code.
 - **Validation:** two separate workspaces, shared by `apps/api` and `apps/web`:
   - `packages/types` — plain TypeScript domain/DTO types only (`Product`, `Sale`, `Batch`, `Container`, …), no runtime dependencies. This is the wire contract every part of the system agrees on.
   - `packages/validation` — depends on `packages/types`, builds Zod schemas _against_ those types internally, and exposes only validation-specific surface: `validateX(data: unknown)` functions, plus types relevant to validation itself (`ValidationResult<T>`, `ValidationError`) — never the domain types (those come from `packages/types` directly) and never Zod itself. If the validation library is ever swapped, it's contained entirely to this one package.
@@ -103,22 +120,22 @@ A single Express API serving a single-page React app, backed by one Postgres dat
 
 - **Postgres**, hosted on **Supabase's managed Postgres** — reusing the same Supabase project you're already using for Auth avoids standing up a second infra provider, and Prisma connects to it like any other Postgres instance (direct connection string, bypassing Supabase's client library for data access — Supabase is used for Auth only, as you specified).
 - **Prisma** owns schema/migrations. Supabase's own dashboard/tools for the DB are avoided for schema changes to prevent drift — Prisma migrations are the single source of truth.
-- **Resolving the schema doc's open polymorphic-reference question:** Prisma doesn't model true polymorphic foreign keys cleanly. Recommend **three nullable FK columns** (e.g. `product_mou_id`, `standard_unit_id`, `custom_unit_id` on `sale_lines`/`batch_lines`/`unit_prices`, exactly one non-null per row, enforced via a DB check constraint) instead of a single polymorphic `unit_ref_id`. Slightly more columns, but plays well with Prisma relations, keeps referential integrity enforced by Postgres itself, and is easy to query/join normally.
+- **Unit references:** every transactable unit a product has lives as one row in a single `ProductUnit` table (Base Unit, MOU, explicitly-added same-dimension Standard Units, and custom units like `shot` are all just rows there, distinguished by a `unitRole` enum). This means `StockBatchLine`, `SaleLine`, and `Loss` each need only **one** FK — `productUnitId` — rather than a polymorphic reference across multiple unit tables. Whether a row's `standardUnitId` should be null (for a `CUSTOM` row) or set (for `BASE`/`MOU`/`STANDARD`) is validated at the application layer, not via a database CHECK constraint — Prisma's schema DSL has no native way to express that conditional rule, and application-layer validation keeps this consistent with how every other business rule in the system is enforced.
+- **Actor references:** every action-recording table (`StockBatch`, `Container`, `Sale`, `Loss`, `Payment`, `AuditLog`) references a single `Actor` supertype rather than a nullable Owner/Staff pair — `Actor` itself holds the nullable `ownerId`/`staffId` pair (exactly one non-null, application-validated), so everything downstream of it only needs one FK.
 - **Migrations:** `prisma migrate dev` locally, `prisma migrate deploy` in CI/deploy step — never hand-edit the production schema.
 
 ---
 
 ## 6. Auth & Authorization
 
-- **Supabase Auth** handles signup/login/session/JWT issuance only — no reliance on Supabase's database, storage, or edge functions.
-- **Identity is decoupled from the auth provider via `account_identities`** (schema §1) — the provider's user id is stored in exactly one place, linked to either an `owners` row or a `staff` row, never embedded directly in business-logic tables. If the auth provider ever changes, only `account_identities` is affected.
-- **Two distinct provisioning paths, not one:**
-  - **Owner:** the only self-service signup in the app. Completing signup creates a Supabase identity, an `owners` row, an `account_identities` link, and the Owner's first `businesses` row, together.
-  - **Staff (Manager/Cashier/Server):** no self-service signup and no invite-link flow. An Owner/Manager creates a `staff` row directly and, if that role needs app access, creates its Supabase identity via the admin API and hands over credentials themselves.
-- **Every API request** carries the JWT; Express middleware verifies it, extracts the provider user id, and resolves it through `account_identities` to either an `owners` row or a `staff` row.
-- **Business context resolution:** since one Owner can operate multiple Businesses, the active business for a request can't be inferred from identity alone — it must be explicit (e.g. a selected-business id in a header or route), validated against the Owner's actual businesses server-side. A Staff member has no such ambiguity, since each `staff` row is scoped to exactly one business already.
-- **Authorization:** role-based checks in the service layer (`requireRole(['manager'])`, or "must be the resolved business's Owner") rather than a full permissions framework — matches the PRD's flat model. An Owner always has full access within a business they own; Staff permissions follow their `role` (`manager`/`cashier`/`server`).
-- **Servers** are no longer a separate concept — they're `staff` rows with `role = 'server'`, which typically have no `account_identities` link at all (no login), but that's not hard-enforced by the schema.
+- **Supabase Auth** handles signup/login/session/JWT issuance for **Owners only**, at this stage — no reliance on Supabase's database, storage, or edge functions. Staff login is not yet designed; `Staff` currently has no credential fields at all, and this section will be revisited once that's built out.
+- **Identity is decoupled from the auth provider via `AccountIdentity`** (schema §1) — the provider's user id is stored in exactly one place, linked to an `Owner`, never embedded directly in business-logic tables. If the auth provider ever changes, only `AccountIdentity` is affected.
+- **Signup:** the only self-service signup in the app. Completing signup creates a Supabase identity, an `Owner` row, an `AccountIdentity` link, and the Owner's first `Business` (with its auto-created `main` `Branch`), together.
+- **`Actor` as the acting-identity supertype:** every action-recording table (`StockBatch`, `Container`, `Sale`, `Loss`, `Payment`, `AuditLog`) references a single `Actor` row rather than an Owner or Staff directly. Once Staff login exists, an authenticated request resolves to either an `Owner`'s `Actor` or a `Staff` member's `Actor` — everything downstream of that point (permission checks, audit trail, "who did this") only ever deals with one `Actor` id, regardless of which kind of identity is behind it.
+- **Every API request** carries the JWT; Express middleware verifies it, extracts the provider user id, and resolves it through `AccountIdentity` to an `Owner`, then to that Owner's `Actor`.
+- **Business context resolution:** since one Owner can operate multiple Businesses, the active business for a request can't be inferred from identity alone — it must be explicit (e.g. a selected-business id in a header or route), validated against the Owner's actual businesses server-side.
+- **Authorization:** role-based checks in the service layer (`requireRole(['manager'])`, or "must be the resolved business's Owner") rather than a full permissions framework — matches the PRD's flat model. Roles are a fixed enum (`manager`/`cashier`/`server`), not a configurable permissions system.
+- **Branch** exists in the data model (every business gets one auto-created `main` branch), but there is no branch-switching or multi-branch UI to authorize against yet — every request's tenant scoping is effectively business-level.
 
 ---
 
@@ -134,11 +151,10 @@ A single Express API serving a single-page React app, backed by one Postgres dat
 
 ## 8. Cross-Cutting Concerns
 
-- **Logging:** structured request/error logging (e.g. `pino`) on the backend; enough to debug production issues without building a full observability stack yet.
 - **Audit log (`audit_log` table from schema):** written from the service layer at the point of the action (batch confirm, sale void, container close, adjustment) — not reconstructed later from other tables.
 - **Error handling:** centralized Express error-handling middleware, consistent JSON error shape (`{ error: { code, message } }`) so the frontend can handle failures uniformly.
 - **Testing:** automated tests are required (not optional), with CI already wired up on push (Render + Vercel deploy pipelines running tests). Recommend **Vitest** (fast, native TS/ESM support, works cleanly across a pnpm monorepo) for both unit and integration tests, plus **Supertest** for API endpoint integration tests. Priority order given solo bandwidth:
-  1. Unit tests for the service layer — unit conversion, container targeting/deviation calc, batch locking — this is where the PRD's trickiest rules live and where a silent bug shows up as _wrong stock numbers_, not a crash.
+  1. Unit tests for the service layer — unit conversion, FIFO lot allocation across StockBatchLines, Loss's default-lot suggestion, container targeting/deviation calc, batch locking, the direct-override-edit permission/audit path — this is where the PRD's trickiest rules live and where a silent bug shows up as _wrong stock numbers_, not a crash.
   2. Integration tests for API endpoints that mutate stock (batch confirm, sale creation, container close, adjustments) — verifying the DB ends up in the right state, not just that the HTTP call succeeds.
   3. Frontend component/unit tests as time allows — lower priority than the two above for this app's risk profile.
 - **Backups:** rely on Supabase's built-in Postgres backups initially; confirm retention window is acceptable, revisit if not.
@@ -189,7 +205,7 @@ Monorepo, managed with **pnpm workspaces**. Full tree:
           adjustments/
           containers/
           sales/
-          identity/    (owners, staff, account_identities)
+          identity/    (Owner, Business, Branch, Staff, Actor, AccountIdentity)
           auth/
         shared/
           middleware/
@@ -223,11 +239,4 @@ Monorepo, managed with **pnpm workspaces**. Full tree:
   package.json                (root — scripts, dev tooling)
 ```
 
-Prisma (schema, migrations, seed script, generated client) lives entirely inside `apps/api` rather than as its own package — `apps/web` never touches the database (Prisma's client is Node-only and can't run in a browser bundle), so there's no second app to share it with. `packages/types` and `packages/validation` earn their place as separate packages because both `apps/web` and `apps/api` genuinely import them at runtime; nothing else in the repo currently clears that bar. Migrations, seeding, and client generation are run directly against the API package: `pnpm --filter api exec prisma migrate dev`, `pnpm --filter api exec prisma db seed`, `pnpm --filter api exec prisma generate`.
-
----
-
-## 11. Open Decisions
-
-1. **PDF invoice generation** — confirmed as deferred (shareable link first) unless a concrete near-term need for downloadable PDFs comes up.
-2. **Staging environment now vs. later** — worth setting up early (cheap on all three platforms) or acceptable to defer until closer to real users?
+Prisma (schema, migrations, seed script, generated client) lives entirely inside `apps/api` rather than as its own package `packages/types` and `packages/validation` earn their place as separate packages because both `apps/web` and `apps/api` genuinely import them at runtime; nothing else in the repo currently clears that bar. Migrations, seeding, and client generation are run directly against the API package: `pnpm --filter api exec prisma migrate dev`, `pnpm --filter api exec prisma db seed`, `pnpm --filter api exec prisma generate`.
