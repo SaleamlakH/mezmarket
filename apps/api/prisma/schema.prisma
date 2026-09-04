@@ -1,0 +1,737 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ==========================================
+// ENUMS
+// ==========================================
+
+enum TaxDisplayMode {
+  EXCLUSIVE
+  INCLUSIVE
+}
+
+enum StaffRole {
+  MANAGER
+  CASHIER
+  SERVER
+}
+
+enum UnitRole {
+  BASE
+  MOU
+  STANDARD
+  CUSTOM
+}
+
+enum UnitDependsOn {
+  BASE
+  MOU
+}
+
+enum ContainerStatus {
+  OPEN
+  CLOSED
+}
+
+enum PaymentStatus {
+  PAID
+  PENDING
+  PARTIALLY_PAID
+}
+
+enum VoidStatus {
+  NONE
+  VOIDED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  BANK_TRANSFER
+  MOBILE_MONEY
+  OTHER
+}
+
+enum LossReason {
+  DAMAGE
+  EXPIRED
+  OTHER
+}
+
+// Extend as new event types/actions are needed
+enum AuditEntityType {
+  STOCK_BATCH
+  STOCK_BATCH_LINE
+  SALE
+  CONTAINER
+  LOSS
+  STAFF
+  BUSINESS
+  PRODUCT
+}
+
+enum AuditAction {
+  CREATED
+  CONFIRMED
+  VOIDED
+  CLOSED
+  REFUNDED
+  UPDATED
+  DEACTIVATED
+}
+
+// ==========================================
+// IDENTITY & TENANCY
+// ==========================================
+
+model Owner {
+  id           String  @id @default(ulid())
+  name         String
+  contactEmail String?
+  contactPhone String?
+
+  businesses      Business[]
+  accountIdentity AccountIdentity?
+  actor           Actor?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("owner")
+}
+
+model AccountIdentity {
+  id String @id @default(ulid())
+
+  ownerId String @unique
+  owner   Owner  @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  providerUserId String @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("account_identity")
+}
+
+// Supertype resolving "who did this" to a single FK across every action-recording table.
+// Exactly one of ownerId / staffId is non-null — enforced at the application layer.
+model Actor {
+  id String @id @default(ulid())
+
+  ownerId String? @unique
+  owner   Owner?  @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  staffId String? @unique
+  staff   Staff?  @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  receivedStockBatches StockBatch[] @relation("StockBatchReceivedBy")
+  openedContainers     Container[]  @relation("ContainerOpenedBy")
+  closedContainers     Container[]  @relation("ContainerClosedBy")
+  processedSales       Sale[]       @relation("SaleProcessedBy")
+  losses               Loss[]
+  payments             Payment[]
+  auditLogs            AuditLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("actor")
+}
+
+model Business {
+  id String @id @default(ulid())
+
+  ownerId String
+  owner   Owner  @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  name                     String
+  currencyCode             String
+  defaultTaxRate           Decimal?       @db.Decimal(6, 4)
+  taxDisplayMode           TaxDisplayMode @default(EXCLUSIVE)
+  allowNegativeStock       Boolean        @default(true)
+  lowStockDefaultThreshold Decimal?       @db.Decimal(12, 4)
+
+  branches     Branch[]
+  staff        Staff[]
+  categories   Category[]
+  products     Product[]
+  stockBatches StockBatch[]
+  sales        Sale[]
+  customers    Customer[]
+  auditLogs    AuditLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId])
+  @@map("business")
+}
+
+// One Branch ("main") is auto-created per Business at signup. No multi-branch UI/switching
+// exists yet — the field is scaffolding kept for future ease, per design discussion.
+model Branch {
+  id String @id @default(ulid())
+
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  name    String  @default("main")
+  address String?
+
+  staff        Staff[]
+  products     Product[]
+  stockBatches StockBatch[]
+  containers   Container[]
+  sales        Sale[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([businessId])
+  @@map("branch")
+}
+
+// Login credentials are intentionally not modeled yet — deferred to the Staff Management epic.
+model Staff {
+  id String @id @default(ulid())
+
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  branchId   String
+  branch     Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  name   String
+  role   StaffRole
+  active Boolean   @default(true)
+
+  actor Actor?
+
+  // Sale.staffId (Server attribution only, not the acting actor)
+  attributedSales Sale[] @relation("SaleServerAttribution")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([businessId])
+  @@index([branchId])
+  @@map("staff")
+}
+
+// ==========================================
+// UNITS
+// ==========================================
+
+model Dimension {
+  id   String @id @default(ulid())
+  name String @unique
+
+  standardUnits StandardUnit[]
+  reference     DimensionReference?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("dimension")
+}
+
+// Separate join table (rather than a nullable self-referencing column on Dimension) so a
+// Dimension never exists in a temporarily-invalid state on the way to having a reference unit.
+model DimensionReference {
+  dimensionId String    @id
+  dimension   Dimension @relation(fields: [dimensionId], references: [id], onDelete: Cascade)
+
+  standardUnitId String
+  standardUnit   StandardUnit @relation(fields: [standardUnitId], references: [id])
+
+  @@map("dimension_reference")
+}
+
+model StandardUnit {
+  id String @id @default(ulid())
+
+  dimensionId String
+  dimension   Dimension @relation(fields: [dimensionId], references: [id], onDelete: Cascade)
+
+  name   String
+  symbol String
+
+  // How many of this unit equal one of the dimension's reference unit
+  ratioToReferenceUnit Decimal @db.Decimal(18, 6)
+
+  dimensionReferences DimensionReference[]
+  productUnits        ProductUnit[]
+
+  // Traceability-only reverse relations from snapshot fields elsewhere
+  stockBatchLines StockBatchLine[]
+  saleLines       SaleLine[]
+  losses          Loss[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([dimensionId])
+  @@map("standard_unit")
+}
+
+// Every transactable unit a product has — Base Unit, MOU, an explicitly-added same-dimension
+// Standard Unit, or a genuinely custom label — is one row here.
+model ProductUnit {
+  id String @id @default(ulid())
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  unitRole UnitRole
+
+  // Non-null for BASE / MOU / STANDARD; null for CUSTOM. Validated at the application layer —
+  // no DB CHECK constraint (Prisma's schema DSL can't express the conditional rule natively).
+  standardUnitId String?
+  standardUnit   StandardUnit? @relation(fields: [standardUnitId], references: [id], onDelete: Restrict)
+
+  name String
+
+  // Null only for the BASE row itself
+  dependsOn UnitDependsOn?
+
+  // Relative to whichever unit `dependsOn` points at. Computed automatically for STANDARD rows
+  // (derived from both units' ratioToReferenceUnit); entered manually for CUSTOM rows.
+  conversionRate Decimal? @db.Decimal(18, 6)
+
+  price           Decimal? @db.Decimal(10, 2)
+  purchaseCapable Boolean  @default(false)
+  sellCapable     Boolean  @default(false)
+
+  // Traceability-only reverse relations from snapshot fields elsewhere
+  stockBatchLines StockBatchLine[]
+  saleLines       SaleLine[]
+  losses          Loss[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([productId, name])
+  @@index([productId])
+  @@map("product_unit")
+}
+
+// ==========================================
+// CATALOG
+// ==========================================
+
+model Product {
+  id String @id @default(ulid())
+
+  businessId String
+  business   Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  branchId   String
+  branch     Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  name        String
+  brand       String?
+  description String?
+  photoUrl    String?
+
+  // Requires an MOU and a qualifying sell-capable unit smaller than 1 Base Unit
+  trackAsPartial Boolean @default(false)
+
+  lowStockThreshold Decimal? @db.Decimal(12, 4)
+
+  // Derived value — recomputable from StockBatchLine / SaleLine / Loss; cached here
+  currentSealedStock Decimal @default(0) @db.Decimal(12, 4)
+
+  active Boolean @default(true)
+
+  productUnits    ProductUnit[]
+  stockBatchLines StockBatchLine[]
+  containers      Container[]
+  losses          Loss[]
+  saleLines       SaleLine[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([businessId])
+  @@index([branchId])
+  @@index([categoryId])
+  @@map("product")
+}
+
+model Category {
+  id String @id @default(ulid())
+
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+
+  products Product[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([businessId, name])
+  @@map("category")
+}
+
+// ==========================================
+// INVENTORY INTAKE
+// ==========================================
+
+model StockBatch {
+  id String @id @default(ulid())
+
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  branchId   String
+  branch     Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  supplierName    String?
+  referenceNumber String?
+  batchDate       DateTime
+
+  // null = draft (freely editable); non-null = confirmed and locked for ledger-affecting fields
+  confirmedAt DateTime?
+
+  receivedByActorId String?
+  receivedByActor   Actor?  @relation("StockBatchReceivedBy", fields: [receivedByActorId], references: [id], onDelete: SetNull)
+
+  lines StockBatchLine[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([businessId])
+  @@index([branchId])
+  @@map("stock_batch")
+}
+
+model StockBatchLine {
+  id String @id @default(ulid())
+
+  stockBatchId String
+  stockBatch   StockBatch @relation(fields: [stockBatchId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  // --- Snapshot: as purchased (locked once StockBatch.confirmedAt is set) ---
+  purchaseUnit     String
+  purchaseQuantity Decimal @db.Decimal(12, 4)
+  purchaseUnitCost Decimal @db.Decimal(10, 2)
+
+  // --- Snapshot: normalized to standard-unit terms (locked once confirmed) ---
+  standardUnit     String
+  standardQuantity Decimal @db.Decimal(12, 4)
+
+  // --- Traceability only — never relied on to display historical facts ---
+  productUnitId String?
+  productUnit   ProductUnit? @relation(fields: [productUnitId], references: [id], onDelete: SetNull)
+
+  resolvedStandardUnitId String?
+  resolvedStandardUnit   StandardUnit? @relation(fields: [resolvedStandardUnitId], references: [id], onDelete: SetNull)
+
+  // Derived value — standardQuantity minus SUM(SaleLineCost.quantityPulled) minus SUM(Loss.standardQuantity)
+  // against this line. Cached for fast lookups; recomputable if it ever drifts.
+  quantityRemaining Decimal @default(0) @db.Decimal(12, 4)
+
+  expiryDate DateTime?
+
+  containers    Container[]
+  saleLineCosts SaleLineCost[]
+  losses        Loss[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([stockBatchId])
+  @@index([productId])
+  @@map("stock_batch_line")
+}
+
+// Damage or expiry discovered outside the normal sale flow — always tied to a real purchase lot,
+// never estimated. Stock-take-driven surplus/shortage (no known cause) is deliberately out of
+// scope; several designs are possible (e.g. a session concept grouping many corrections at once)
+// but none has been chosen, so it's tracked as separate future scope rather than folded in here.
+model Loss {
+  id String @id @default(ulid())
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  // Required — system suggests the oldest lot of this product with remaining stock as a default,
+  // the actor can select a different one if the specific lot is known to differ. Because this is
+  // always a real, locked purchase record, cost is read live from StockBatchLine.purchaseUnitCost
+  // — there is no separate cost/value field here, and nothing is ever estimated.
+  stockBatchLineId String
+  stockBatchLine   StockBatchLine @relation(fields: [stockBatchLineId], references: [id])
+
+  // --- Snapshot: as entered, matching how the loss was actually discovered/counted ---
+  unit     String
+  quantity Decimal @db.Decimal(12, 4)
+
+  // --- Snapshot: normalized to standard-unit terms — this feeds the actual ledger math ---
+  standardUnit     String
+  standardQuantity Decimal @db.Decimal(12, 4)
+
+  // --- Traceability only ---
+  productUnitId String?
+  productUnit   ProductUnit? @relation(fields: [productUnitId], references: [id], onDelete: SetNull)
+
+  resolvedStandardUnitId String?
+  resolvedStandardUnit   StandardUnit? @relation(fields: [resolvedStandardUnitId], references: [id], onDelete: SetNull)
+
+  // Fixed category, not free text, so losses are reliably reportable/filterable regardless of
+  // who recorded them
+  reason       LossReason
+  reasonDetail String?
+
+  // Restricted to Owner/Manager
+  actorId String
+  actor   Actor  @relation(fields: [actorId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+  @@index([stockBatchLineId])
+  @@map("loss")
+}
+
+// ==========================================
+// OPEN CONTAINERS
+// ==========================================
+
+model Container {
+  id String @id @default(ulid())
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  branchId  String
+  branch    Branch  @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  // Ties this container to the specific purchase lot it was opened from, for FIFO costing
+  stockBatchLineId String
+  stockBatchLine   StockBatchLine @relation(fields: [stockBatchLineId], references: [id])
+
+  status ContainerStatus @default(OPEN)
+
+  initialMouQty   Decimal @db.Decimal(12, 4)
+  // Derived value — see StockBatchLine.quantityRemaining note; same recompute-from-ledger pattern
+  remainingMouQty Decimal @db.Decimal(12, 4)
+
+  openedByActorId String
+  openedByActor   Actor    @relation("ContainerOpenedBy", fields: [openedByActorId], references: [id])
+  openedAt        DateTime @default(now())
+
+  closedByActorId String?
+  closedByActor   Actor?    @relation("ContainerClosedBy", fields: [closedByActorId], references: [id], onDelete: SetNull)
+  closedAt        DateTime?
+
+  // Computed automatically at close: initialMouQty - SUM(sale quantities against this container).
+  // Positive = physical loss never recorded as a sale. Negative = an allowed oversell. Null until closed.
+  deviation Decimal? @db.Decimal(12, 4)
+
+  closeReason String?
+
+  saleLines SaleLine[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productId, status])
+  @@index([branchId])
+  @@map("container")
+}
+
+// ==========================================
+// SALES
+// ==========================================
+
+model Customer {
+  id String @id @default(ulid())
+
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  name         String
+  contactPhone String?
+  contactEmail String?
+  active       Boolean @default(true)
+
+  sales Sale[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([businessId])
+  @@map("customer")
+}
+
+model Sale {
+  id String @id @default(ulid())
+
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  branchId   String
+  branch     Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  invoiceNumber String
+
+  processedByActorId String
+  processedByActor   Actor  @relation("SaleProcessedBy", fields: [processedByActorId], references: [id])
+
+  // Server attribution only, whole-sale-level — distinct from processedByActorId
+  staffId String?
+  staff   Staff?  @relation("SaleServerAttribution", fields: [staffId], references: [id], onDelete: SetNull)
+
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  saleDatetime DateTime @default(now())
+
+  discount       Decimal? @db.Decimal(10, 2)
+  taxRateApplied Decimal  @db.Decimal(6, 4)
+  subtotal       Decimal  @db.Decimal(10, 2)
+  taxAmount      Decimal  @db.Decimal(10, 2)
+  total          Decimal  @db.Decimal(10, 2)
+
+  paymentStatus PaymentStatus @default(PENDING)
+
+  // Derived values — SUM(Payment.amount) and total - amountPaid
+  amountPaid Decimal @default(0) @db.Decimal(10, 2)
+  balanceDue Decimal @default(0) @db.Decimal(10, 2)
+
+  voidStatus VoidStatus @default(NONE)
+  voidReason String?
+
+  lines    SaleLine[]
+  payments Payment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([branchId, invoiceNumber])
+  @@index([businessId])
+  @@index([branchId])
+  @@map("sale")
+}
+
+model SaleLine {
+  id String @id @default(ulid())
+
+  saleId    String
+  sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  // --- Snapshot: as sold ---
+  soldUnit String
+  quantity Decimal @db.Decimal(12, 4)
+
+  // --- Snapshot: normalized to standard-unit terms ---
+  standardUnit           String
+  quantityInStandardUnit Decimal @db.Decimal(12, 4)
+
+  // --- Traceability only ---
+  productUnitId String?
+  productUnit   ProductUnit? @relation(fields: [productUnitId], references: [id], onDelete: SetNull)
+
+  resolvedStandardUnitId String?
+  resolvedStandardUnit   StandardUnit? @relation(fields: [resolvedStandardUnitId], references: [id], onDelete: SetNull)
+
+  unitPrice Decimal @db.Decimal(10, 2)
+  // No stored lineSubtotal — it's quantity * unitPrice, derived at query/render time
+
+  // Set only for partial sales, targeting one selected container
+  containerId String?
+  container   Container? @relation(fields: [containerId], references: [id], onDelete: SetNull)
+
+  refunded        Boolean @default(false)
+  refundRestocked Boolean @default(false)
+
+  costs SaleLineCost[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([saleId])
+  @@index([containerId])
+  @@map("sale_line")
+}
+
+// Links a sale line to the specific purchase lot(s) it drew from. A genuine 
+// atomic fact (a real FIFO allocation decision), kept because one sale line 
+// can legitimately split across multiple lots if the oldest lot ran out mid-line.
+model SaleLineCost {
+  id String @id @default(ulid())
+
+  saleLineId String
+  saleLine   SaleLine @relation(fields: [saleLineId], references: [id], onDelete: Cascade)
+
+  stockBatchLineId String
+  stockBatchLine   StockBatchLine @relation(fields: [stockBatchLineId], references: [id])
+
+  quantityPulled Decimal @db.Decimal(12, 4)
+
+  // Snapshot of StockBatchLine.purchaseUnitCost at the moment this pull happened — protects a
+  // completed sale's cost/margin from later corrections to the batch line.
+  unitCost Decimal @db.Decimal(10, 2)
+
+  @@index([saleLineId])
+  @@index([stockBatchLineId])
+  @@map("sale_line_cost")
+}
+
+model Payment {
+  id String @id @default(ulid())
+
+  saleId String
+  sale   Sale   @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  amount Decimal  @db.Decimal(10, 2)
+  paidAt DateTime @default(now())
+
+  actorId String
+  actor   Actor  @relation(fields: [actorId], references: [id])
+
+  method       PaymentMethod
+  methodDetail String?
+
+  createdAt DateTime @default(now())
+
+  @@index([saleId])
+  @@map("payment")
+}
+
+// ==========================================
+// AUDIT
+// ==========================================
+
+model AuditLog {
+  id String @id @default(ulid())
+
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  entityType AuditEntityType
+  entityId   String
+  action     AuditAction
+
+  actorId String
+  actor   Actor  @relation(fields: [actorId], references: [id])
+
+  occurredAt DateTime @default(now())
+  metadata   Json?
+
+  @@index([businessId])
+  @@index([entityType, entityId])
+  @@map("audit_log")
+}

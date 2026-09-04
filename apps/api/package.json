@@ -10,7 +10,11 @@
     "build": "tsc -p .",
     "lint": "eslint . --fix",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"no tests yet\" && exit 0"
+    "test": "echo \"no tests yet\" && exit 0",
+    "db:migrate": "pnpm prisma migrate dev",
+    "db:generate": "pnpm prisma generate",
+    "db:studio": "pnpm prisma studio",
+    "db:seed": "pnpm prisma db seed"
   },
   "author": "Sale Habtamu <saleamlak.7h@gmail.com>",
   "license": "ISC",
