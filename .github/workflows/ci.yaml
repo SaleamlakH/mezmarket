@@ -26,6 +26,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
+    env:
+      # A fake connection string tricks Prisma's validation
+      DATABASE_URL: 'postgresql://dummy:dummy@localhost:5432/dummy'
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -60,9 +64,6 @@ jobs:
 
       - name: Type check
         run: pnpm typecheck
-        env:
-          # A fake connection string tricks Prisma's validation 
-          DATABASE_URL: "postgresql://dummy:dummy@localhost:5432/dummy" 
 
       - name: Test
         run: pnpm test
