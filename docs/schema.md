@@ -2,393 +2,390 @@
 
 ## Inventory & Sales Management App for Small/Medium Businesses
 
-Conventions: `PK` = primary key, `FK` = foreign key, `UQ` = unique constraint. All tables include `id` (UUID), `created_at`, `updated_at` unless noted.
+Conventions: `PK` = primary key (ULID — sortable by creation time), `FK` = foreign key, `UQ` = unique constraint. All tables include `id`, `createdAt`, `updatedAt` unless noted.
 
-**Polymorphic references, resolved:** anywhere this schema needs "one of several possible types," it uses **multiple nullable FK columns with a CHECK constraint enforcing exactly one non-null**. This applies to unit references (product_mou / standard_unit / custom_unit) and to actor references (owner / staff), and matches the Architecture doc's decision that Prisma doesn't model true polymorphism cleanly.
+**Design notes, up front:**
+
+- **Units live in a single `ProductUnit` table per product** — every transactable unit a product has (its Base Unit, its MOU, any explicitly-added same-dimension Standard Unit, any custom label like `shot`) is one row. This avoids needing three separate tables and a three-way polymorphic reference. Tables that transact in a unit (`StockBatchLine`, `SaleLine`, `Loss`) snapshot the unit's label and the resulting quantity directly as plain fields at the moment of the transaction, and keep an optional `productUnitId` link back to `ProductUnit` purely for traceability — never relied on to display historical facts, since a unit's name or factor can be edited later without rewriting past records.
+- **`Actor` is a supertype** resolving "who did this" to a single FK. Every action-recording table (`StockBatch`, `Container`, `Sale`, `Loss`, `Payment`, `AuditLog`) references `Actor`, never `Owner`/`Staff` directly — an Owner acting within their own business and a Staff member both resolve through the same field.
+- **FIFO cost tracing**: `StockBatchLine.quantityRemaining` tracks stock per purchase lot, and `SaleLineCost` links each sale line to the specific lot(s) it drew from, bu the cost will be snapshot in SaleLineCost
+- **Branch exists but is minimized**: every Business gets one auto-created `main` Branch at signup; every branch-scoped table carries `branchId`, but there is no multi-branch UI or switching in this version of the product — only one Branch per Business is ever created.
+- **Roles are a fixed enum** (`manager`, `cashier`, `server`) — no dynamic role/permission configuration.
+- **Nullable-FK-plus-application-layer-validation**, not database CHECK constraints, is the pattern used wherever a row's fields depend on its own type (`Actor`'s owner/staff pairing, `ProductUnit`'s role/standardUnitId pairing). Prisma's schema DSL has no native way to express a conditional CHECK constraint; the validation lives in the service layer instead, consistent with how every other business rule in this system is enforced.
 
 ---
 
 ## Table of Contents
 
-- [Identity & tenancy](#1-identity--tenancy)
-  - [owners](#owners)
-  - [businesses](#businesses)
-  - [staff](#staff)
-  - [account_identities](#account_identities)
-- [Units](#2-units)
-  - [dimensions](#dimensions)
-  - [standard_units](#standard_units)
-  - [product_mous (Base unit + measurement/content-units)](#product_mous-base-unit--measurementcontent-units)
-  - [cutom_units](#custom_units)
-  - [unit_sale_prices](#unit_sale_prices)
-- [Products](#3-products)
-  - [products](#products)
-- [Inventory intake](#4-inventory-intake)
-  - [batches](#batches)
-  - [batch_lines](#batch_lines)
-  - [inventory_adjustments](#inventory_adjustments)
-- [Open Containers](#5-open-containers)
-  - [containers](#containers)
-- [Sales](#6-sales)
-  - [sales](#sales)
-  - [customers](#customers)
-  - [sale_lines](#sale_lines)
-  - [payments](#payments)
-- [Audit](#7-audit)
-  - [audit_log](#audit_log)
-- [Key Relationships summary](#8-key-relationships-summary)
-- [Open implementation notes](#9-open-implementation-notes)
+1. [Identity & Tenancy](#1-identity--tenancy)
+2. [Units](#2-units)
+3. [Catalog](#3-catalog)
+4. [Inventory Intake](#4-inventory-intake)
+5. [Open Containers](#5-open-containers)
+6. [Sales](#6-sales)
+7. [Audit](#7-audit)
+8. [Key Relationships Summary](#8-key-relationships-summary)
+9. [Open Implementation Notes](#9-open-implementation-notes)
 
 ---
 
 ## 1. Identity & Tenancy
 
-### `owners`
+### `Owner`
 
-An Owner is a person, not scoped to any single business — **one Owner can own multiple Businesses.**
+A person, not scoped to any single business — one Owner can own multiple Businesses.
 | Field | Type | Notes |
 |---|---|---|
-| id | UUID (PK) | |
-| name | text | |
-| contact_email | text | optional, business-contact purposes only — **not** the login credential, which lives entirely with the auth provider via `account_identities` |
-| contact_phone | text | optional |
+| id | String (PK, ulid) | |
+| name | String | |
+| contactEmail | String? | optional, business-contact purposes only — not the login credential |
+| contactPhone | String? | optional |
 
-### `businesses`
+Relations: `businesses` (Business[]), `accountIdentity` (AccountIdentity?, 1:1), `actor` (Actor?, 1:1).
 
-| Field                       | Type                          | Notes                                   |
-| --------------------------- | ----------------------------- | --------------------------------------- |
-| id                          | UUID (PK)                     |                                         |
-| owner_id                    | UUID (FK → owners)            | **single Owner per business**           |
-| name                        | text                          |                                         |
-| currency_code               | text                          | single currency per business (ISO 4217) |
-| default_tax_rate            | decimal                       | nullable = no tax                       |
-| tax_display_mode            | enum(`exclusive`,`inclusive`) | default `exclusive`                     |
-| allow_negative_stock        | boolean                       | default `true`, business-level toggle   |
-| low_stock_default_threshold | decimal                       | optional global fallback                |
+### `AccountIdentity`
 
-### `staff`
-
-Unified table for **all** working people below the Owner — Manager, Cashier, and (what used to be a separate `servers` table) Server/waiter. The `servers` table is eliminated; a Server is just `staff` with `role = 'server'`.
+The only place an auth-provider identifier is stored.
 | Field | Type | Notes |
 |---|---|---|
-| id | UUID (PK) | |
-| business_id | UUID (FK → businesses) | one Staff row is scoped to exactly one business — the same real person working at two businesses gets two separate `staff` rows (and, if they log in, two separate `account_identities` entries) |
-| name | text | |
-| role | enum(`manager`,`cashier`,`server`) | drives permission level; unrelated to whether the row has login credentials (see below) |
-| contact_email | text | optional; used as the login email if credentials are created, but not required to exist on its own |
-| active | boolean | soft-deactivate; historical records referencing this staff member keep their name |
+| id | String (PK, ulid) | |
+| ownerId | String (FK → Owner, unique) | |
+| providerUserId | String (unique) | the auth provider's own user id |
 
-> **Login is optional per staff row, not tied to role.** In practice, Manager/Cashier need credentials to use the app and a Server typically doesn't — but the schema doesn't hard-enforce that coupling. Whether a `staff` row can log in is determined purely by whether an `account_identities` row exists for it, not by `role`.
+### `Actor`
 
-### `account_identities`
+| Field   | Type                                   | Notes                                                                             |
+| ------- | -------------------------------------- | --------------------------------------------------------------------------------- |
+| id      | String (PK, ulid)                      |                                                                                   |
+| ownerId | String? (FK → Owner, unique, nullable) | exactly one of `ownerId`/`staffId` is non-null, enforced at the application layer |
+| staffId | String? (FK → Staff, unique, nullable) |                                                                                   |
 
-The **only** place any auth-provider identifier is stored. Nothing else in the schema ever stores a Supabase (or any provider's) user id directly — everything else references `owner_id`/`staff_id`. If the auth provider changes, or a provider-side id changes, exactly one row here changes; nothing else in the system is affected.
-| Field | Type | Notes |
-|---|---|---|
-| id | UUID (PK) | |
-| provider | text | e.g. `supabase` |
-| provider_user_id | text | the auth provider's own user id |
-| owner_id | UUID (FK → owners, nullable) | exactly one of `owner_id` / `staff_id` is non-null |
-| staff_id | UUID (FK → staff, nullable) | |
-| UQ | (provider, provider_user_id) | |
-| CHECK | exactly one of (owner_id, staff_id) is non-null | |
+### `Business`
 
-> **Provisioning, not self-service:** there is no public signup flow for `staff`. An Owner/Manager creates a `staff` row and, if that role needs app access, creates its credentials directly (via the auth provider's admin API) and hands them over — no invite-link/email-confirmation flow. The **Owner** is the only identity created through a public signup, and that signup simultaneously creates their first `businesses` row.
+| Field                    | Type                          | Notes                                   |
+| ------------------------ | ----------------------------- | --------------------------------------- |
+| id                       | String (PK, ulid)             |                                         |
+| ownerId                  | String (FK → Owner)           | single Owner per business               |
+| name                     | String                        |                                         |
+| currencyCode             | String                        | single currency per business (ISO 4217) |
+| defaultTaxRate           | Decimal?                      | nullable = no tax                       |
+| taxDisplayMode           | enum(`exclusive`,`inclusive`) | default `exclusive`                     |
+| allowNegativeStock       | Boolean                       | default `true`                          |
+| lowStockDefaultThreshold | Decimal?                      | optional global fallback                |
 
-### Actor reference pattern (used throughout this schema)
+### `Branch`
 
-Any table needing to record "who did this" uses the same pair, never a single generic `actor_id`:
+| Field      | Type                   | Notes                                                           |
+| ---------- | ---------------------- | --------------------------------------------------------------- |
+| id         | String (PK, ulid)      |                                                                 |
+| businessId | String (FK → Business) |                                                                 |
+| name       | String                 | default `"main"` — one created automatically at Business signup |
+| address    | String?                |                                                                 |
 
-```
-actor_owner_id   UUID (FK → owners, nullable)
-actor_staff_id   UUID (FK → staff, nullable)
-CHECK: exactly one of the two is non-null
-```
+### `Staff`
 
-An Owner can personally act within one of their own businesses (e.g. process a sale themselves), which is why both columns exist on action-recording tables rather than assuming only `staff` ever acts.
+| Field      | Type                               | Notes                                    |
+| ---------- | ---------------------------------- | ---------------------------------------- |
+| id         | String (PK, ulid)                  |                                          |
+| businessId | String (FK → Business)             |                                          |
+| branchId   | String (FK → Branch)               | defaults to the business's `main` branch |
+| name       | String                             |                                          |
+| role       | enum(`manager`,`cashier`,`server`) | drives permission level                  |
+| active     | Boolean                            |                                          |
+
+Relations: `actor` (Actor?, 1:1).
 
 ---
 
 ## 2. Units
 
-### `dimensions`
+### `Dimension`
 
-Platform-level, not tenant-scoped.
+Platform-level.
 | Field | Type | Notes |
 |---|---|---|
-| id | UUID (PK) | |
-| name | text (UQ) | `Volume`, `Weight`, `Length`, `Count`, … |
-| reference_unit_id | UUID (FK → standard_units, nullable) | the one unit in this dimension every other unit's ratio is expressed against (e.g. `ml` for Volume). Nullable only because of the creation-order chicken-and-egg (dimension needs a unit to exist first) — must be set before the dimension is usable. |
+| id | String (PK, ulid) | |
+| name | String (UQ) | `Volume`, `Weight`, `Length`, `Count`, … |
 
-### `standard_units`
+### `DimensionReference`
+
+A small join table designating, per Dimension, which Standard Unit every other unit in that dimension is ratio'd against — kept as a separate table (rather than a column on `Dimension` pointing at `StandardUnit`) so there's never a moment where a Dimension exists without a valid reference, or a circular not-null constraint to work around.
+| Field | Type | Notes |
+|---|---|---|
+| dimensionId | String (FK → Dimension, unique) | one reference per dimension |
+| standardUnitId | String (FK → StandardUnit) | |
+
+### `StandardUnit`
 
 Platform-level, managed by App Admin.
 | Field | Type | Notes |
 |---|---|---|
-| id | UUID (PK) | |
-| dimension*id | UUID (FK → dimensions) | |
-| name | text | `Milliliter`, `Liter`, `Piece`, `Kilogram`, … |
-| symbol | text | `ml`, `L`, `pc`, `kg` |
-| ratio_to_reference_unit | decimal | how many of \_this* unit equal one of the dimension's reference unit (reference unit itself stores `1`). E.g. if `ml` is Volume's reference, `L` stores `1000`. Any two same-dimension units convert by going through this shared anchor — no pairwise conversion table needed, and no risk of two independently-entered ratios disagreeing with each other. |
+| id | String (PK, ulid) | |
+| dimensionId | String (FK → Dimension) | |
+| name | String | `Milliliter`, `Liter`, `Piece`, `Kilogram`, … |
+| symbol | String | `ml`, `L`, `pc`, `kg` |
+| ratioToReferenceUnit | Decimal | how many of this unit equal one of the dimension's reference unit |
 
-> **Naming note:** "reference unit" here is a platform-level, per-Dimension concept, unrelated to a product's **Base Unit (BU)** below — the word "base" is deliberately not reused here to avoid the confusion that came up while designing this.
+### `ProductUnit`
 
-### `product_mous` (Base Unit + Measurement/Content Units)
-
-Every product has exactly one row with `unit_role = 'base'`; zero or more rows with `unit_role = 'mou'` (v1 UI: max one MOU row per product).
+Every transactable unit a product has — its Base Unit, its MOU, any explicitly-added same-dimension Standard Unit, and any custom label — is one row here.
 | Field | Type | Notes |
 |---|---|---|
-| id | UUID (PK) | |
-| product_id | UUID (FK → products) | |
-| standard_unit_id | UUID (FK → standard_units) | |
-| unit_role | enum(`base`,`mou`) | |
-| pack_relation_qty | decimal | only set when `unit_role = 'mou'`: `1 × base_unit = pack_relation_qty × this MOU` (e.g. 350 for `1 pc = 350 ml`). Null for the base row. No cross-MOU ratios are computed or stored. |
+| id | String (PK, ulid) | |
+| productId | String (FK → Product) | |
+| unitRole | enum(`BASE`,`MOU`,`STANDARD`,`CUSTOM`) | `BASE`/`MOU`/`STANDARD` always carry a `standardUnitId`; `CUSTOM` never does |
+| standardUnitId | String? (FK → StandardUnit, nullable) | non-null for `BASE`/`MOU`/`STANDARD`; null for `CUSTOM` |
+| name | String | display name — defaults from the linked Standard Unit when present, always overridable |
+| dependsOn | enum(`BASE`,`MOU`)? | null only for the `BASE` row itself |
+| conversionRate | Decimal? | relative to whichever unit `dependsOn` points at. For a `STANDARD` row, computed automatically from both units' `ratioToReferenceUnit` in the shared dimension (adding `L` when Base is `ml` computes `1000` without manual entry). For a `CUSTOM` row, entered manually, since nothing in the system knows what a `shot` is worth on its own. Null for the `BASE` row itself. |
+| price | Decimal? | selling price for this unit |
+| purchaseCapable | Boolean | |
+| sellCapable | Boolean | |
 
-### `custom_units`
+Using a Standard Unit on a specific product — even one sharing a Dimension with the product's Base Unit, like adding `L` next to a `ml` Base — is an explicit action that creates a `STANDARD`-role row. The _conversion math_ for that row is automatic (derived from platform-level facts); the _decision to add it_ is not.
 
-Based on BU or an MOU. Reserved for units that **aren't already Standard Units** — a Standard Unit sharing a Dimension with a product's BU/MOU is automatically available for that product with no Custom Unit needed at all.
-| Field | Type | Notes |
-|---|---|---|
-| id | UUID (PK) | |
-| product_id | UUID (FK → products) | |
-| name | text | `shot`, `slice`, `bottle`, `case`, `cup` |
-| based_on_mou_id | UUID (FK → product_mous) | which BU/MOU row this derives from |
-| factor | decimal | `1 Custom Unit = factor × based_on unit` (fractional for slice/shot, 1:1 for pure relabeling like `bottle`) |
-| purchase_capable | boolean | |
-| sell_capable | boolean | |
-
-### `unit_sale_prices`
-
-**Selling price only** — never purchase price. Purchase cost isn't a pre-set price at all; it's whatever was actually paid, recorded per `batch_lines.unit_cost`, and legitimately varies batch to batch. (Renamed from `unit_prices` — the old name and its `purchase_capable`/`sell_capable` flags implied it covered purchasing too, which was wrong.)
-| Field | Type | Notes |
-|---|---|---|
-| id | UUID (PK) | |
-| product_id | UUID (FK → products) | required even though it's derivable from `product_mou_id`/`custom_unit_id` in two of the three cases — a `standard_unit_id` row has no product of its own (Standard Units are platform-level), so this is the only way to know which product's price it is in that case. Kept on all rows for a uniform, simple table shape rather than a conditional one. |
-| product_mou_id | UUID (FK → product_mous, nullable) | exactly one of these three is non-null |
-| standard_unit_id | UUID (FK → standard_units, nullable) | |
-| custom_unit_id | UUID (FK → custom_units, nullable) | |
-| price | decimal | |
-| CHECK | exactly one of (product_mou_id, standard_unit_id, custom_unit_id) is non-null | |
+Different physical package sizes of what might look like "the same product" (a 5 L bottle vs. a 10 L bottle of the same oil) are separate `Product` rows, each with its own `ProductUnit` set — never one product with two conflicting Base-to-MOU relationships.
 
 ---
 
-## 3. Products
+## 3. Catalog
 
-### `products`
+### `Product`
 
-| Field                | Type      | Notes                                                               |
-| -------------------- | --------- | ------------------------------------------------------------------- |
-| id                   | UUID (PK) |                                                                     |
-| name                 | text      |                                                                     |
-| category             | text      |                                                                     |
-| description          | text      |                                                                     |
-| image_url            | text      |                                                                     |
-| track_as_partial     | boolean   | must have an MOU + a qualifying sell-capable unit smaller than 1 BU |
-| low_stock_threshold  | decimal   | in BU terms                                                         |
-| current_sealed_stock | decimal   | BU count — **derived value**, see §9                                |
-| active               | boolean   |                                                                     |
+| Field              | Type                              | Notes                                                                       |
+| ------------------ | --------------------------------- | --------------------------------------------------------------------------- |
+| id                 | String (PK, ulid)                 |                                                                             |
+| businessId         | String (FK → Business)            |                                                                             |
+| branchId           | String (FK → Branch)              |                                                                             |
+| categoryId         | String? (FK → Category, nullable) |                                                                             |
+| name               | String                            |                                                                             |
+| brand              | String?                           |                                                                             |
+| description        | String?                           |                                                                             |
+| photoUrl           | String?                           |                                                                             |
+| trackAsPartial     | Boolean                           | requires an MOU and a qualifying sell-capable unit smaller than 1 Base Unit |
+| lowStockThreshold  | Decimal?                          | in Base Unit terms                                                          |
+| currentSealedStock | Decimal                           | derived value, see §9                                                       |
+| active             | Boolean                           |                                                                             |
 
-No `sku` and no `cost_price` field — both dropped (SKU: no current feature needs it; cost: recorded per Batch Line and legitimately varies, so a static per-product field would only drift out of date — margin is derived from Batch Line cost history instead).
+No `sku`, no `cost_price` — neither is stored: SKU has no current feature depending on it, and cost is recorded per `StockBatchLine` at time of purchase (and varies purchase to purchase), so margin is derived from that history rather than a static field.
+
+### `Category`
+
+| Field       | Type                   | Notes |
+| ----------- | ---------------------- | ----- |
+| id          | String (PK, ulid)      |       |
+| businessId  | String (FK → Business) |       |
+| name        | String                 |       |
+| description | String?                |       |
 
 ---
 
 ## 4. Inventory Intake
 
-### `batches`
+### `StockBatch`
 
-| Field                           | Type      | Notes                                                                                                                                                                               |
-| ------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| id                              | UUID (PK) |                                                                                                                                                                                     |
-| supplier_name                   | text      | optional                                                                                                                                                                            |
-| reference_number                | text      | optional                                                                                                                                                                            |
-| batch_date                      | date      |                                                                                                                                                                                     |
-| confirmed_at                    | timestamp | null = draft (freely editable); non-null = confirmed. Confirmation is immediate lock for ledger-affecting fields (see below) — not conditional on whether anything's been sold yet. |
-| actor_owner_id / actor_staff_id | —         | who created it, per the actor pattern in §1                                                                                                                                         |
+| Field             | Type                           | Notes                                                                                       |
+| ----------------- | ------------------------------ | ------------------------------------------------------------------------------------------- |
+| id                | String (PK, ulid)              |                                                                                             |
+| businessId        | String (FK → Business)         |                                                                                             |
+| branchId          | String (FK → Branch)           |                                                                                             |
+| supplierName      | String?                        |                                                                                             |
+| referenceNumber   | String?                        |                                                                                             |
+| batchDate         | DateTime                       |                                                                                             |
+| confirmedAt       | DateTime?                      | null = draft (freely editable); non-null = confirmed and locked for ledger-affecting fields |
+| receivedByActorId | String? (FK → Actor, nullable) |                                                                                             |
 
-> **Field-level immutability after confirmation:** `quantity`, `unit`, `unit_cost`, and `product` on each line are never editable once `confirmed_at` is set — corrections go through an Inventory Adjustment (§4). Purely descriptive fields — `supplier_name`, `reference_number`, and each line's `expiry_date` — remain editable regardless of confirmation status.
+Once `confirmedAt` is set, each line's `purchaseUnit`, `purchaseQuantity`, `purchaseUnitCost`, `standardUnit`, `standardQuantity`, and `product` are locked against normal editing — with one deliberate exception: Owner/Manager can perform a direct override edit on a specific, known-wrong line, providing a required reason, captured in `AuditLog` as the field, its old value, and its new value. This is a rare, audited action, not a routine editing path. `supplierName`, `referenceNumber`, and each line's `expiryDate` remain freely editable regardless of confirmation status.
 
-### `batch_lines`
+### `StockBatchLine`
 
-| Field                                              | Type                 | Notes                                                                                                                     |
-| -------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| id                                                 | UUID (PK)            |                                                                                                                           |
-| batch_id                                           | UUID (FK → batches)  |                                                                                                                           |
-| product_id                                         | UUID (FK → products) | locked once the batch is confirmed                                                                                        |
-| product_mou_id / standard_unit_id / custom_unit_id | —                    | exactly one non-null, per the unit-reference pattern above; the unit the purchase was recorded in. Locked once confirmed. |
-| quantity                                           | decimal              | in the unit recorded, as entered — locked once confirmed                                                                  |
-| quantity_in_bu                                     | decimal              | computed at confirm time, added to `products.current_sealed_stock`                                                        |
-| unit_cost                                          | decimal              | locked once confirmed                                                                                                     |
-| expiry_date                                        | date                 | editable regardless of confirmation status                                                                                |
+| Field                  | Type                                                       | Notes                                                                                                                                                                                                                                                                                                      |
+| ---------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| id                     | String (PK, ulid)                                          |                                                                                                                                                                                                                                                                                                            |
+| stockBatchId           | String (FK → StockBatch)                                   |                                                                                                                                                                                                                                                                                                            |
+| productId              | String (FK → Product)                                      | locked once confirmed                                                                                                                                                                                                                                                                                      |
+| purchaseUnit           | String                                                     | **snapshot** — the unit's display name/label as it was at the moment of purchase, e.g. `"Case"`                                                                                                                                                                                                            |
+| purchaseQuantity       | Decimal                                                    | **snapshot** — quantity as entered, in `purchaseUnit` terms; locked once confirmed                                                                                                                                                                                                                         |
+| purchaseUnitCost       | Decimal                                                    | **snapshot** — locked once confirmed                                                                                                                                                                                                                                                                       |
+| standardUnit           | String                                                     | **snapshot** — the resolved Standard Unit's label at time of purchase, e.g. `"ml"`                                                                                                                                                                                                                         |
+| standardQuantity       | Decimal                                                    | **snapshot** — the purchase normalized into `standardUnit` terms; this is what feeds `Product.currentSealedStock`                                                                                                                                                                                          |
+| resolvedStandardUnitId | String? (FK → StandardUnit, nullable, `onDelete: SetNull`) | **traceability only** — live link to the actual Standard Unit this line resolved to, for drilling down (e.g. seeing all lines that resolved to a given unit, or cross-referencing that unit's current definition). Paired with `standardUnit` the same way `productUnitId` is paired with `purchaseUnit`.  |
+| productUnitId          | String? (FK → ProductUnit, nullable, `onDelete: SetNull`)  | **traceability only** — a live link back to the current unit configuration, useful for drilling into "what is this unit today," but never relied on to display historical facts. If the linked `ProductUnit` is later renamed or its factor changed, this line's own snapshot fields above are unaffected. |
+| quantityRemaining      | Decimal                                                    | **derived value** (see §9) — `standardQuantity − SUM(SaleLineCost.quantityPulled where stockBatchLineId = this line) − SUM(Loss.standardQuantity where stockBatchLineId = this line)`. Cached for fast lookups like every other derived total in this schema, recomputable if it ever drifts.              |
+| expiryDate             | DateTime?                                                  | editable regardless of confirmation status                                                                                                                                                                                                                                                                 |
 
-> **Open question, not yet resolved:** should `product_mou_id`/`standard_unit_id`/`custom_unit_id` on a Batch Line be restricted to BU-dimension units only (excluding MOU-based units like `shot`), since inventory intake represents sealed packages arriving, not partial/measured amounts? Flagged for a future decision, not enforced yet.
+Whether purchases should be restricted to Base-Unit-dimension units only (excluding MOU-based units like `shot`, since inventory intake represents sealed packages arriving) is an open question, not yet resolved.
 
-### `inventory_adjustments`
+### `Loss`
 
-Corrections outside normal batch/sale flow.
+Damage or expiry discovered outside the normal sale flow — always tied to a real purchase lot, never estimated. Stock-take-driven surplus/shortage (no known cause) is deliberately out of scope; see §9.
 | Field | Type | Notes |
 |---|---|---|
-| id | UUID (PK) | |
-| product_id | UUID (FK → products) | |
-| product_mou_id / standard_unit_id / custom_unit_id | — | exactly one non-null — the unit the correction is expressed in. Widened from an earlier base/MOU-only design so a correction can be made in whatever unit the original error was (e.g. `shot`), not just base/MOU terms. |
-| quantity_delta | decimal | positive or negative, in the chosen unit |
-| reason | text | required |
-| related_batch_id | UUID (FK → batches, nullable) | |
-| related_container_id | UUID (FK → containers, nullable) | |
-| actor_owner_id / actor_staff_id | — | restricted to Owner/Manager |
-| created_at | timestamp | |
+| id | String (PK, ulid) | |
+| productId | String (FK → Product) | |
+| stockBatchLineId | String (FK → StockBatchLine) | **required** — the system suggests a default (the oldest lot of this product with remaining stock), the actor can select a different one if the specific lot is known to differ. Because this is always a real, locked purchase record, cost is read live from `StockBatchLine.purchaseUnitCost` — there is no separate cost/value field on `Loss` itself, and no need to estimate anything. |
+| unit | String | **snapshot** — the as-entered unit label, matching how the loss was actually discovered/counted |
+| quantity | Decimal | **snapshot** — in `unit` terms |
+| standardUnit | String | **snapshot** — the resolved Standard Unit's label |
+| standardQuantity | Decimal | **snapshot** — normalized into `standardUnit` terms; this is what actually feeds the ledger math (decrements `Product.currentSealedStock` and the linked `StockBatchLine.quantityRemaining`) |
+| productUnitId | String? (FK → ProductUnit, nullable, `onDelete: SetNull`) | traceability only, same pattern as `StockBatchLine` |
+| resolvedStandardUnitId | String? (FK → StandardUnit, nullable, `onDelete: SetNull`) | traceability only, same pattern as `StockBatchLine` |
+| reason | enum(`DAMAGE`,`EXPIRED`,`OTHER`) | a fixed category, not free text, so losses are reliably reportable/filterable regardless of who recorded them |
+| reasonDetail | String? | optional free text alongside the category |
+| actorId | String (FK → Actor) | restricted to Owner/Manager |
+| createdAt | DateTime | |
+
+No total-value field is stored — a Loss's value is `standardQuantity × StockBatchLine.purchaseUnitCost`, computed whenever needed rather than stored redundantly, same reasoning as dropping `SaleLine.lineSubtotal`.
 
 ---
 
 ## 5. Open Containers
 
-### `containers`
+### `Container`
 
-Multiple simultaneous open containers per product allowed.
-| Field | Type | Notes |
-|---|---|---|
-| id | UUID (PK) | |
-| product_id | UUID (FK → products) | must have an MOU |
-| status | enum(`open`,`closed`) | never auto-closes |
-| initial_mou_qty | decimal | set when opened (1 BU converted → this many MOU) |
-| remaining_mou_qty | decimal | decremented by targeted sale lines' snapshotted MOU quantity (§6) — derived value, see §9 |
-| opened_actor_owner_id / opened_actor_staff_id | — | actor pattern |
-| opened_at | timestamp | |
-| closed_actor_owner_id / closed_actor_staff_id | — | actor pattern, nullable until closed |
-| closed_at | timestamp | nullable |
-| deviation | decimal | **computed automatically at close**, not entered manually: `initial_mou_qty − SUM(sale quantities recorded against this container)`, evaluated at the moment of close. Positive = ledger still expected some left (over-pouring/spillage/theft — physical loss never recorded as a sale). Negative = more was sold than the container should have held (an allowed oversell, per the warn-don't-block rule). There is no separate "actual remaining" input — closing itself is the signal that nothing further will be sold from it, and the deviation is just whatever the ledger still expected at that point. |
-| close_reason | text | optional, never required (e.g. "spillage," "sample given," "suspected theft") |
+| Field            | Type                           | Notes                                                                                                                                                                                                                                                                                                                                                 |
+| ---------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| id               | String (PK, ulid)              |                                                                                                                                                                                                                                                                                                                                                       |
+| productId        | String (FK → Product)          | must have an MOU                                                                                                                                                                                                                                                                                                                                      |
+| branchId         | String (FK → Branch)           |                                                                                                                                                                                                                                                                                                                                                       |
+| stockBatchLineId | String (FK → StockBatchLine)   | ties a container to the specific purchase lot it was opened from, so partial-container sales get accurate FIFO costing too                                                                                                                                                                                                                            |
+| status           | enum(`OPEN`,`CLOSED`)          | never auto-closes                                                                                                                                                                                                                                                                                                                                     |
+| initialMouQty    | Decimal                        | set when opened                                                                                                                                                                                                                                                                                                                                       |
+| remainingMouQty  | Decimal                        | derived value, see §9                                                                                                                                                                                                                                                                                                                                 |
+| openedByActorId  | String (FK → Actor)            |                                                                                                                                                                                                                                                                                                                                                       |
+| openedAt         | DateTime                       |                                                                                                                                                                                                                                                                                                                                                       |
+| closedByActorId  | String? (FK → Actor, nullable) |                                                                                                                                                                                                                                                                                                                                                       |
+| closedAt         | DateTime?                      |                                                                                                                                                                                                                                                                                                                                                       |
+| deviation        | Decimal?                       | computed automatically at close, not entered manually — `initialMouQty − SUM(sale quantities recorded against this container)` at the moment of close. Positive = physical loss never recorded as a sale (over-pouring/spillage/theft). Negative = an allowed oversell (under-pouring beyond what the container should have held). Null until closed. |
+| closeReason      | String?                        | optional, never required                                                                                                                                                                                                                                                                                                                              |
+
+Multiple containers of the same product can be open simultaneously. Closing is always a manual action, never automatic even at zero remaining — closing itself is what signals nothing further will be sold from it.
 
 ---
 
 ## 6. Sales
 
-### `sales`
+### `Customer`
 
-| Field                           | Type                                    | Notes                                                                                                                                                                   |
-| ------------------------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| id                              | UUID (PK)                               |                                                                                                                                                                         |
-| invoice_number                  | text (UQ per business)                  |                                                                                                                                                                         |
-| actor_owner_id / actor_staff_id | —                                       | who processed it, captured automatically                                                                                                                                |
-| staff_id                        | UUID (FK → staff, nullable)             | **attribution only** — the Server/waiter credited with the sale, distinct from the acting actor above. Only ever a `staff` row (a Server or otherwise), never an Owner. |
-| customer_id                     | UUID (FK → customers, nullable)         | see new `customers` table below — needed to answer "who owes this" on Pending/Partially Paid sales                                                                      |
-| sale_datetime                   | timestamp                               |                                                                                                                                                                         |
-| discount                        | decimal                                 | nullable                                                                                                                                                                |
-| tax_rate_applied                | decimal                                 | snapshot of business rate at time of sale                                                                                                                               |
-| subtotal / tax_amount / total   | decimal                                 |                                                                                                                                                                         |
-| payment_status                  | enum(`paid`,`pending`,`partially_paid`) |                                                                                                                                                                         |
-| amount_paid                     | decimal                                 | **derived value** — `SUM(payments.amount)` for this sale, not independently trusted; see §9                                                                             |
-| balance_due                     | decimal                                 | derived — `total − amount_paid`                                                                                                                                         |
-| void_status                     | enum(`none`,`voided`)                   | see note below on void vs. refund                                                                                                                                       |
-| void_reason                     | text                                    | nullable                                                                                                                                                                |
+| Field        | Type                   | Notes |
+| ------------ | ---------------------- | ----- |
+| id           | String (PK, ulid)      |       |
+| businessId   | String (FK → Business) |       |
+| name         | String                 |       |
+| contactPhone | String?                |       |
+| contactEmail | String?                |       |
+| active       | Boolean                |       |
 
-> **Void vs. Refund — kept as two distinct concepts, not one action:** **Void** means the sale shouldn't have existed at all (data-entry mistake, duplicate) — a full reversal of the whole transaction and all its stock effects, no per-line choices. **Refund** means the sale genuinely happened and goods are being returned afterward — partial or full, per-line, following each product's restock default with the per-line override already designed (`sale_lines.refunded`/`refund_restocked`). This distinction was left unresolved in an earlier discussion pass; recorded here as the working design, flag if you want to revisit it.
+No login — exists so a Pending/Partially-Paid sale can answer "who owes this."
 
-### `customers`
+### `Sale`
 
-New table — a gap surfaced during this discussion. Needed so a Pending/Partially-Paid sale can answer "who owes this," which nothing in the schema could do before.
+| Field                        | Type                                    | Notes                                                                                                                                   |
+| ---------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| id                           | String (PK, ulid)                       |                                                                                                                                         |
+| businessId                   | String (FK → Business)                  |                                                                                                                                         |
+| branchId                     | String (FK → Branch)                    |                                                                                                                                         |
+| invoiceNumber                | String (UQ per branch)                  |                                                                                                                                         |
+| processedByActorId           | String (FK → Actor)                     | who processed it, captured automatically                                                                                                |
+| staffId                      | String? (FK → Staff, nullable)          | Server attribution only, whole-sale-level — a waiter who took the order but didn't process the sale; distinct from `processedByActorId` |
+| customerId                   | String? (FK → Customer, nullable)       |                                                                                                                                         |
+| saleDatetime                 | DateTime                                |                                                                                                                                         |
+| discount                     | Decimal?                                |                                                                                                                                         |
+| taxRateApplied               | Decimal                                 | snapshot of business rate at time of sale                                                                                               |
+| subtotal / taxAmount / total | Decimal                                 |                                                                                                                                         |
+| paymentStatus                | enum(`PAID`,`PENDING`,`PARTIALLY_PAID`) |                                                                                                                                         |
+| amountPaid                   | Decimal                                 | derived value — `SUM(Payment.amount)` for this sale, see §9                                                                             |
+| balanceDue                   | Decimal                                 | derived — `total − amountPaid`                                                                                                          |
+| voidStatus                   | enum(`NONE`,`VOIDED`)                   | Void (shouldn't have happened, full reversal) is kept distinct from Refund (happened, goods returned, per-line restock choice)          |
+| voidReason                   | String?                                 |                                                                                                                                         |
+
+### `SaleLine`
+
+| Field                  | Type                                                       | Notes                                                                                                                                                                                                                                      |
+| ---------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| id                     | String (PK, ulid)                                          |                                                                                                                                                                                                                                            |
+| saleId                 | String (FK → Sale)                                         |                                                                                                                                                                                                                                            |
+| productId              | String (FK → Product)                                      |                                                                                                                                                                                                                                            |
+| soldUnit               | String                                                     | **snapshot** — the unit's display label as sold, e.g. `"Shot"`                                                                                                                                                                             |
+| quantity               | Decimal                                                    | as entered, in `soldUnit` terms                                                                                                                                                                                                            |
+| standardUnit           | String                                                     | **snapshot** — the resolved Standard Unit's label at time of sale, e.g. `"ml"`. Not always the Base Unit's standard unit — an MOU-based custom unit (`shot`) resolves to the MOU's standard unit, since that's what a container tracks in. |
+| quantityInStandardUnit | Decimal                                                    | **snapshot** — the quantity in `standardUnit` terms, frozen at time of sale — never recomputed from a `ProductUnit`'s current `conversionRate` if it's edited later                                                                        |
+| productUnitId          | String? (FK → ProductUnit, nullable, `onDelete: SetNull`)  | traceability only, same pattern as `StockBatchLine`                                                                                                                                                                                        |
+| resolvedStandardUnitId | String? (FK → StandardUnit, nullable, `onDelete: SetNull`) | traceability only, paired with `standardUnit` above                                                                                                                                                                                        |
+| unitPrice              | Decimal                                                    | **snapshot** from `ProductUnit.price` at time of sale                                                                                                                                                                                      |
+| containerId            | String? (FK → Container, nullable)                         | set only for partial sales, targeting one selected container                                                                                                                                                                               |
+| refunded               | Boolean                                                    |                                                                                                                                                                                                                                            |
+| refundRestocked        | Boolean                                                    | reflects the product's default, overridable per line                                                                                                                                                                                       |
+
+No stored `lineSubtotal` — it's `quantity × unitPrice`, fully derivable from two fields already on this same row with no independent information of its own, so it's computed at query/render time rather than stored, same as every other derived value in this schema.
+
+### `SaleLineCost`
+
+Links a sale line to the specific purchase lot(s) it drew from — kept as a genuine record of a real allocation decision, not a derived rollup, since a single sale line can legitimately be split across more than one lot if the earliest lot ran out mid-line (FIFO-selected automatically; a sale line is never split by cashier choice, consistent with how a Container sale always targets exactly one container rather than auto-splitting).
 | Field | Type | Notes |
 |---|---|---|
-| id | UUID (PK) | |
-| business_id | UUID (FK → businesses) | |
-| name | text | |
-| contact_phone / contact_email | text | optional |
-| active | boolean | |
+| id | String (PK, ulid) | |
+| saleLineId | String (FK → SaleLine) | |
+| stockBatchLineId | String (FK → StockBatchLine) | |
+| quantityPulled | Decimal | in standard-unit terms, from this specific lot — this is what `StockBatchLine.quantityRemaining` is derived from |
+| unitCost | Decimal | **snapshot** — `StockBatchLine.purchaseUnitCost` at the exact moment this pull happened. This protects completed sales from later corrections: if that batch line's cost is subsequently fixed via a direct override edit, a sale's already-reported margin must not silently change. |
 
-> No login, same non-login pattern as the old `servers` concept — purely a reference for attribution/collections, not an app user.
+### `Payment`
 
-### `sale_lines`
-
-| Field                                              | Type                             | Notes                                                                                                                                                                                                                                                                                                                                                         |
-| -------------------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| id                                                 | UUID (PK)                        |                                                                                                                                                                                                                                                                                                                                                               |
-| sale_id                                            | UUID (FK → sales)                |                                                                                                                                                                                                                                                                                                                                                               |
-| product_id                                         | UUID (FK → products)             |                                                                                                                                                                                                                                                                                                                                                               |
-| product_mou_id / standard_unit_id / custom_unit_id | —                                | exactly one non-null — the unit **as sold/displayed**, per the unit-reference pattern                                                                                                                                                                                                                                                                         |
-| quantity                                           | decimal                          | in the unit sold, as entered                                                                                                                                                                                                                                                                                                                                  |
-| resolved_standard_unit_id                          | UUID (FK → standard_units)       | **historical-integrity snapshot** — the Standard Unit this line's quantity resolves to at the moment of sale. Not always the BU: an MOU-based custom unit (e.g. `shot`) resolves to the **MOU's** standard unit (`ml`), since that's what a container's remaining is tracked in; a BU-based unit resolves to the BU's standard unit.                          |
-| quantity_in_standard_unit                          | decimal                          | the quantity in `resolved_standard_unit_id`, frozen at time of sale. Custom Units are mutable configuration (a label + a factor the Owner can edit later); these two fields are the fixed historical fact and are never recomputed from a Custom Unit's _current_ factor. Container deduction always uses this snapshotted value, never a live re-derivation. |
-| unit_price                                         | decimal                          | snapshot from `unit_sale_prices` at time of sale                                                                                                                                                                                                                                                                                                              |
-| line_subtotal                                      | decimal                          |                                                                                                                                                                                                                                                                                                                                                               |
-| container_id                                       | UUID (FK → containers, nullable) | set only for partial sales, targeting one selected container                                                                                                                                                                                                                                                                                                  |
-| refunded                                           | boolean                          | only meaningful under the Refund path, not Void (which reverses the whole sale uniformly)                                                                                                                                                                                                                                                                     |
-| refund_restocked                                   | boolean                          | reflects the product's default, overridable per line at refund time                                                                                                                                                                                                                                                                                           |
-
-### `payments`
-
-| Field                           | Type              | Notes                           |
-| ------------------------------- | ----------------- | ------------------------------- |
-| id                              | UUID (PK)         |                                 |
-| sale_id                         | UUID (FK → sales) |                                 |
-| amount                          | decimal           |                                 |
-| paid_at                         | timestamp         |                                 |
-| actor_owner_id / actor_staff_id | —                 | who recorded it                 |
-| method                          | text              | optional (cash, transfer, etc.) |
+| Field        | Type                                                       | Notes                                                                                                                                                                        |
+| ------------ | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| id           | String (PK, ulid)                                          |                                                                                                                                                                              |
+| saleId       | String (FK → Sale)                                         |                                                                                                                                                                              |
+| amount       | Decimal                                                    |                                                                                                                                                                              |
+| paidAt       | DateTime                                                   |                                                                                                                                                                              |
+| actorId      | String (FK → Actor)                                        | who recorded it                                                                                                                                                              |
+| method       | enum(`CASH`,`CARD`,`BANK_TRANSFER`,`MOBILE_MONEY`,`OTHER`) |                                                                                                                                                                              |
+| methodDetail | String?                                                    | free-text, for the `OTHER` case or extra specificity (e.g. which mobile money provider) — keeps the enum from being a dead end given how much payment methods vary by region |
 
 ---
 
 ## 7. Audit
 
-### `audit_log`
+### `AuditLog`
 
-Append-only. Written explicitly by the application's service layer, in the same transaction as the action itself — not a database trigger, and not automatic in the sense of "the platform notices and logs it independently."
+Append-only. Written explicitly by the application's service layer, in the same transaction as the action itself.
 | Field | Type | Notes |
 |---|---|---|
-| id | UUID (PK) | |
-| business_id | UUID (FK → businesses) | **added** — without this, answering "show me this business's audit log" required drilling into whatever table `entity_type` pointed at just to find its business, a different join per entity type. Denormalized on purpose, populated at write time. |
-| entity_type | enum(`batch`,`sale`,`container`,`inventory_adjustment`,`staff`,`business`,`product`,…) | **now a real enum**, not free text — was loose `text` before, risking typos with no query safety |
-| entity_id | UUID | the id of whatever record the event happened to (a specific `batches.id`, `sales.id`, etc.) — resolved via `entity_type` |
-| action | enum(`created`,`confirmed`,`voided`,`closed`,`refunded`,`adjusted`,`updated`,`deactivated`,…) | **also a real enum** |
-| actor_owner_id / actor_staff_id | — | who performed it, per the actor pattern |
-| occurred_at | timestamp | |
-| metadata | jsonb | free-form details not captured by the fixed columns — e.g. a container close: `{ "deviation": -15, "close_reason": "spillage" }`; a void: `{ "reason": "..." }`; an edit to a still-editable descriptive field: `{ "field": "supplier_name", "old": "...", "new": "..." }` |
-
-> **Scope note:** this table is for business-scoped events by business actors (Owner/Staff). Platform-level actions (e.g. App Admin editing Standard Units) are a separate concern — not yet decided whether they get their own log or a `business_id = null` variant of this one.
+| id | String (PK, ulid) | |
+| businessId | String (FK → Business) | denormalized so "this business's audit log" needs no per-entity-type join |
+| entityType | enum(`STOCK_BATCH`,`SALE`,`CONTAINER`,`INVENTORY_ADJUSTMENT`,`STAFF`,`BUSINESS`,`PRODUCT`,…) | |
+| entityId | String | |
+| action | enum(`CREATED`,`CONFIRMED`,`VOIDED`,`CLOSED`,`REFUNDED`,`ADJUSTED`,`UPDATED`,`DEACTIVATED`,…) | |
+| actorId | String (FK → Actor) | |
+| occurredAt | DateTime | |
+| metadata | Json | free-form details not captured by fixed columns |
 
 ---
 
 ## 8. Key Relationships Summary
 
 ```
-owners ──< businesses ──< staff
-                       └──< customers
-                       └──< products ──< product_mous (base + optional MOU rows)
-                                     └──< custom_units (based_on a product_mous row)
-                                     └──< unit_sale_prices (polymorphic: product_mou | standard_unit | custom_unit)
+Owner ──< Business ──< Branch ──< Staff
+                    └──< Category
+                    └──< Customer
+                    └──< Product ──< ProductUnit
+                    └──< StockBatch ──< StockBatchLine
+                    └──< Sale ──< SaleLine ──< SaleLineCost >── StockBatchLine
+                                └──< Payment
 
-owners ──< account_identities >── staff   (exactly one side per row)
+Owner ──── Actor (1:1, nullable)
+Staff ──── Actor (1:1, nullable)
+   Actor is referenced by: StockBatch.receivedByActorId, Container.openedByActorId/closedByActorId,
+   Sale.processedByActorId, Loss.actorId, Payment.actorId, AuditLog.actorId
 
-dimensions ──< standard_units   (platform-level, shared across all businesses)
-dimensions ─── reference_unit_id ──> standard_units   (one designated reference per dimension)
+Dimension ──< StandardUnit
+Dimension ─── DimensionReference ──> StandardUnit
 
-products ──< batch_lines >── batches
-products ──< containers
-products ──< inventory_adjustments
-products ──< sale_lines >── sales ──< payments
-sales ─── customer_id ──> customers   (nullable)
-sales ─── staff_id ──> staff          (nullable, attribution only — not the acting actor)
-containers ──< sale_lines        (nullable FK; only set for targeted partial sales)
-containers ──< inventory_adjustments (nullable FK; optional correction reference)
+Product ──< StockBatchLine
+Product ──< Container ─── StockBatchLine
+Product ──< Loss ─── StockBatchLine (required — always tied to a real purchase lot)
+Product ──< SaleLine
 
-Every action-recording table (batches, containers, sales, payments, inventory_adjustments, audit_log)
-carries an actor_owner_id / actor_staff_id pair — exactly one non-null — instead of a single actor_id.
+Sale ─── Customer (nullable)
+Sale ─── Staff (nullable, attribution only — not the acting actor)
 ```
-
----
-
-## 9. Open Implementation Notes
-
-1. **Stock as a derived ledger, not a stored source of truth:** treat `batch_lines`, `sale_lines`, `inventory_adjustments`, and container open/close events as an **immutable ledger**. `products.current_sealed_stock`, `containers.remaining_mou_qty`, and `sales.amount_paid`/`balance_due` are all **derived values** — recomputable at any time from that ledger — not authoritative numbers in their own right:
-   - `current_sealed_stock` = `SUM(batch_lines.quantity_in_bu)` − `SUM(direct sale_lines not tied to a container, via quantity_in_standard_unit)` − `SUM(container opens)` − `SUM(inventory_adjustments)`.
-   - `containers.remaining_mou_qty` = `initial_mou_qty` − `SUM(sale_lines.quantity_in_standard_unit where container_id = this container)`.
-   - `sales.amount_paid` = `SUM(payments.amount)` for that sale.
-
-   This matters because it makes these numbers **self-correcting rather than silently-wrong-forever**: if a bug or race condition corrupts a cached copy, it can simply be recomputed from the ledger. If the _ledger itself_ was wrong, the fix is never to edit history — it's a compensating `inventory_adjustment` (or, for payments, an equally-and-oppositely-signed correction), so the mistake and its fix both stay visible in the audit trail.
-
-   For query performance, it's fine to keep these as **cached columns updated transactionally alongside each ledger write** — an optimization, not a change of authority. Include a **"recalculate" action** (per product, container, or sale) that recomputes from the ledger and overwrites the cache — both a bug-recovery tool and a trust-building feature for the business owner.
-
-2. **Actor and unit references use multiple nullable FKs with a CHECK constraint**, not a `type` + generic `ref_id` polymorphic pair — resolved per the Architecture doc's decision that Prisma doesn't model true polymorphism cleanly, applied consistently across `unit_sale_prices`, `batch_lines`, `sale_lines`, `inventory_adjustments`, and every actor-recording table.
-3. **`dimensions.reference_unit_id` has a creation-order dependency** on `standard_units` (a dimension needs at least one unit to exist before it can designate a reference) — handle via a nullable FK, created dimension-first-then-unit-then-linked, not a hard NOT NULL constraint.
-4. **Multi-MOU** (v1 UI ships single-MOU): schema already supports it via multiple `product_mous` rows with `unit_role = 'mou'` — no migration needed when the UI catches up later.
-5. **Business-switcher session concept:** since an Owner can operate multiple Businesses, "which business is this request for" must be resolved from the authenticated session/request context (e.g. a selected-business header or route param), not assumed from identity alone — this is an Architecture-level concern (see Architecture doc §6), not a schema field; no server-side "current active business" column is proposed here.
-6. **Batch Line unit restriction** (should purchasing be limited to BU-dimension units, excluding MOU-based units like `shot`?) remains an open question — see the note under §4.
-7. **Void vs. Refund** is recorded here as two distinct concepts (see §6) but hasn't been explicitly confirmed as final — flagged for revisit if needed.
