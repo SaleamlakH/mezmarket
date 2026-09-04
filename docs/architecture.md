@@ -98,7 +98,7 @@ A single Express API serving a single-page React app, backed by one Postgres dat
       adjustments/
       containers/
       sales/
-      identity/    (Owner, Business, Branch, Staff, Actor, AccountIdentity)
+      identity/    (Owner, Business, Branch, BusinessMember, AccountIdentity)
       auth/
     shared/
       middleware/
@@ -121,7 +121,7 @@ A single Express API serving a single-page React app, backed by one Postgres dat
 - **Postgres**, hosted on **Supabase's managed Postgres** — reusing the same Supabase project you're already using for Auth avoids standing up a second infra provider, and Prisma connects to it like any other Postgres instance (direct connection string, bypassing Supabase's client library for data access — Supabase is used for Auth only, as you specified).
 - **Prisma** owns schema/migrations. Supabase's own dashboard/tools for the DB are avoided for schema changes to prevent drift — Prisma migrations are the single source of truth.
 - **Unit references:** every transactable unit a product has lives as one row in a single `ProductUnit` table (Base Unit, MOU, explicitly-added same-dimension Standard Units, and custom units like `shot` are all just rows there, distinguished by a `unitRole` enum). This means `StockBatchLine`, `SaleLine`, and `Loss` each need only **one** FK — `productUnitId` — rather than a polymorphic reference across multiple unit tables. Whether a row's `standardUnitId` should be null (for a `CUSTOM` row) or set (for `BASE`/`MOU`/`STANDARD`) is validated at the application layer, not via a database CHECK constraint — Prisma's schema DSL has no native way to express that conditional rule, and application-layer validation keeps this consistent with how every other business rule in the system is enforced.
-- **Actor references:** every action-recording table (`StockBatch`, `Container`, `Sale`, `Loss`, `Payment`, `AuditLog`) references a single `Actor` supertype rather than a nullable Owner/Staff pair — `Actor` itself holds the nullable `ownerId`/`staffId` pair (exactly one non-null, application-validated), so everything downstream of it only needs one FK.
+- **BusinessMember references:** every action-recording table (`StockBatch`, `Container`, `Sale`, `Loss`, `Payment`, `AuditLog`) references a single `BusinessMember` row — there's no separate Owner/Staff distinction at this level. An Owner has one `BusinessMember` row per Business they own (`role = OWNER`, auto-created when the Business is created, role locked thereafter), so an Owner acting on their own business and a regular team member resolve through the exact same field, inherently scoped to the correct Business.
 - **Migrations:** `prisma migrate dev` locally, `prisma migrate deploy` in CI/deploy step — never hand-edit the production schema.
 
 ---
@@ -131,8 +131,8 @@ A single Express API serving a single-page React app, backed by one Postgres dat
 - **Supabase Auth** handles signup/login/session/JWT issuance for **Owners only**, at this stage — no reliance on Supabase's database, storage, or edge functions. Staff login is not yet designed; `Staff` currently has no credential fields at all, and this section will be revisited once that's built out.
 - **Identity is decoupled from the auth provider via `AccountIdentity`** (schema §1) — the provider's user id is stored in exactly one place, linked to an `Owner`, never embedded directly in business-logic tables. If the auth provider ever changes, only `AccountIdentity` is affected.
 - **Signup:** the only self-service signup in the app. Completing signup creates a Supabase identity, an `Owner` row, an `AccountIdentity` link, and the Owner's first `Business` (with its auto-created `main` `Branch`), together.
-- **`Actor` as the acting-identity supertype:** every action-recording table (`StockBatch`, `Container`, `Sale`, `Loss`, `Payment`, `AuditLog`) references a single `Actor` row rather than an Owner or Staff directly. Once Staff login exists, an authenticated request resolves to either an `Owner`'s `Actor` or a `Staff` member's `Actor` — everything downstream of that point (permission checks, audit trail, "who did this") only ever deals with one `Actor` id, regardless of which kind of identity is behind it.
-- **Every API request** carries the JWT; Express middleware verifies it, extracts the provider user id, and resolves it through `AccountIdentity` to an `Owner`, then to that Owner's `Actor`.
+- **`BusinessMember` as the single acting identity:** every action-recording table references a `BusinessMember` row directly. Once Staff login exists, an authenticated request resolves to the acting `BusinessMember` row for whichever Business is currently active — for an Owner, their `role = OWNER` row for that Business; for a team member, their one row for the Business they belong to. Because a `BusinessMember` row is always scoped to exactly one Business, an actor can never be recorded against a Business it doesn't belong to — guaranteed by the schema itself, not a separate check the application has to remember to make.
+- **Every API request** carries the JWT; Express middleware verifies it, extracts the provider user id, and resolves it through `AccountIdentity` to an `Owner`, then — once the active Business is known — to that Owner's `role = OWNER` `BusinessMember` row for that Business.
 - **Business context resolution:** since one Owner can operate multiple Businesses, the active business for a request can't be inferred from identity alone — it must be explicit (e.g. a selected-business id in a header or route), validated against the Owner's actual businesses server-side.
 - **Authorization:** role-based checks in the service layer (`requireRole(['manager'])`, or "must be the resolved business's Owner") rather than a full permissions framework — matches the PRD's flat model. Roles are a fixed enum (`manager`/`cashier`/`server`), not a configurable permissions system.
 - **Branch** exists in the data model (every business gets one auto-created `main` branch), but there is no branch-switching or multi-branch UI to authorize against yet — every request's tenant scoping is effectively business-level.
@@ -205,7 +205,7 @@ Monorepo, managed with **pnpm workspaces**. Full tree:
           adjustments/
           containers/
           sales/
-          identity/    (Owner, Business, Branch, Staff, Actor, AccountIdentity)
+          identity/    (Owner, Business, Branch, BusinessMember, AccountIdentity)
           auth/
         shared/
           middleware/

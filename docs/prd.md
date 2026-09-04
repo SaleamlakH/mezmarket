@@ -58,9 +58,9 @@ Most inventory/POS tools are either too generic (spreadsheets — no batch/lot t
 x
 **Identity is decoupled from the auth provider.** Whatever handles login (currently Supabase Auth) is treated as a swappable detail behind an internal identity link, not baked into business records directly — so a provider change or a provider-side id change never cascades into sales, batches, or any other data.
 
-**Same person, two businesses = two separate Staff records.** Staff are scoped to one business each; there's no shared identity across businesses for a Staff member (an Owner, by contrast, can genuinely operate several businesses under one identity, switching between them in-session — see §6).
+**Internally, the Owner is represented the same way Staff are.** Each Business automatically gets one internal team-member record for its Owner, with a role that can never be changed. This is an implementation detail, not a user-facing distinction — nothing changes about how the Owner signs up, logs in, or operates the business.
 
-Businesses are **tenants**; each tenant has its own products, batches, sales, and staff. Standard Units are shared/global, managed at the platform level (see §5).
+Businesses are **tenants**; each tenant has its own products, batches, sales, and members. Standard Units are shared/global, managed at the platform level (see §5).
 
 ---
 
