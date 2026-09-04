@@ -16,7 +16,8 @@ enum TaxDisplayMode {
   INCLUSIVE
 }
 
-enum StaffRole {
+enum BusinessMemberRole {
+  OWNER
   MANAGER
   CASHIER
   SERVER
@@ -96,9 +97,9 @@ model Owner {
   contactEmail String?
   contactPhone String?
 
-  businesses      Business[]
-  accountIdentity AccountIdentity?
-  actor           Actor?
+  businesses          Business[]
+  accountIdentity     AccountIdentity?
+  businessMemberships BusinessMember[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -120,31 +121,6 @@ model AccountIdentity {
   @@map("account_identity")
 }
 
-// Supertype resolving "who did this" to a single FK across every action-recording table.
-// Exactly one of ownerId / staffId is non-null — enforced at the application layer.
-model Actor {
-  id String @id @default(ulid())
-
-  ownerId String? @unique
-  owner   Owner?  @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-
-  staffId String? @unique
-  staff   Staff?  @relation(fields: [staffId], references: [id], onDelete: Cascade)
-
-  receivedStockBatches StockBatch[] @relation("StockBatchReceivedBy")
-  openedContainers     Container[]  @relation("ContainerOpenedBy")
-  closedContainers     Container[]  @relation("ContainerClosedBy")
-  processedSales       Sale[]       @relation("SaleProcessedBy")
-  losses               Loss[]
-  payments             Payment[]
-  auditLogs            AuditLog[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("actor")
-}
-
 model Business {
   id String @id @default(ulid())
 
@@ -159,7 +135,7 @@ model Business {
   lowStockDefaultThreshold Decimal?       @db.Decimal(12, 4)
 
   branches     Branch[]
-  staff        Staff[]
+  members      BusinessMember[]
   categories   Category[]
   products     Product[]
   stockBatches StockBatch[]
@@ -185,7 +161,7 @@ model Branch {
   name    String  @default("main")
   address String?
 
-  staff        Staff[]
+  members      BusinessMember[]
   products     Product[]
   stockBatches StockBatch[]
   containers   Container[]
@@ -198,8 +174,7 @@ model Branch {
   @@map("branch")
 }
 
-// Login credentials are intentionally not modeled yet — deferred to the Staff Management epic.
-model Staff {
+model BusinessMember {
   id String @id @default(ulid())
 
   businessId String
@@ -207,21 +182,32 @@ model Staff {
   branchId   String
   branch     Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
 
+  // Set only when role = OWNER; null for every other role
+  ownerId String?
+  owner   Owner?  @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
   name   String
-  role   StaffRole
-  active Boolean   @default(true)
+  role   BusinessMemberRole
+  active Boolean            @default(true)
 
-  actor Actor?
+  receivedStockBatches StockBatch[] @relation("StockBatchReceivedBy")
+  openedContainers     Container[]  @relation("ContainerOpenedBy")
+  closedContainers     Container[]  @relation("ContainerClosedBy")
+  processedSales       Sale[]       @relation("SaleProcessedBy")
+  losses               Loss[]
+  payments             Payment[]
+  auditLogs            AuditLog[]
 
-  // Sale.staffId (Server attribution only, not the acting actor)
+  // Sale.serverBusinessMemberId (Server attribution only, not the acting actor)
   attributedSales Sale[] @relation("SaleServerAttribution")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([businessId, ownerId])
   @@index([businessId])
   @@index([branchId])
-  @@map("staff")
+  @@map("business_member")
 }
 
 // ==========================================
@@ -402,8 +388,8 @@ model StockBatch {
   // null = draft (freely editable); non-null = confirmed and locked for ledger-affecting fields
   confirmedAt DateTime?
 
-  receivedByActorId String?
-  receivedByActor   Actor?  @relation("StockBatchReceivedBy", fields: [receivedByActorId], references: [id], onDelete: SetNull)
+  receivedByMemberId String?
+  receivedByMember   BusinessMember? @relation("StockBatchReceivedBy", fields: [receivedByMemberId], references: [id], onDelete: SetNull)
 
   lines StockBatchLine[]
 
@@ -495,8 +481,8 @@ model Loss {
   reasonDetail String?
 
   // Restricted to Owner/Manager
-  actorId String
-  actor   Actor  @relation(fields: [actorId], references: [id])
+  businessMemberId String
+  businessMember   BusinessMember @relation(fields: [businessMemberId], references: [id])
 
   createdAt DateTime @default(now())
 
@@ -527,13 +513,13 @@ model Container {
   // Derived value — see StockBatchLine.quantityRemaining note; same recompute-from-ledger pattern
   remainingMouQty Decimal @db.Decimal(12, 4)
 
-  openedByActorId String
-  openedByActor   Actor    @relation("ContainerOpenedBy", fields: [openedByActorId], references: [id])
-  openedAt        DateTime @default(now())
+  openedByMemberId String
+  openedByMember   BusinessMember @relation("ContainerOpenedBy", fields: [openedByMemberId], references: [id])
+  openedAt         DateTime       @default(now())
 
-  closedByActorId String?
-  closedByActor   Actor?    @relation("ContainerClosedBy", fields: [closedByActorId], references: [id], onDelete: SetNull)
-  closedAt        DateTime?
+  closedByMemberId String?
+  closedByMember   BusinessMember? @relation("ContainerClosedBy", fields: [closedByMemberId], references: [id], onDelete: SetNull)
+  closedAt         DateTime?
 
   // Computed automatically at close: initialMouQty - SUM(sale quantities against this container).
   // Positive = physical loss never recorded as a sale. Negative = an allowed oversell. Null until closed.
@@ -585,12 +571,12 @@ model Sale {
 
   invoiceNumber String
 
-  processedByActorId String
-  processedByActor   Actor  @relation("SaleProcessedBy", fields: [processedByActorId], references: [id])
+  processedByMemberId String
+  processedByMember   BusinessMember @relation("SaleProcessedBy", fields: [processedByMemberId], references: [id])
 
-  // Server attribution only, whole-sale-level — distinct from processedByActorId
-  staffId String?
-  staff   Staff?  @relation("SaleServerAttribution", fields: [staffId], references: [id], onDelete: SetNull)
+  // Server attribution only, whole-sale-level — distinct from processedByBusinessMemberId
+  serverMemberId String?
+  serverMember   BusinessMember? @relation("SaleServerAttribution", fields: [serverMemberId], references: [id], onDelete: SetNull)
 
   customerId String?
   customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
@@ -699,8 +685,8 @@ model Payment {
   amount Decimal  @db.Decimal(10, 2)
   paidAt DateTime @default(now())
 
-  actorId String
-  actor   Actor  @relation(fields: [actorId], references: [id])
+  businessMemberId String
+  businessMember   BusinessMember @relation(fields: [businessMemberId], references: [id])
 
   method       PaymentMethod
   methodDetail String?
@@ -725,8 +711,8 @@ model AuditLog {
   entityId   String
   action     AuditAction
 
-  actorId String
-  actor   Actor  @relation(fields: [actorId], references: [id])
+  businessMemberId String
+  businessMember   BusinessMember @relation(fields: [businessMemberId], references: [id])
 
   occurredAt DateTime @default(now())
   metadata   Json?
