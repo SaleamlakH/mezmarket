@@ -10,7 +10,7 @@
       "cache": false
     },
     "typecheck": {
-      "dependsOn": ["^typecheck"],
+      "dependsOn": ["^typecheck", "^db:generate", "db:generate"],
       "outputs": []
     },
     "lint": {
@@ -23,6 +23,9 @@
     },
     "format:check": {
       "outputs": []
+    },
+    "db:generate": {
+      "cache": true
     }
   }
 }
