@@ -10,7 +10,7 @@
     "build": "tsc -p .",
     "lint": "eslint . --fix",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"no tests yet\" && exit 0",
+    "test": "vitest run",
     "db:migrate": "pnpm prisma migrate dev",
     "db:generate": "pnpm prisma generate",
     "db:studio": "pnpm prisma studio",
@@ -25,6 +25,7 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "jose": "^6.2.10",
     "pg": "^8.22.0"
   },
   "devDependencies": {
@@ -32,7 +33,9 @@
     "@types/express": "^5.0.6",
     "@types/node": "^26.0.1",
     "@types/pg": "^8.20.0",
+    "@types/supertest": "^7.2.1",
     "prisma": "^7.8.0",
+    "supertest": "^7.2.2",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3"
   }
