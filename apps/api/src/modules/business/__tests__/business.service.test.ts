@@ -7,6 +7,67 @@ import type {
 } from '../business.types.js';
 import { AppError, ERROR_CODES } from '../../../shared/errors/app-error.js';
 
+const isoNow = '2026-01-01T00:00:00.000Z';
+const now = new Date(isoNow);
+
+function rawBusinessRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'b-1',
+    ownerId: 'owner-1',
+    name: 'Test',
+    currencyCode: 'USD',
+    defaultTaxRate: { toString: () => '5.0000' },
+    taxDisplayMode: 'EXCLUSIVE',
+    allowNegativeStock: true,
+    lowStockDefaultThreshold: null,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  };
+}
+
+function rawBranchRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'br-1',
+    businessId: 'b-1',
+    name: 'main',
+    address: null,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  };
+}
+
+function rawMemberRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'm-1',
+    businessId: 'b-1',
+    branchId: 'br-1',
+    ownerId: 'owner-1',
+    name: 'me',
+    role: 'OWNER',
+    active: true,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  };
+}
+
+function businessDto(id = 'b-1') {
+  return {
+    id,
+    ownerId: 'owner-1',
+    name: 'Test',
+    currencyCode: 'USD',
+    defaultTaxRate: '5.0000',
+    taxDisplayMode: 'EXCLUSIVE',
+    allowNegativeStock: true,
+    lowStockDefaultThreshold: null,
+    createdAt: isoNow,
+    updatedAt: isoNow,
+  };
+}
+
 function mockRepository(): BusinessRepository {
   return {
     listForOwner: vi.fn(),
@@ -41,14 +102,16 @@ describe('business.service', () => {
       expect(repo.listForOwner).not.toHaveBeenCalled();
     });
 
-    it('delegates to listForOwner and returns its result', async () => {
-      const businesses = [{ id: 'b-1' }];
-      vi.mocked(repo.listForOwner).mockResolvedValue(businesses as never);
+    it('maps rows to the wire DTO', async () => {
+      vi.mocked(repo.listForOwner).mockResolvedValue([
+        rawBusinessRow(),
+        rawBusinessRow({ id: 'b-2' }),
+      ] as never);
 
       const result = await service.getBusinesses('owner-1');
 
       expect(repo.listForOwner).toHaveBeenCalledWith('owner-1');
-      expect(result).toEqual(businesses);
+      expect(result).toEqual([businessDto('b-1'), businessDto('b-2')]);
     });
   });
 
@@ -60,14 +123,38 @@ describe('business.service', () => {
       expect(repo.createForOwner).not.toHaveBeenCalled();
     });
 
-    it('delegates to createForOwner with the owner id and input', async () => {
-      const created = { business: {}, branch: {}, member: {} };
-      vi.mocked(repo.createForOwner).mockResolvedValue(created as never);
+    it('maps the created rows to the wire response', async () => {
+      vi.mocked(repo.createForOwner).mockResolvedValue({
+        business: rawBusinessRow(),
+        branch: rawBranchRow(),
+        member: rawMemberRow(),
+      } as never);
 
       const result = await service.createBusiness('owner-1', input({ name: 'Shop' }));
 
       expect(repo.createForOwner).toHaveBeenCalledWith('owner-1', input({ name: 'Shop' }));
-      expect(result).toEqual(created);
+      expect(result).toEqual({
+        business: businessDto('b-1'),
+        branch: {
+          id: 'br-1',
+          businessId: 'b-1',
+          name: 'main',
+          address: null,
+          createdAt: isoNow,
+          updatedAt: isoNow,
+        },
+        member: {
+          id: 'm-1',
+          businessId: 'b-1',
+          branchId: 'br-1',
+          ownerId: 'owner-1',
+          name: 'me',
+          role: 'OWNER',
+          active: true,
+          createdAt: isoNow,
+          updatedAt: isoNow,
+        },
+      });
     });
   });
 });

@@ -3,6 +3,9 @@ import request from 'supertest';
 import type { AuthRepository } from '../modules/auth/auth.types.js';
 import type { BusinessRepository } from '../modules/business/business.types.js';
 
+const isoNow = '2026-01-01T00:00:00.000Z';
+const now = new Date(isoNow);
+
 const { verifyJwt, authRepository, businessRepository } = vi.hoisted(() => ({
   verifyJwt: vi.fn(),
   authRepository: {
@@ -24,6 +27,49 @@ vi.mock('../modules/business/business.repository.js', () => ({
 }));
 
 import app from '../app.js';
+
+function rawBusinessRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'b-1',
+    ownerId: 'owner-1',
+    name: 'Test',
+    currencyCode: 'USD',
+    defaultTaxRate: null,
+    taxDisplayMode: 'EXCLUSIVE',
+    allowNegativeStock: true,
+    lowStockDefaultThreshold: null,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  };
+}
+
+function rawBranchRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'br-1',
+    businessId: 'b-1',
+    name: 'main',
+    address: null,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  };
+}
+
+function rawMemberRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'm-1',
+    businessId: 'b-1',
+    branchId: 'br-1',
+    ownerId: 'owner-1',
+    name: 'me',
+    role: 'OWNER',
+    active: true,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  };
+}
 
 async function authenticate(ownerId = 'owner-1') {
   verifyJwt.mockResolvedValue({ sub: 'user-1', email: 'user@test.com' });
@@ -59,21 +105,51 @@ describe('business.integration', () => {
 
   it('lists the owner businesses when authenticated', async () => {
     await authenticate('owner-1');
-    businessRepository.listForOwner.mockResolvedValue([{ id: 'b-1', name: 'Shop' }]);
+    businessRepository.listForOwner.mockResolvedValue([
+      rawBusinessRow(),
+      rawBusinessRow({ id: 'b-2' }),
+    ]);
 
     const res = await request(app).get('/api/businesses').set('Authorization', 'Bearer token');
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ businesses: [{ id: 'b-1', name: 'Shop' }] });
+    expect(res.body).toEqual({
+      businesses: [
+        {
+          id: 'b-1',
+          ownerId: 'owner-1',
+          name: 'Test',
+          currencyCode: 'USD',
+          defaultTaxRate: null,
+          taxDisplayMode: 'EXCLUSIVE',
+          allowNegativeStock: true,
+          lowStockDefaultThreshold: null,
+          createdAt: isoNow,
+          updatedAt: isoNow,
+        },
+        {
+          id: 'b-2',
+          ownerId: 'owner-1',
+          name: 'Test',
+          currencyCode: 'USD',
+          defaultTaxRate: null,
+          taxDisplayMode: 'EXCLUSIVE',
+          allowNegativeStock: true,
+          lowStockDefaultThreshold: null,
+          createdAt: isoNow,
+          updatedAt: isoNow,
+        },
+      ],
+    });
     expect(businessRepository.listForOwner).toHaveBeenCalledWith('owner-1');
   });
 
   it('creates a business with the authenticated owner id', async () => {
     await authenticate('owner-1');
     businessRepository.createForOwner.mockResolvedValue({
-      business: { id: 'b-1' },
-      branch: { id: 'br-1' },
-      member: { id: 'm-1' },
+      business: rawBusinessRow(),
+      branch: rawBranchRow(),
+      member: rawMemberRow(),
     });
 
     const res = await request(app)
@@ -82,11 +158,41 @@ describe('business.integration', () => {
       .send({ name: 'Test', currencyCode: 'USD' });
 
     expect(res.status).toBe(201);
+
     expect(res.body).toEqual({
-      business: { id: 'b-1' },
-      branch: { id: 'br-1' },
-      member: { id: 'm-1' },
+      business: {
+        id: 'b-1',
+        ownerId: 'owner-1',
+        name: 'Test',
+        currencyCode: 'USD',
+        defaultTaxRate: null,
+        taxDisplayMode: 'EXCLUSIVE',
+        allowNegativeStock: true,
+        lowStockDefaultThreshold: null,
+        createdAt: isoNow,
+        updatedAt: isoNow,
+      },
+      branch: {
+        id: 'br-1',
+        businessId: 'b-1',
+        name: 'main',
+        address: null,
+        createdAt: isoNow,
+        updatedAt: isoNow,
+      },
+      member: {
+        id: 'm-1',
+        businessId: 'b-1',
+        branchId: 'br-1',
+        ownerId: 'owner-1',
+        name: 'me',
+        role: 'OWNER',
+        active: true,
+        createdAt: isoNow,
+        updatedAt: isoNow,
+      },
     });
+
     expect(businessRepository.createForOwner).toHaveBeenCalledWith('owner-1', {
       name: 'Test',
       currencyCode: 'USD',
