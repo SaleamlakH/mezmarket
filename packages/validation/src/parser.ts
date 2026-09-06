@@ -6,6 +6,7 @@ import {
   type LoginFormValues,
   type SignupFormValues,
 } from './schema/auth.schema.js';
+import { createBusinessSchema, type CreateBusinessFormValues } from './schema/business.schema.js';
 
 function validateInput<T>(schema: ZodType<T>, input: unknown): ValidationResult<T> {
   const result = schema.safeParse(input);
@@ -26,4 +27,8 @@ export function validateLoginValues(values: LoginFormValues) {
 
 export function validateSignupValues(values: SignupFormValues) {
   return validateInput(signupSchema, values);
+}
+
+export function validateCreateBusiness(values: CreateBusinessFormValues) {
+  return validateInput(createBusinessSchema, values);
 }
