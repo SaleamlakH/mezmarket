@@ -1,13 +1,9 @@
 import type { PrismaClient } from '../../../generated/prisma/client.js';
-import type { BusinessMemberRole } from '@mez/types';
-import { type BusinessRepository, type CreateBusinessInput } from './business.types.js';
-
-const BusinessMemberRole = {
-  OWNER: 'OWNER',
-  MANAGER: 'MANAGER',
-  CASHIER: 'CASHIER',
-  SERVER: 'SERVER',
-} as const satisfies Record<BusinessMemberRole, BusinessMemberRole>;
+import {
+  BusinessMemberRole,
+  type BusinessRepository,
+  type CreateBusinessInput,
+} from './business.types.js';
 
 export function createBusinessRepository(prisma: PrismaClient): BusinessRepository {
   return {
@@ -49,7 +45,7 @@ export function createBusinessRepository(prisma: PrismaClient): BusinessReposito
             branchId: branch.id,
             ownerId,
             name: 'me',
-            role: BusinessMemberRole.OWNER,
+            role: BusinessMemberRole.owner,
           },
         });
 

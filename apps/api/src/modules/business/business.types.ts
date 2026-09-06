@@ -1,20 +1,35 @@
-import type {
-  Business as PrismaBusiness,
-  Branch as PrismaBranch,
-  BusinessMember as PrismaBusinessMember,
-} from '../../../generated/prisma/client.js';
-import type { Business, CreateBusinessInput, CreateBusinessResponse } from '@mez/types';
+import type { Business, Branch, BusinessMember } from '../../../generated/prisma/client.js';
 
-export type { CreateBusinessInput, CreateBusinessResponse } from '@mez/types';
+export type { Business, Branch, BusinessMember };
+
+export enum BusinessMemberRole {
+  owner = 'OWNER',
+  manager = 'MANAGER',
+  cashier = 'CASHIER',
+  server = 'SERVER',
+}
+
+export enum TaxDisplayMode {
+  exclusive = 'EXCLUSIVE',
+  inclusive = 'INCLUSIVE',
+}
+
+export interface CreateBusinessInput {
+  name: string;
+  currencyCode: string;
+  defaultTaxRate?: number;
+  taxDisplayMode?: TaxDisplayMode;
+  lowStockDefaultThreshold?: number;
+}
 
 export type CreateBusinessResult = {
-  business: PrismaBusiness;
-  branch: PrismaBranch;
-  member: PrismaBusinessMember;
+  business: Business;
+  branch: Branch;
+  member: BusinessMember;
 };
 
 export type BusinessRepository = {
-  listForOwner(ownerId: string): Promise<PrismaBusiness[]>;
+  listForOwner(ownerId: string): Promise<Business[]>;
   createForOwner(ownerId: string, input: CreateBusinessInput): Promise<CreateBusinessResult>;
 };
 
@@ -23,5 +38,5 @@ export type BusinessService = {
   createBusiness(
     ownerId: string | undefined,
     input: CreateBusinessInput,
-  ): Promise<CreateBusinessResponse>;
+  ): Promise<CreateBusinessResult>;
 };
