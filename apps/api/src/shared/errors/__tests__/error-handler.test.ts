@@ -37,6 +37,25 @@ describe('error-handler', () => {
     });
   });
 
+  it('includes details when the AppError carries them', async () => {
+    const app = createApp(
+      new AppError(ERROR_CODES.BAD_REQUEST, 'Invalid request', 400, {
+        name: 'Business name is required',
+      }),
+    );
+
+    const res = await request(app).get('/ok');
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({
+      error: {
+        code: 'BAD_REQUEST',
+        message: 'Invalid request',
+        details: { name: 'Business name is required' },
+      },
+    });
+  });
+
   it('responds 500 for unknown errors', async () => {
     const app = createApp(new Error('boom'));
 
