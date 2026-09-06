@@ -7,6 +7,7 @@ import { createBusinessRepository } from './modules/business/business.repository
 import { createBusinessService } from './modules/business/business.service.js';
 import { createBusinessController } from './modules/business/business.controller.js';
 import { createBusinessRouter } from './modules/business/business.routes.js';
+import { validateBusinessInput } from './modules/business/business.middleware.js';
 
 const authRepository = createAuthRepository(prisma);
 const authService = createAuthService(authRepository);
@@ -15,4 +16,4 @@ export const auth = createAuthMiddleware(verifyJwt, authService);
 const businessRepository = createBusinessRepository(prisma);
 const businessService = createBusinessService(businessRepository);
 const businessController = createBusinessController(businessService);
-export const businessRoutes = createBusinessRouter(businessController);
+export const businessRoutes = createBusinessRouter(businessController, validateBusinessInput);

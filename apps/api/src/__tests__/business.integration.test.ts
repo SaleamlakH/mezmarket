@@ -198,4 +198,26 @@ describe('business.integration', () => {
       currencyCode: 'USD',
     });
   });
+
+  it('rejects POST /api/businesses with an invalid body', async () => {
+    await authenticate('owner-1');
+
+    const res = await request(app)
+      .post('/api/businesses')
+      .set('Authorization', 'Bearer token')
+      .send({ name: '', currencyCode: 'USDX' });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      error: {
+        code: 'BAD_REQUEST',
+        message: 'Invalid request',
+        details: {
+          name: 'Business name is required',
+          currencyCode: 'Enter a valid 3-letter ISO currency code',
+        },
+      },
+    });
+    expect(businessRepository.createForOwner).not.toHaveBeenCalled();
+  });
 });

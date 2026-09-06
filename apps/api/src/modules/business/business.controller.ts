@@ -14,7 +14,7 @@ export function createBusinessController(service: BusinessService): BusinessCont
     },
 
     async createBusiness(req: Request, res: Response) {
-      const input = req.body as CreateBusinessInput;
+      const input = res.locals.validated as CreateBusinessInput;
       const result = await service.createBusiness(req.auth?.ownerId, input);
       res.status(201).json(result);
     },

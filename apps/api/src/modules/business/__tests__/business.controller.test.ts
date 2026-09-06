@@ -25,7 +25,14 @@ function createApp(service: BusinessService, ownerId?: string) {
   });
   const controller = createBusinessController(service);
   app.get('/businesses', controller.listBusinesses);
-  app.post('/businesses', controller.createBusiness);
+  app.post(
+    '/businesses',
+    (req, res, next) => {
+      res.locals.validated = req.body;
+      next();
+    },
+    controller.createBusiness,
+  );
   return app;
 }
 
@@ -82,7 +89,10 @@ describe('business.controller', () => {
       );
 
       await expect(
-        controller.createBusiness({ auth: { ownerId: 'owner-1' } } as Request, {} as Response),
+        controller.createBusiness(
+          { auth: { ownerId: 'owner-1' } } as Request,
+          { locals: { validated: { name: 'Test', currencyCode: 'USD' } } } as unknown as Response,
+        ),
       ).rejects.toThrow(new AppError(ERROR_CODES.UNAUTHORIZED, 'Unauthorized', 401));
     });
   });
