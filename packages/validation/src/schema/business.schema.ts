@@ -1,13 +1,11 @@
 import z from 'zod';
-import type { TaxDisplayMode } from '@mez/types';
+import type { CreateBusinessInput, TaxDisplayMode } from '@mez/types';
 
-export interface CreateBusinessFormValues {
-  name: string;
-  currencyCode: string;
-  defaultTaxRate?: number | undefined;
-  taxDisplayMode?: TaxDisplayMode | undefined;
-  lowStockDefaultThreshold?: number | undefined;
-}
+/**
+ * Values a user submits in the create-business form.
+ * Shares the same shape as the API's create-business input.
+ */
+export type CreateBusinessFormValues = CreateBusinessInput;
 
 const nameSchema = z
   .string()
@@ -46,4 +44,4 @@ export const createBusinessSchema = z.object({
   defaultTaxRate: defaultTaxRateSchema,
   taxDisplayMode: taxDisplayModeSchema,
   lowStockDefaultThreshold: lowStockDefaultThresholdSchema,
-}) satisfies z.ZodType<CreateBusinessFormValues>;
+});

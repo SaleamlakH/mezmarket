@@ -1,4 +1,5 @@
 import { describe, it, expect, expectTypeOf } from 'vitest';
+import type { CreateBusinessInput } from '@mez/types';
 import {
   type FieldErrors,
   validateLoginValues,
@@ -33,6 +34,7 @@ describe('index', () => {
 
   it('exports CreateBusinessFormValues', () => {
     expectTypeOf<CreateBusinessFormValues>().toBeObject();
+    expectTypeOf<CreateBusinessFormValues>().toEqualTypeOf<CreateBusinessInput>();
   });
 
   it('exports FieldErrors', () => {
