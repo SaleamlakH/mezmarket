@@ -116,6 +116,31 @@ describe('business.repository', () => {
       });
     });
 
+    it('includes zero-valued optional numeric fields', async () => {
+      const { prisma, tx } = createPrismaStub();
+      const repo = createBusinessRepository(prisma);
+      registerSuccess(tx);
+
+      await repo.createForOwner('owner-1', {
+        name: 'Test',
+        currencyCode: 'USD',
+        defaultTaxRate: 0,
+        taxDisplayMode: 'EXCLUSIVE',
+        lowStockDefaultThreshold: 0,
+      });
+
+      expect(tx.business.create).toHaveBeenCalledWith({
+        data: {
+          ownerId: 'owner-1',
+          name: 'Test',
+          currencyCode: 'USD',
+          defaultTaxRate: 0,
+          taxDisplayMode: 'EXCLUSIVE',
+          lowStockDefaultThreshold: 0,
+        },
+      });
+    });
+
     it('creates the main branch linked to the business id (relies on schema default name)', async () => {
       const { prisma, tx } = createPrismaStub();
       const repo = createBusinessRepository(prisma);

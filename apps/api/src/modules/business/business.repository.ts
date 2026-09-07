@@ -1,9 +1,16 @@
 import type { PrismaClient } from '../../../generated/prisma/client.js';
-import {
+import type {
   BusinessMemberRole,
-  type BusinessRepository,
-  type CreateBusinessInput,
+  BusinessRepository,
+  CreateBusinessInput,
 } from './business.types.js';
+
+const BusinessMemberRole = {
+  OWNER: 'OWNER',
+  MANAGER: 'MANAGER',
+  CASHIER: 'CASHIER',
+  SERVER: 'SERVER',
+} satisfies Record<BusinessMemberRole, BusinessMemberRole>;
 
 export function createBusinessRepository(prisma: PrismaClient): BusinessRepository {
   return {
@@ -21,13 +28,13 @@ export function createBusinessRepository(prisma: PrismaClient): BusinessReposito
             ownerId,
             name: input.name,
             currencyCode: input.currencyCode,
-            ...(input.taxDisplayMode && {
+            ...(input.taxDisplayMode !== undefined && {
               taxDisplayMode: input.taxDisplayMode,
             }),
-            ...(input.defaultTaxRate && {
+            ...(input.defaultTaxRate !== undefined && {
               defaultTaxRate: input.defaultTaxRate,
             }),
-            ...(input.lowStockDefaultThreshold && {
+            ...(input.lowStockDefaultThreshold !== undefined && {
               lowStockDefaultThreshold: input.lowStockDefaultThreshold,
             }),
           },
@@ -45,7 +52,7 @@ export function createBusinessRepository(prisma: PrismaClient): BusinessReposito
             branchId: branch.id,
             ownerId,
             name: 'me',
-            role: BusinessMemberRole.owner,
+            role: BusinessMemberRole.OWNER,
           },
         });
 

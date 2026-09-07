@@ -64,7 +64,11 @@ describe('business.integration', () => {
     const res = await request(app).get('/api/businesses').set('Authorization', 'Bearer token');
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ businesses: [{ id: 'b-1', name: 'Shop' }] });
+    expect(res.body).toEqual({
+      businesses: [
+        { id: 'b-1', name: 'Shop', defaultTaxRate: null, lowStockDefaultThreshold: null },
+      ],
+    });
     expect(businessRepository.listForOwner).toHaveBeenCalledWith('owner-1');
   });
 
@@ -83,7 +87,7 @@ describe('business.integration', () => {
 
     expect(res.status).toBe(201);
     expect(res.body).toEqual({
-      business: { id: 'b-1' },
+      business: { id: 'b-1', defaultTaxRate: null, lowStockDefaultThreshold: null },
       branch: { id: 'br-1' },
       member: { id: 'm-1' },
     });

@@ -18,14 +18,27 @@ function requireOwnerId(ownerId: string | undefined): string {
 export function createBusinessService(repository: BusinessRepository): BusinessService {
   return {
     async getBusinesses(ownerId: string | undefined): Promise<Business[]> {
-      return repository.listForOwner(requireOwnerId(ownerId));
+      const businesses = await repository.listForOwner(requireOwnerId(ownerId));
+      return businesses.map((business) => ({
+        ...business,
+        defaultTaxRate: business.defaultTaxRate?.toNumber() ?? null,
+        lowStockDefaultThreshold: business.lowStockDefaultThreshold?.toNumber() ?? null,
+      }));
     },
 
     async createBusiness(
       ownerId: string | undefined,
       input: CreateBusinessInput,
     ): Promise<CreateBusinessResult> {
-      return repository.createForOwner(requireOwnerId(ownerId), input);
+      const result = await repository.createForOwner(requireOwnerId(ownerId), input);
+      return {
+        ...result,
+        business: {
+          ...result.business,
+          defaultTaxRate: result.business.defaultTaxRate?.toNumber() ?? null,
+          lowStockDefaultThreshold: result.business.lowStockDefaultThreshold?.toNumber() ?? null,
+        },
+      };
     },
   };
 }
