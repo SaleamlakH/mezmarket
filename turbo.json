@@ -18,6 +18,9 @@
       "dependsOn": ["^lint"],
       "outputs": []
     },
+    "lint:check": {
+      "outputs": []
+    },
     "test": {
       "dependsOn": ["^build"],
       "outputs": []
