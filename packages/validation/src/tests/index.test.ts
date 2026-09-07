@@ -33,7 +33,6 @@ describe('index', () => {
   });
 
   it('exports CreateBusinessFormValues', () => {
-    expectTypeOf<CreateBusinessFormValues>().toBeObject();
     expectTypeOf<CreateBusinessFormValues>().toEqualTypeOf<CreateBusinessInput>();
   });
 

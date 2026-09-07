@@ -10,13 +10,13 @@ describe('parser', () => {
       expect(result.errors).toBeNull();
     });
 
-    it('should accept optional fields when valid', () => {
+    it('should transform raw optional strings into typed optional values', () => {
       const result = validateCreateBusiness({
         name: 'My Shop',
         currencyCode: 'USD',
-        defaultTaxRate: 15,
+        defaultTaxRate: '15' as unknown as number,
         taxDisplayMode: 'INCLUSIVE',
-        lowStockDefaultThreshold: 10,
+        lowStockDefaultThreshold: '10' as unknown as number,
       });
 
       expect(result.data).toEqual({
@@ -26,6 +26,41 @@ describe('parser', () => {
         taxDisplayMode: 'INCLUSIVE',
         lowStockDefaultThreshold: 10,
       });
+      expect(result.errors).toBeNull();
+    });
+
+    it('should treat empty optional fields as unset', () => {
+      const result = validateCreateBusiness({
+        name: 'My Shop',
+        currencyCode: 'USD',
+        defaultTaxRate: '' as unknown as number,
+        taxDisplayMode: '' as never,
+        lowStockDefaultThreshold: '' as unknown as number,
+      });
+
+      expect(result.data).toEqual({ name: 'My Shop', currencyCode: 'USD' });
+      expect(result.errors).toBeNull();
+    });
+
+    it('should treat whitespace-only optional numbers as unset', () => {
+      const result = validateCreateBusiness({
+        name: 'My Shop',
+        currencyCode: 'USD',
+        defaultTaxRate: '  ' as unknown as number,
+      });
+
+      expect(result.data).toEqual({ name: 'My Shop', currencyCode: 'USD' });
+      expect(result.errors).toBeNull();
+    });
+
+    it('should preserve a zero defaultTaxRate', () => {
+      const result = validateCreateBusiness({
+        name: 'My Shop',
+        currencyCode: 'USD',
+        defaultTaxRate: '0' as unknown as number,
+      });
+
+      expect(result.data).toEqual({ name: 'My Shop', currencyCode: 'USD', defaultTaxRate: 0 });
       expect(result.errors).toBeNull();
     });
 
@@ -74,11 +109,22 @@ describe('parser', () => {
       });
     });
 
+    it('should invalidate a non-numeric defaultTaxRate', () => {
+      const result = validateCreateBusiness({
+        name: 'My Shop',
+        currencyCode: 'USD',
+        defaultTaxRate: 'abc' as unknown as number,
+      });
+
+      expect(result.data).toBeNull();
+      expect(result.errors).toEqual({ defaultTaxRate: expect.any(String) });
+    });
+
     it('should invalidate a defaultTaxRate above 100', () => {
       const result = validateCreateBusiness({
         name: 'My Shop',
         currencyCode: 'USD',
-        defaultTaxRate: 101,
+        defaultTaxRate: '101' as unknown as number,
       });
 
       expect(result.data).toBeNull();
@@ -89,7 +135,7 @@ describe('parser', () => {
       const result = validateCreateBusiness({
         name: 'My Shop',
         currencyCode: 'USD',
-        defaultTaxRate: -1,
+        defaultTaxRate: '-1' as unknown as number,
       });
 
       expect(result.data).toBeNull();
