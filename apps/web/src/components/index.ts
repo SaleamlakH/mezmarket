@@ -37,6 +37,8 @@ export { SectionHeader } from './SectionHeader';
 export type { SectionHeaderProps } from './SectionHeader';
 export { BottomNav } from './BottomNav';
 export type { BottomNavProps, BottomNavTab } from './BottomNav';
+export { BottomTabBar } from './BottomTabBar';
+export { Sidebar } from './Sidebar';
 export { LineItem, LineTotal, Sheet, InvoiceSheet } from './Sheet';
 export type { LineItemProps, LineTotalProps, SheetProps, InvoiceSheetProps } from './Sheet';
 export { Loader } from './Loader';
