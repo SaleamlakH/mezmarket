@@ -14,6 +14,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@mez/validation": "workspace:*",
     "@supabase/supabase-js": "^2.110.0",
     "@tanstack/react-query": "^5.102.8",
     "lucide-react": "^1.23.0",
@@ -24,7 +25,6 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@mez/types": "workspace:*",
-    "@mez/validation": "workspace:*",
     "@tailwindcss/vite": "^4.3.2",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
