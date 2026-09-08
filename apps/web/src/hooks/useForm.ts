@@ -1,27 +1,27 @@
 import { useCallback, useState } from 'react';
-import { type FieldErrors, type ValidationResult } from '@mez/validation';
+import type { FieldErrors, ValidationResult } from '@mez/validation';
 
-interface UseAuthFormOptions<TValues> {
+export interface UseFormOptions<TValues, TData> {
   initialValues: TValues;
-  validate: (values: TValues) => ValidationResult<TValues>;
-  onSubmit: (values: TValues) => void;
+  validate: (values: TValues) => ValidationResult<TData>;
+  onSubmit: (data: TData) => void;
   onSuccess: () => void;
 }
 
-export function useAuthForm<TValues>({
+export function useForm<TValues, TData = TValues>({
   initialValues,
   validate,
   onSubmit,
   onSuccess,
-}: UseAuthFormOptions<TValues>) {
+}: UseFormOptions<TValues, TData>) {
   const [values, setValues] = useState<TValues>(initialValues);
   const [status, setStatus] = useState<'idle' | 'submitting' | 'error' | 'success'>('idle');
-  const [touched, setTouched] = useState<Partial<Record<keyof TValues, boolean>>>({});
+  const [touched, setTouched] = useState<Partial<Record<keyof TData, boolean>>>({});
 
-  const [errors, setErrors] = useState<FieldErrors<TValues>>({});
+  const [errors, setErrors] = useState<FieldErrors<TData>>({});
   const [formError, setFormError] = useState<string | null>(null);
 
-  const writeFieldError = useCallback((field: keyof TValues, message: string | undefined) => {
+  const writeFieldError = useCallback((field: keyof TData, message: string | undefined) => {
     setErrors((prevError) => {
       if (message) {
         return { ...prevError, [field]: message };
@@ -29,12 +29,12 @@ export function useAuthForm<TValues>({
 
       // eslint-disable-next-line
       const { [field]: _omit, ...restError } = prevError;
-      return restError as FieldErrors<TValues>;
+      return restError as FieldErrors<TData>;
     });
   }, []);
 
   const handleChange = useCallback(
-    (field: keyof TValues, value: string) => {
+    (field: keyof TData, value: string) => {
       if (status === 'submitting') return;
 
       const nextValues = { ...values, [field]: value };
@@ -42,19 +42,22 @@ export function useAuthForm<TValues>({
 
       if (touched[field]) {
         const { errors: nextErrors } = validate(nextValues);
-        writeFieldError(field, nextErrors?.[field]);
+        // TData mirrors the form field names, so raw values index typed errors.
+        const nextError = nextErrors?.[field];
+        writeFieldError(field, nextError);
       }
     },
     [status, values, touched, validate, writeFieldError],
   );
 
   const handleBlur = useCallback(
-    (field: keyof TValues) => {
+    (field: keyof TData) => {
       if (status === 'submitting') return;
       setTouched((prev) => ({ ...prev, [field]: true }));
 
       const { errors: currentErrors } = validate(values);
-      writeFieldError(field, currentErrors?.[field]);
+      const currentError = currentErrors?.[field];
+      writeFieldError(field, currentError);
     },
     [status, values, validate, writeFieldError],
   );
@@ -64,9 +67,10 @@ export function useAuthForm<TValues>({
       e.preventDefault();
       if (status === 'submitting') return;
 
-      const { errors: allErrors, data } = validate(values);
-      if (allErrors) {
-        setErrors(allErrors);
+      const result = validate(values);
+      if (result.errors) {
+        // Raw and typed forms share field names; error keys match the form fields.
+        setErrors(result.errors);
         setStatus('error');
         return;
       }
@@ -75,14 +79,14 @@ export function useAuthForm<TValues>({
       setFormError(null);
 
       try {
-        await onSubmit(data as TValues);
+        await onSubmit(result.data as TData);
         setStatus('success');
         onSuccess();
       } catch (error) {
         setStatus('error');
 
-        const authError = error as Error;
-        setFormError(authError.message);
+        const submitError = error as Error;
+        setFormError(submitError.message);
       }
     },
     [status, values, validate, onSubmit, onSuccess],

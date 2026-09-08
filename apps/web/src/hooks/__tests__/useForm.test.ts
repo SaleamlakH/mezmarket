@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
-import { useAuthForm } from '../useAuthForm';
+import { useForm } from '../useForm';
 import type { ValidationResult } from '@mez/validation';
 
 function fakeEvent() {
@@ -11,7 +11,7 @@ function createFakeValidate(result: ValidationResult<{ email: string; password: 
   return vi.fn().mockReturnValue(result);
 }
 
-describe('useAuthForm', () => {
+describe('useForm', () => {
   const initialValues = { email: '', password: '' };
 
   it('initializes with initial values, no errors, idle status', () => {
@@ -19,9 +19,7 @@ describe('useAuthForm', () => {
     const onSubmit = vi.fn();
     const onSuccess = vi.fn();
 
-    const { result } = renderHook(() =>
-      useAuthForm({ initialValues, validate, onSubmit, onSuccess }),
-    );
+    const { result } = renderHook(() => useForm({ initialValues, validate, onSubmit, onSuccess }));
 
     expect(result.current.values).toEqual(initialValues);
     expect(result.current.errors).toEqual({});
@@ -32,7 +30,7 @@ describe('useAuthForm', () => {
   it('updates a field value on handleChange', () => {
     const validate = vi.fn().mockReturnValue({ data: initialValues, errors: null });
     const { result } = renderHook(() =>
-      useAuthForm({ initialValues, validate, onSubmit: vi.fn(), onSuccess: vi.fn() }),
+      useForm({ initialValues, validate, onSubmit: vi.fn(), onSuccess: vi.fn() }),
     );
 
     act(() => result.current.handleChange('email', 'a@b.com'));
@@ -47,7 +45,7 @@ describe('useAuthForm', () => {
     });
 
     const { result } = renderHook(() =>
-      useAuthForm({ initialValues, validate, onSubmit: vi.fn(), onSuccess: vi.fn() }),
+      useForm({ initialValues, validate, onSubmit: vi.fn(), onSuccess: vi.fn() }),
     );
 
     act(() => result.current.handleBlur('email')); // validation happen after first touch
@@ -64,7 +62,7 @@ describe('useAuthForm', () => {
       errors: { password: 'Too short' },
     });
     const { result } = renderHook(() =>
-      useAuthForm({ initialValues, validate, onSubmit: vi.fn(), onSuccess: vi.fn() }),
+      useForm({ initialValues, validate, onSubmit: vi.fn(), onSuccess: vi.fn() }),
     );
 
     act(() => result.current.handleBlur('password'));
@@ -77,12 +75,12 @@ describe('useAuthForm', () => {
     const validate = vi.fn().mockReturnValue({ data: initialValues, errors: null });
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     const { result } = renderHook(() =>
-      useAuthForm({ initialValues, validate, onSubmit, onSuccess: vi.fn() }),
+      useForm({ initialValues, validate, onSubmit, onSuccess: vi.fn() }),
     );
 
     const event = fakeEvent();
     await act(async () => {
-      await result.current.handleSubmit(event);
+      result.current.handleSubmit(event);
     });
 
     expect(event.preventDefault).toHaveBeenCalled();
@@ -95,11 +93,11 @@ describe('useAuthForm', () => {
     });
     const onSubmit = vi.fn();
     const { result } = renderHook(() =>
-      useAuthForm({ initialValues, validate, onSubmit, onSuccess: vi.fn() }),
+      useForm({ initialValues, validate, onSubmit, onSuccess: vi.fn() }),
     );
 
     await act(async () => {
-      await result.current.handleSubmit(fakeEvent());
+      result.current.handleSubmit(fakeEvent());
     });
 
     expect(onSubmit).not.toHaveBeenCalled();
@@ -111,11 +109,11 @@ describe('useAuthForm', () => {
     const validate = vi.fn().mockReturnValue({ data: values, errors: null });
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     const { result } = renderHook(() =>
-      useAuthForm({ initialValues: values, validate, onSubmit, onSuccess: vi.fn() }),
+      useForm({ initialValues: values, validate, onSubmit, onSuccess: vi.fn() }),
     );
 
     await act(async () => {
-      await result.current.handleSubmit(fakeEvent());
+      result.current.handleSubmit(fakeEvent());
     });
 
     expect(onSubmit).toHaveBeenCalledWith(values);
@@ -125,9 +123,7 @@ describe('useAuthForm', () => {
     const validate = vi.fn().mockReturnValue({ data: initialValues, errors: null });
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     const onSuccess = vi.fn();
-    const { result } = renderHook(() =>
-      useAuthForm({ initialValues, validate, onSubmit, onSuccess }),
-    );
+    const { result } = renderHook(() => useForm({ initialValues, validate, onSubmit, onSuccess }));
 
     await act(async () => {
       await result.current.handleSubmit(fakeEvent());
@@ -145,7 +141,7 @@ describe('useAuthForm', () => {
     });
     const onSubmit = vi.fn().mockReturnValue(pending);
     const { result } = renderHook(() =>
-      useAuthForm({ initialValues, validate, onSubmit, onSuccess: vi.fn() }),
+      useForm({ initialValues, validate, onSubmit, onSuccess: vi.fn() }),
     );
 
     act(() => {
@@ -164,7 +160,7 @@ describe('useAuthForm', () => {
     const validate = vi.fn().mockReturnValue({ data: initialValues, errors: null });
     const onSubmit = vi.fn().mockRejectedValue(new Error('Invalid login credentials'));
     const { result } = renderHook(() =>
-      useAuthForm({ initialValues, validate, onSubmit, onSuccess: vi.fn() }),
+      useForm({ initialValues, validate, onSubmit, onSuccess: vi.fn() }),
     );
 
     await act(async () => {
@@ -183,7 +179,7 @@ describe('useAuthForm', () => {
     });
     const onSubmit = vi.fn().mockReturnValue(pending);
     const { result } = renderHook(() =>
-      useAuthForm({ initialValues, validate, onSubmit, onSuccess: vi.fn() }),
+      useForm({ initialValues, validate, onSubmit, onSuccess: vi.fn() }),
     );
 
     act(() => {
@@ -212,7 +208,7 @@ describe('useAuthForm', () => {
     });
     const onSubmit = vi.fn().mockReturnValue(pending);
     const { result } = renderHook(() =>
-      useAuthForm({ initialValues, validate, onSubmit, onSuccess: vi.fn() }),
+      useForm({ initialValues, validate, onSubmit, onSuccess: vi.fn() }),
     );
 
     act(() => {
@@ -240,15 +236,15 @@ describe('useAuthForm', () => {
     });
     const onSubmit = vi.fn();
     const { result } = renderHook(() =>
-      useAuthForm({ initialValues, validate, onSubmit, onSuccess: vi.fn() }),
+      useForm({ initialValues, validate, onSubmit, onSuccess: vi.fn() }),
     );
 
     await act(async () => {
-      await result.current.handleSubmit(fakeEvent());
+      result.current.handleSubmit(fakeEvent());
     });
 
     await act(async () => {
-      await result.current.handleSubmit(fakeEvent());
+      result.current.handleSubmit(fakeEvent());
     });
 
     expect(validate).toHaveBeenCalledTimes(2);
@@ -267,12 +263,10 @@ describe('useAuthForm', () => {
       .mockResolvedValueOnce(undefined);
     const onSuccess = vi.fn();
 
-    const { result } = renderHook(() =>
-      useAuthForm({ initialValues, validate, onSubmit, onSuccess }),
-    );
+    const { result } = renderHook(() => useForm({ initialValues, validate, onSubmit, onSuccess }));
 
     await act(async () => {
-      await result.current.handleSubmit(fakeEvent());
+      result.current.handleSubmit(fakeEvent());
     });
 
     expect(result.current.status).toBe('error');
@@ -283,5 +277,30 @@ describe('useAuthForm', () => {
 
     expect(result.current.status).toBe('success');
     expect(result.current.formError).toBeFalsy();
+  });
+
+  it('hands the transformed submit data to onSubmit when it differs from form values', async () => {
+    type SubmitData = { email: string; password: string; count: number };
+    const validate = vi.fn(
+      (values: { email: string; password: string }): ValidationResult<SubmitData> => ({
+        data: { ...values, count: 3 },
+        errors: null,
+      }),
+    );
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const { result } = renderHook(() =>
+      useForm<{ email: string; password: string }, SubmitData>({
+        initialValues,
+        validate,
+        onSubmit,
+        onSuccess: vi.fn(),
+      }),
+    );
+
+    await act(async () => {
+      await result.current.handleSubmit(fakeEvent());
+    });
+
+    expect(onSubmit).toHaveBeenCalledWith({ email: '', password: '', count: 3 });
   });
 });
