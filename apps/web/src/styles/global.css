@@ -28,7 +28,10 @@
   }
 
   #root {
-    height: 100svh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100svh;
   }
 
   h1 {
