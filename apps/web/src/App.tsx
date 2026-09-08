@@ -11,12 +11,28 @@ import { supabaseClient } from './lib/supabase';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { ErrorPage } from './pages/ErrorPage';
 import { DesignSystem } from './DesignSystem';
+import { AppLayout } from './layouts/AppLayout';
+import { DashboardPage } from './features/dashboard/pages/DashboardPage';
+import { SalesPage } from './features/sales/pages/SalesPage';
+import { InventoryPage } from './features/inventory/pages/InventoryPage';
+import { SettingsPage } from './features/settings/pages/SettingsPage';
 
 const router = createBrowserRouter([
   {
     path: '/',
     element: <ProtectedRoute />,
     errorElement: <ErrorPage />,
+    children: [
+      {
+        element: <AppLayout />,
+        children: [
+          { index: true, element: <DashboardPage /> },
+          { path: 'sales', element: <SalesPage /> },
+          { path: 'inventory', element: <InventoryPage /> },
+          { path: 'settings', element: <SettingsPage /> },
+        ],
+      },
+    ],
   },
   {
     element: <AuthLayout />,
