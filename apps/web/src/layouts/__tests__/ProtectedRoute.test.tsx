@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { useAuthContext } from '@/providers/auth-provider/useAuthContext';
-import { ProtectedRoute } from './ProtectedRoute';
+import { ProtectedRoute } from '@/layouts/ProtectedRoute';
 
 vi.mock('@/providers/auth-provider/useAuthContext');
 
@@ -11,10 +11,9 @@ function renderWithRoutes() {
     <MemoryRouter initialEntries={['/']}>
       <Routes>
         <Route path="/login" element={<div>Login Page</div>} />
-        <Route
-          element=<ProtectedRoute />
-          children={<Route path="/" element={<div>Protected Content</div>} />}
-        />
+        <Route element={<ProtectedRoute />}>
+          <Route path="/" element={<div>Protected Content</div>} />
+        </Route>
       </Routes>
     </MemoryRouter>,
   );
@@ -25,7 +24,7 @@ describe('ProtectedRoute', () => {
     vi.clearAllMocks();
   });
 
-  it('shows a loading state and not the protected content while status is loading', () => {
+  it('shows a loading state while auth is loading', () => {
     vi.mocked(useAuthContext).mockReturnValue({
       session: { status: 'loading', user: null },
     } as ReturnType<typeof useAuthContext>);
@@ -36,7 +35,7 @@ describe('ProtectedRoute', () => {
     expect(screen.queryByText('Login Page')).not.toBeInTheDocument();
   });
 
-  it('redirects to /login when status is guest', () => {
+  it('redirects to /login when auth status is guest', () => {
     vi.mocked(useAuthContext).mockReturnValue({
       session: { status: 'guest', user: null },
     } as ReturnType<typeof useAuthContext>);
@@ -47,7 +46,7 @@ describe('ProtectedRoute', () => {
     expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
   });
 
-  it('renders the protected content when status is authenticated', () => {
+  it('renders the protected content when authenticated', () => {
     vi.mocked(useAuthContext).mockReturnValue({
       session: { status: 'authenticated', user: { id: 'u1', email: 'a@b.com' } },
     } as ReturnType<typeof useAuthContext>);

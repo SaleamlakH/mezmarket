@@ -1,9 +1,13 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createBrowserRouter } from 'react-router';
 import { AuthProvider } from './providers/auth-provider/AuthProvider';
+import { BusinessProvider } from './providers/business/BusinessProvider';
 import { ThemeProvider } from './providers/theme/ThemeProvider';
+import { useAuthContext } from './providers/auth-provider/useAuthContext';
 import { RouterProvider } from 'react-router/dom';
 import { ProtectedRoute } from './layouts/ProtectedRoute';
-import { AuthLayout } from './features/auth/layouts/AuthLayout';
+import { BusinessGate } from './layouts/BusinessGate';
+import { RegistrationLayout } from './layouts/RegistrationLayout';
 import { LoginPage } from './features/auth/pages/LoginPage';
 import { SignupPage } from './features/auth/pages/SignupPage';
 import { createSupabaseAuthService } from './features/auth/api/supabaseAuthService';
@@ -16,6 +20,10 @@ import { DashboardPage } from './features/dashboard/pages/DashboardPage';
 import { SalesPage } from './features/sales/pages/SalesPage';
 import { InventoryPage } from './features/inventory/pages/InventoryPage';
 import { SettingsPage } from './features/settings/pages/SettingsPage';
+import { businessService } from './features/business/api/businessService';
+import { CreateBusinessPage } from './features/business/pages/CreateBusinessPage';
+
+const queryClient = new QueryClient();
 
 const router = createBrowserRouter([
   {
@@ -24,18 +32,33 @@ const router = createBrowserRouter([
     errorElement: <ErrorPage />,
     children: [
       {
-        element: <AppLayout />,
+        element: <BusinessGate />,
         children: [
-          { index: true, element: <DashboardPage /> },
-          { path: 'sales', element: <SalesPage /> },
-          { path: 'inventory', element: <InventoryPage /> },
-          { path: 'settings', element: <SettingsPage /> },
+          {
+            element: <AppLayout />,
+            children: [
+              { index: true, element: <DashboardPage /> },
+              { path: 'sales', element: <SalesPage /> },
+              { path: 'inventory', element: <InventoryPage /> },
+              { path: 'settings', element: <SettingsPage /> },
+            ],
+          },
+        ],
+      },
+      {
+        path: 'businesses/new',
+        element: <RegistrationLayout />,
+        children: [
+          {
+            index: true,
+            element: <CreateBusinessPage />,
+          },
         ],
       },
     ],
   },
   {
-    element: <AuthLayout />,
+    element: <RegistrationLayout />,
     errorElement: <ErrorPage />,
     children: [
       {
@@ -57,12 +80,27 @@ const router = createBrowserRouter([
 
 const supabaseAuthService = createSupabaseAuthService(supabaseClient);
 
+function AppProviders({ children }: { children: React.ReactNode }) {
+  const {
+    session: { user },
+  } = useAuthContext();
+  return (
+    <BusinessProvider userId={user?.id ?? null} businessService={businessService}>
+      {children}
+    </BusinessProvider>
+  );
+}
+
 export default function App() {
   return (
-    <AuthProvider authService={supabaseAuthService}>
-      <ThemeProvider>
-        <RouterProvider router={router} />
-      </ThemeProvider>
-    </AuthProvider>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider authService={supabaseAuthService}>
+        <AppProviders>
+          <ThemeProvider>
+            <RouterProvider router={router} />
+          </ThemeProvider>
+        </AppProviders>
+      </AuthProvider>
+    </QueryClientProvider>
   );
 }

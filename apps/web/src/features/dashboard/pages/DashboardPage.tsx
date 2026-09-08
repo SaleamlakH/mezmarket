@@ -4,7 +4,7 @@ export function DashboardPage() {
   return (
     <PlaceholderPage
       title="Dashboard"
-      description="Business overview and key metrics will appear here."
+      description={`Business overview and key metrics will appear here.`}
     />
   );
 }
