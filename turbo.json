@@ -3,6 +3,7 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
+      "inputs": ["src/**", "tsconfig*.json"],
       "outputs": ["dist/**"]
     },
     "dev": {
@@ -10,11 +11,14 @@
       "cache": false
     },
     "typecheck": {
-      "dependsOn": ["^typecheck", "^db:generate", "db:generate"],
+      "dependsOn": ["^typecheck", "^build", "^db:generate", "db:generate"],
       "outputs": []
     },
     "lint": {
       "dependsOn": ["^lint"],
+      "outputs": []
+    },
+    "lint:check": {
       "outputs": []
     },
     "test": {

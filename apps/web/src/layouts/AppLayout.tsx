@@ -12,7 +12,7 @@ export function AppLayout() {
   const onSettings = pathname === SETTINGS_PATH;
 
   return (
-    <div className="flex h-full w-full">
+    <div className="self-start flex h-full w-full">
       <Sidebar
         tabs={NAV_TABS}
         settingsPath={SETTINGS_PATH}

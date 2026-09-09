@@ -1,10 +1,13 @@
 import { describe, it, expect, expectTypeOf } from 'vitest';
+import type { CreateBusinessInput } from '@mez/types';
 import {
   type FieldErrors,
   validateLoginValues,
   validateSignupValues,
+  validateCreateBusiness,
   type LoginFormValues,
   type SignupFormValues,
+  type CreateBusinessFormValues,
   type ValidationResult,
 } from '../index.js';
 
@@ -17,12 +20,20 @@ describe('index', () => {
     expect(validateSignupValues).toBeDefined();
   });
 
+  it('exports validateCreateBusiness', () => {
+    expect(validateCreateBusiness).toBeDefined();
+  });
+
   it('exports LoginFormValues', () => {
     expectTypeOf<LoginFormValues>().toBeObject();
   });
 
   it('exports SignupFormValues', () => {
     expectTypeOf<SignupFormValues>().toBeObject();
+  });
+
+  it('exports CreateBusinessFormValues', () => {
+    expectTypeOf<CreateBusinessFormValues>().toEqualTypeOf<CreateBusinessInput>();
   });
 
   it('exports FieldErrors', () => {

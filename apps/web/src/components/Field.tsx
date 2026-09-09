@@ -4,7 +4,7 @@ export interface FieldProps {
   id?: string;
   label?: string;
   hint?: string;
-  error?: string;
+  error?: string | undefined;
   className?: string;
   children: ReactNode;
 }
