@@ -9,16 +9,43 @@ system produced them.
 ## The error class
 
 `shared/errors/app-error.ts` defines a single `AppError` class carrying a
-`code`, a `message`, and a `statusCode`, plus the `ERROR_CODES` constant and
-`ErrorCode` union:
+`code`, a `message`, a `statusCode`, and an optional `details` field:
 
-- `UNAUTHORIZED`
-- `NOT_FOUND`
-- `BAD_REQUEST`
-- `INTERNAL_ERROR`
+```ts
+new AppError(code, message, statusCode, details?)
+```
 
-Services and middleware throw `AppError` when they hit a condition they can
-report to the client.
+The `ERROR_CODES` constant and `ErrorCode` union expose four codes:
+
+| Code             | HTTP Status | Typical use                                      |
+| ---------------- | ----------- | ------------------------------------------------ |
+| `UNAUTHORIZED`   | 401         | Missing / invalid token, missing `ownerId`       |
+| `BAD_REQUEST`    | 400         | Validation failures (with field-level `details`) |
+| `NOT_FOUND`      | 404         | Reserved for future use                          |
+| `INTERNAL_ERROR` | 500         | Unexpected failures                              |
+
+An `isAppError(value)` type guard is exported for use in the global handler
+and anywhere an unknown error needs narrowing.
+
+## The details field
+
+`details` is an optional `Record<string, string>` that carries per-field
+error messages. It is currently produced by the Zod-based validation layer
+in `@mez/validation`:
+
+1. `validateInput()` calls Zod's `safeParse()` and, on failure, builds a
+   record mapping each field path to a human-readable message (e.g.
+   `{ name: "Business name is required" }`). Top-level errors use the key
+   `_root`.
+2. The validation middleware passes this record to `AppError`:
+   ```ts
+   throw new AppError(ERROR_CODES.BAD_REQUEST, 'Invalid request', 400, result.errors);
+   ```
+3. The global handler conditionally spreads it into the response (see
+   below).
+
+Any future endpoint that performs server-side validation can follow the same
+pattern.
 
 ## Global handler
 
@@ -26,8 +53,8 @@ report to the client.
 has the four-argument Express signature, Express treats it as the error
 handler and routes thrown errors to it.
 
-- `AppError` values are answered with the error's `statusCode` and the shape
-  `{ error: { code, message } }`.
+- `AppError` values are answered with the error's `statusCode` and the
+  response shape described below.
 - Any other error is logged and answered as `500 INTERNAL_ERROR`.
 
 ## Response shape
@@ -38,4 +65,17 @@ Every handled error responds with:
 { error: { code, message } }
 ```
 
+When a `details` record is present the response includes it:
+
+```
+{ error: { code, message, details: { fieldName: "error message", ... } } }
+```
+
+The `details` key is omitted entirely when there are no field-level errors;
+it is never `null` or `undefined` in the response body.
+
 ## Express 5 auto-forwarding
+
+Express 5 automatically forwards rejected promises and thrown errors to the
+next error handler, so middleware and route handlers do not need try/catch
+blocks — a thrown `AppError` reaches `errorHandler` directly.
