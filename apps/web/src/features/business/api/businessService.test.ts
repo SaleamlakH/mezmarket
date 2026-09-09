@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createBusinessService } from './businessService';
+
+vi.mock('@/lib/supabase', () => ({
+  supabaseClient: { auth: { getSession: vi.fn() } },
+}));
+
 import type { BusinessService } from '@/providers/business/types';
 import type { ApiClient } from '@/lib/apiClient';
 import type { BusinessResponse, CreateBusinessResponse } from '@mez/types';
