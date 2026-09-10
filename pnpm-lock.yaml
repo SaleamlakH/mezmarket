@@ -243,12 +243,9 @@ importers:
 
   apps/api:
     dependencies:
-      '@mez/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       '@mez/validation':
-        specifier: workspace:*
-        version: link:../../packages/validation
+          specifier: workspace:*
+          version: link:../../packages/validation
       '@prisma/adapter-pg':
         specifier: ^7.8.0
         version: 7.8.0
