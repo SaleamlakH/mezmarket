@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validateLoginValues, validateSignupValues } from '../parser.js';
+import { validateLoginValues, validateSignupValues, validateUpdateOwnerValues } from '../parser.js';
 
 describe('parser', () => {
   describe('validateLoginValues', () => {
@@ -50,6 +50,74 @@ describe('parser', () => {
         password: 'Password must be at least 8 characters',
         confirmPassword: "Passwords don't match",
       });
+    });
+  });
+
+  describe('validateUpdateOwnerValues', () => {
+    it('should accept only the name field', () => {
+      const result = validateUpdateOwnerValues({ name: 'John' });
+      expect(result.data).toEqual({ name: 'John' });
+      expect(result.errors).toBeNull();
+    });
+
+    it('should accept only the contactEmail field', () => {
+      const result = validateUpdateOwnerValues({ contactEmail: 'john@example.com' });
+      expect(result.data).toEqual({ contactEmail: 'john@example.com' });
+      expect(result.errors).toBeNull();
+    });
+
+    it('should accept only the contactPhone field', () => {
+      const result = validateUpdateOwnerValues({ contactPhone: '+1234567890' });
+      expect(result.data).toEqual({ contactPhone: '+1234567890' });
+      expect(result.errors).toBeNull();
+    });
+
+    it('should accept explicit nulls to clear optional fields', () => {
+      const result = validateUpdateOwnerValues({
+        name: 'John',
+        contactEmail: null,
+        contactPhone: null,
+      });
+      expect(result.data).toEqual({
+        name: 'John',
+        contactEmail: null,
+        contactPhone: null,
+      });
+      expect(result.errors).toBeNull();
+    });
+
+    it('should reject an empty object', () => {
+      const result = validateUpdateOwnerValues({});
+      expect(result.data).toBeNull();
+      expect(result.errors).toEqual({ _root: 'At least one field must be provided' });
+    });
+
+    it('should reject an empty name', () => {
+      const result = validateUpdateOwnerValues({ name: '' });
+      expect(result.data).toBeNull();
+      expect(result.errors).toEqual({ name: 'Name is required' });
+    });
+
+    it('should reject an invalid contact email', () => {
+      const result = validateUpdateOwnerValues({ contactEmail: 'not-an-email' });
+      expect(result.data).toBeNull();
+      expect(result.errors).toEqual({ contactEmail: 'Enter a valid email address' });
+    });
+
+    it('should reject an empty contact phone', () => {
+      const result = validateUpdateOwnerValues({ contactPhone: '' });
+      expect(result.data).toBeNull();
+      expect(result.errors).toEqual({ contactPhone: 'Phone number is required' });
+    });
+
+    it('should reject unknown fields', () => {
+      const result = validateUpdateOwnerValues({
+        name: 'John',
+        // @ts-expect-error unknown field must be rejected at runtime
+        id: 'owner-1',
+      });
+      expect(result.data).toBeNull();
+      expect(result.errors).toEqual({ _root: 'Unrecognized key: "id"' });
     });
   });
 });
