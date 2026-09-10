@@ -24,6 +24,8 @@ describe('index', () => {
 
   it('exports validateCreateBusiness', () => {
     expect(validateCreateBusiness).toBeDefined();
+  });
+
   it('exports validateUpdateOwnerValues', () => {
     expect(validateUpdateOwnerValues).toBeDefined();
   });
@@ -38,6 +40,8 @@ describe('index', () => {
 
   it('exports CreateBusinessFormValues', () => {
     expectTypeOf<CreateBusinessFormValues>().toEqualTypeOf<CreateBusinessInput>();
+  });
+
   it('exports UpdateOwnerFormValues', () => {
     expectTypeOf<UpdateOwnerFormValues>().toBeObject();
   });

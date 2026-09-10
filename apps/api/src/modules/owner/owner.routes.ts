@@ -1,11 +1,20 @@
-import { Router, type Router as RouterType } from 'express';
+import {
+  Router,
+  type NextFunction,
+  type Request,
+  type Response,
+  type Router as RouterType,
+} from 'express';
 import type { OwnerController } from './owner.controller.js';
 
-export function createOwnerRoutes(controller: OwnerController): RouterType {
+export function createOwnerRoutes(
+  controller: OwnerController,
+  validateOwnerUpdate: (req: Request, res: Response, next: NextFunction) => void,
+): RouterType {
   const router = Router();
 
   router.get('/owner', controller.getOwner);
-  router.put('/owner', controller.updateOwner);
+  router.put('/owner', validateOwnerUpdate, controller.updateOwner);
 
   return router;
 }

@@ -12,5 +12,6 @@ declare namespace Express {
     auth?: {
       ownerId: string;
     };
+    validBody: unknown;
   }
 }

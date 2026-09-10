@@ -99,6 +99,55 @@ describe('owner.integration', () => {
       expect(ownerRepository.updateOwner).toHaveBeenCalledWith('o-1', { name: 'Jane Doe' });
     });
 
+    it('rejects invalid field values with 400', async () => {
+      await authenticate('o-1');
+
+      const res = await request(app)
+        .put('/api/owner')
+        .set('Authorization', 'Bearer valid-token')
+        .send({ name: '' });
+
+      expect(res.status).toBe(400);
+      expect(res.body).toMatchObject({
+        error: {
+          code: ERROR_CODES.BAD_REQUEST,
+          message: expect.any(String),
+          details: { name: expect.any(String) },
+        },
+      });
+      expect(ownerRepository.updateOwner).not.toHaveBeenCalled();
+    });
+
+    it('rejects an empty body with 400', async () => {
+      await authenticate('o-1');
+
+      const res = await request(app)
+        .put('/api/owner')
+        .set('Authorization', 'Bearer valid-token')
+        .send({});
+
+      expect(res.status).toBe(400);
+      expect(res.body).toMatchObject({
+        error: { code: ERROR_CODES.BAD_REQUEST, message: expect.any(String) },
+      });
+      expect(ownerRepository.updateOwner).not.toHaveBeenCalled();
+    });
+
+    it('rejects unknown fields with 400', async () => {
+      await authenticate('o-1');
+
+      const res = await request(app)
+        .put('/api/owner')
+        .set('Authorization', 'Bearer valid-token')
+        .send({ id: 'o-123' });
+
+      expect(res.status).toBe(400);
+      expect(res.body).toMatchObject({
+        error: { code: ERROR_CODES.BAD_REQUEST, message: expect.any(String) },
+      });
+      expect(ownerRepository.updateOwner).not.toHaveBeenCalled();
+    });
+
     it('returns 404 when the owner does not exist', async () => {
       await authenticate('o-2');
       ownerRepository.findOwnerById.mockResolvedValue(null);

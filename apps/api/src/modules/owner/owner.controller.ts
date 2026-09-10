@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import type { OwnerService } from './owner.types.js';
+import type { OwnerService, UpdateOwnerInput } from './owner.types.js';
 
 export type OwnerController = {
   getOwner(req: Request, res: Response): Promise<void>;
@@ -16,7 +16,8 @@ export function createOwnerController(ownerService: OwnerService): OwnerControll
 
     async updateOwner(req: Request, res: Response) {
       const ownerId = req.auth?.ownerId;
-      const owner = await ownerService.updateOwner(ownerId, req.body);
+      const input = req.validBody as UpdateOwnerInput;
+      const owner = await ownerService.updateOwner(ownerId, input);
       res.json(owner);
     },
   };

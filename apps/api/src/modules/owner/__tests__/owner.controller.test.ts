@@ -75,7 +75,7 @@ describe('owner.controller', () => {
       const updated = makeOwner({ name: 'Jane Doe' });
       vi.mocked(service.updateOwner).mockResolvedValue(updated);
 
-      const req = mockReq({ body: { name: 'Jane Doe' } }) as Request;
+      const req = mockReq({ validBody: { name: 'Jane Doe' } }) as Request;
       const res = mockRes() as unknown as Response;
 
       await controller.updateOwner(req, res);
@@ -88,7 +88,10 @@ describe('owner.controller', () => {
       const error = new AppError(ERROR_CODES.NOT_FOUND, 'Owner not found', 404);
       vi.mocked(service.updateOwner).mockRejectedValue(error);
 
-      const req = mockReq({ auth: { ownerId: 'missing' }, body: { name: 'Jane Doe' } }) as Request;
+      const req = mockReq({
+        auth: { ownerId: 'missing' },
+        validBody: { name: 'Jane Doe' },
+      }) as Request;
       const res = mockRes() as unknown as Response;
 
       await expect(controller.updateOwner(req, res)).rejects.toThrow(error);

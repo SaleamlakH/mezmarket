@@ -12,6 +12,7 @@ import { createOwnerRepository } from './modules/owner/owner.repository.js';
 import { createOwnerService } from './modules/owner/owner.service.js';
 import { createOwnerController } from './modules/owner/owner.controller.js';
 import { createOwnerRoutes } from './modules/owner/owner.routes.js';
+import { validateOwnerUpdate } from './modules/owner/owner.middleware.js';
 
 const authRepository = createAuthRepository(prisma);
 const authService = createAuthService(authRepository);
@@ -25,4 +26,4 @@ export const businessRoutes = createBusinessRouter(businessController, validateB
 const ownerRepository = createOwnerRepository(prisma);
 const ownerService = createOwnerService(ownerRepository);
 const ownerController = createOwnerController(ownerService);
-export const ownerRoutes = createOwnerRoutes(ownerController);
+export const ownerRoutes = createOwnerRoutes(ownerController, validateOwnerUpdate);
