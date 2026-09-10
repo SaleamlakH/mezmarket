@@ -1,13 +1,6 @@
-export interface Owner {
-  id: string;
-  name: string;
-  contactEmail: string | null;
-  contactPhone: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
+import type { Owner, UpdateOwnerInput } from '@mez/types';
 
-export type UpdateOwnerInput = Partial<Pick<Owner, 'name' | 'contactEmail' | 'contactPhone'>>;
+export type { Owner, UpdateOwnerInput };
 
 export type OwnerRepository = {
   findOwnerById(ownerId: string): Promise<Owner | null>;
