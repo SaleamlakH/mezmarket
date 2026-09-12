@@ -78,12 +78,18 @@ export function apiPost<TResponse>(path: string, body: unknown): Promise<TRespon
   return apiRequest<TResponse>(path, { method: 'POST', body: JSON.stringify(body) });
 }
 
+export function apiPut<TResponse>(path: string, body: unknown): Promise<TResponse> {
+  return apiRequest<TResponse>(path, { method: 'PUT', body: JSON.stringify(body) });
+}
+
 export interface ApiClient {
   get<TResponse>(path: string): Promise<TResponse>;
   post<TResponse>(path: string, body: unknown): Promise<TResponse>;
+  put<TResponse>(path: string, body: unknown): Promise<TResponse>;
 }
 
 export const apiClient: ApiClient = {
   get: apiGet,
   post: apiPost,
+  put: apiPut,
 };

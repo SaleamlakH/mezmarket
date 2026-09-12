@@ -1,54 +1,21 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OwnerResponse, UpdateOwnerInput } from '@mez/types';
+import { apiClient, type ApiClient } from '@/lib/apiClient';
 
 export type OwnerApi = {
   getOwnerProfile(): Promise<OwnerResponse>;
   updateOwnerProfile(data: UpdateOwnerInput): Promise<OwnerResponse>;
 };
 
-export function createOwnerApi(client: SupabaseClient): OwnerApi {
-  async function authHeaders() {
-    const {
-      data: { session },
-    } = await client.auth.getSession();
-
-    if (!session?.access_token) {
-      throw new Error('Not authenticated');
-    }
-
-    return {
-      Authorization: `Bearer ${session.access_token}`,
-      'Content-Type': 'application/json',
-    };
-  }
-
+export function createOwnerApi(client: ApiClient): OwnerApi {
   return {
     async getOwnerProfile() {
-      const headers = await authHeaders();
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/owner`, { headers });
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.message ?? 'Failed to load profile');
-      }
-
-      return res.json();
+      return client.get<OwnerResponse>('/api/owner');
     },
 
     async updateOwnerProfile(data: UpdateOwnerInput) {
-      const headers = await authHeaders();
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/owner`, {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify(data),
-      });
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.message ?? 'Failed to update profile');
-      }
-
-      return res.json();
+      return client.put<OwnerResponse>('/api/owner', data);
     },
   };
 }
+
+export const ownerApi = createOwnerApi(apiClient);

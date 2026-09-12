@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, apiGet, apiPost } from '@/lib/apiClient';
+import { ApiError, apiGet, apiPost, apiPut } from '@/lib/apiClient';
 
 const { mockGetSession } = vi.hoisted(() => ({ mockGetSession: vi.fn() }));
 
@@ -97,6 +97,24 @@ describe('apiClient', () => {
 
       const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
       const headers = init.headers as Record<string, string>;
+      expect(headers['Content-Type']).toBe('application/json');
+      expect(init.body).toBe(JSON.stringify(body));
+
+      expect(result).toEqual(payload);
+    });
+  });
+
+  describe('apiPut', () => {
+    it('sends a JSON body with PUT method', async () => {
+      const payload = { id: 'o-1' };
+      mockFetch.mockResolvedValue(jsonResponse(payload, 200));
+
+      const body = { name: 'Ada L.' };
+      const result = await apiPut('/owner', body);
+
+      const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const headers = init.headers as Record<string, string>;
+      expect(init.method).toBe('PUT');
       expect(headers['Content-Type']).toBe('application/json');
       expect(init.body).toBe(JSON.stringify(body));
 

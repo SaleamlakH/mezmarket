@@ -23,11 +23,9 @@ import { SettingsPage } from './features/settings/pages/SettingsPage';
 import { businessService } from './features/business/api/businessService';
 import { CreateBusinessPage } from './features/business/pages/CreateBusinessPage';
 import { OwnerProfilePage } from './features/owner-profile/pages/OwnerProfilePage';
-import { createOwnerApi } from './features/owner-profile/api/ownerApi';
+import { ownerApi } from './features/owner-profile/api/ownerApi';
 
 const queryClient = new QueryClient();
-
-const ownerApi = createOwnerApi(supabaseClient);
 
 const router = createBrowserRouter([
   {
