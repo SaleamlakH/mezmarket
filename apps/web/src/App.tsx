@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { createBrowserRouter } from 'react-router';
+import { createBrowserRouter, Navigate } from 'react-router';
 import { AuthProvider } from './providers/auth-provider/AuthProvider';
 import { BusinessProvider } from './providers/business/BusinessProvider';
 import { ThemeProvider } from './providers/theme/ThemeProvider';
@@ -39,7 +39,8 @@ const router = createBrowserRouter([
           {
             element: <AppLayout />,
             children: [
-              { index: true, element: <DashboardPage /> },
+              { index: true, element: <Navigate to="dashboard" replace /> },
+              { path: 'dashboard', element: <DashboardPage /> },
               { path: 'sales', element: <SalesPage /> },
               { path: 'inventory', element: <InventoryPage /> },
               { path: 'settings', element: <SettingsPage /> },
