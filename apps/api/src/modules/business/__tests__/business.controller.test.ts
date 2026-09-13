@@ -17,7 +17,6 @@ function mockRes() {
   return {
     status: vi.fn().mockReturnThis(),
     json: vi.fn(),
-    locals: {},
   } as unknown as Response;
 }
 
@@ -69,10 +68,10 @@ describe('business.controller', () => {
       const controller = createBusinessController(service);
       const result = { business: {}, branch: {}, member: {} };
       const res = mockRes();
-      res.locals.validated = { name: 'Test', currencyCode: 'USD' };
+      const req = mockReq({ validBody: { name: 'Test', currencyCode: 'USD' } });
       vi.mocked(service.createBusiness).mockResolvedValue(result as never);
 
-      await controller.createBusiness(mockReq(), res);
+      await controller.createBusiness(req, res);
 
       expect(service.createBusiness).toHaveBeenCalledWith('owner-1', {
         name: 'Test',
@@ -85,12 +84,12 @@ describe('business.controller', () => {
     it('throws when the service fails', async () => {
       const controller = createBusinessController(service);
       const res = mockRes();
-      res.locals.validated = { name: 'Test', currencyCode: 'USD' };
+      const req = mockReq({ validBody: { name: 'Test', currencyCode: 'USD' } });
       vi.mocked(service.createBusiness).mockRejectedValue(
         new AppError(ERROR_CODES.UNAUTHORIZED, 'Unauthorized', 401),
       );
 
-      await expect(controller.createBusiness(mockReq(), res)).rejects.toThrow(
+      await expect(controller.createBusiness(req, res)).rejects.toThrow(
         new AppError(ERROR_CODES.UNAUTHORIZED, 'Unauthorized', 401),
       );
     });

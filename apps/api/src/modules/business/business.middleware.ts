@@ -3,12 +3,14 @@ import { validateCreateBusiness } from '@mez/validation';
 import { AppError, ERROR_CODES } from '../../shared/errors/app-error.js';
 import type { BusinessService } from './business.types.js';
 
-export function validateBusinessInput(req: Request, res: Response, next: NextFunction) {
+export function validateBusinessInput(req: Request, _res: Response, next: NextFunction) {
   const result = validateCreateBusiness(req.body);
+
   if (result.errors) {
     throw new AppError(ERROR_CODES.BAD_REQUEST, 'Invalid request', 400, result.errors);
   }
-  res.locals.validated = result.data;
+
+  req.validBody = result.data;
   next();
 }
 
