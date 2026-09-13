@@ -1,6 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import express from 'express';
-import request from 'supertest';
 import type { Request, Response } from 'express';
 import { createBusinessController } from '../business.controller.js';
 import { AppError } from '../../../shared/errors/app-error.js';
@@ -15,26 +13,21 @@ function mockService(): BusinessService {
   };
 }
 
-function createApp(service: BusinessService, ownerId?: string) {
-  const app = express();
-  app.use(express.json());
-  app.use((req, _res, next) => {
-    if (ownerId) {
-      req.auth = { ownerId };
-    }
-    next();
-  });
-  const controller = createBusinessController(service);
-  app.get('/businesses', controller.listBusinesses);
-  app.post(
-    '/businesses',
-    (req, res, next) => {
-      res.locals.validated = req.body;
-      next();
-    },
-    controller.createBusiness,
-  );
-  return app;
+function mockRes() {
+  return {
+    status: vi.fn().mockReturnThis(),
+    json: vi.fn(),
+    locals: {},
+  } as unknown as Response;
+}
+
+function mockReq(overrides: Record<string, unknown> = {}) {
+  return {
+    auth: { ownerId: 'owner-1' },
+    params: { businessId: 'b-1' },
+    body: {},
+    ...overrides,
+  } as unknown as Request;
 }
 
 describe('business.controller', () => {
@@ -47,14 +40,16 @@ describe('business.controller', () => {
 
   describe('GET /businesses', () => {
     it('returns 200 with the businesses from the service', async () => {
-      const app = createApp(service, 'owner-1');
+      const controller = createBusinessController(service);
       const businesses = [{ id: 'b-1' }];
+      const res = mockRes();
       vi.mocked(service.getBusinesses).mockResolvedValue(businesses as never);
 
-      const res = await request(app).get('/businesses');
+      await controller.listBusinesses(mockReq(), res);
 
-      expect(res.status).toBe(200);
-      expect(res.body).toEqual({ businesses });
+      expect(service.getBusinesses).toHaveBeenCalledWith('owner-1');
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({ businesses });
     });
 
     it('throws when the service fails', async () => {
@@ -63,38 +58,41 @@ describe('business.controller', () => {
         new AppError(ERROR_CODES.UNAUTHORIZED, 'Unauthorized', 401),
       );
 
-      await expect(
-        controller.listBusinesses({ auth: { ownerId: 'owner-1' } } as Request, {} as Response),
-      ).rejects.toThrow(new AppError(ERROR_CODES.UNAUTHORIZED, 'Unauthorized', 401));
+      await expect(controller.listBusinesses(mockReq(), mockRes())).rejects.toThrow(
+        new AppError(ERROR_CODES.UNAUTHORIZED, 'Unauthorized', 401),
+      );
     });
   });
 
   describe('POST /businesses', () => {
     it('returns 201 with the service result', async () => {
-      const app = createApp(service, 'owner-1');
+      const controller = createBusinessController(service);
       const result = { business: {}, branch: {}, member: {} };
+      const res = mockRes();
+      res.locals.validated = { name: 'Test', currencyCode: 'USD' };
       vi.mocked(service.createBusiness).mockResolvedValue(result as never);
 
-      const res = await request(app)
-        .post('/businesses')
-        .send({ name: 'Test', currencyCode: 'USD' });
+      await controller.createBusiness(mockReq(), res);
 
-      expect(res.status).toBe(201);
-      expect(res.body).toEqual(result);
+      expect(service.createBusiness).toHaveBeenCalledWith('owner-1', {
+        name: 'Test',
+        currencyCode: 'USD',
+      });
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith(result);
     });
 
     it('throws when the service fails', async () => {
       const controller = createBusinessController(service);
+      const res = mockRes();
+      res.locals.validated = { name: 'Test', currencyCode: 'USD' };
       vi.mocked(service.createBusiness).mockRejectedValue(
         new AppError(ERROR_CODES.UNAUTHORIZED, 'Unauthorized', 401),
       );
 
-      await expect(
-        controller.createBusiness(
-          { auth: { ownerId: 'owner-1' } } as Request,
-          { locals: { validated: { name: 'Test', currencyCode: 'USD' } } } as unknown as Response,
-        ),
-      ).rejects.toThrow(new AppError(ERROR_CODES.UNAUTHORIZED, 'Unauthorized', 401));
+      await expect(controller.createBusiness(mockReq(), res)).rejects.toThrow(
+        new AppError(ERROR_CODES.UNAUTHORIZED, 'Unauthorized', 401),
+      );
     });
   });
 });
