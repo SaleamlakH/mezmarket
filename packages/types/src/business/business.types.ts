@@ -91,6 +91,22 @@ export type CreateBusinessInput = Pick<Business, 'name' | 'currencyCode'> & {
 };
 
 /**
+ * Full-replace update payload for a Business. Derived from `Business` so it
+ * stays in sync with the editable fields and their types.
+ */
+export type UpdateBusinessInput = Partial<
+  Pick<
+    Business,
+    | 'name'
+    | 'currencyCode'
+    | 'defaultTaxRate'
+    | 'taxDisplayMode'
+    | 'allowNegativeStock'
+    | 'lowStockDefaultThreshold'
+  >
+>;
+
+/**
  * Return shape of a CreateBusiness
  */
 export interface CreateBusinessResult {
