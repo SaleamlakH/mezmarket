@@ -3,6 +3,7 @@ import type {
   BusinessMemberRole,
   CreateBusinessInput,
   CreateBusinessResult,
+  TaxDisplayMode,
 } from '@mez/types';
 
 import type {
@@ -12,6 +13,15 @@ import type {
 } from '../../../generated/prisma/client.js';
 
 export type { Business, BusinessMemberRole, CreateBusinessInput, CreateBusinessResult };
+
+export interface UpdateBusinessInput {
+  name: string;
+  currencyCode: string;
+  defaultTaxRate: number | null;
+  taxDisplayMode: TaxDisplayMode;
+  allowNegativeStock: boolean;
+  lowStockDefaultThreshold: number | null;
+}
 
 export interface CreateBusinessRecord {
   business: BusinessRecord;
@@ -29,6 +39,8 @@ export type BusinessRepository = {
   createForOwner(ownerId: string, input: CreateBusinessInput): Promise<CreateBusinessRecord>;
   getBusinessId(ownerId: string, businessId: string): Promise<string | null>;
   getBranchId(businessId: string): Promise<string | null>;
+  getForOwner(businessId: string, ownerId: string): Promise<BusinessRecord | null>;
+  updateForOwner(businessId: string, input: UpdateBusinessInput): Promise<BusinessRecord>;
 };
 
 export type BusinessService = {
@@ -38,4 +50,10 @@ export type BusinessService = {
     input: CreateBusinessInput,
   ): Promise<CreateBusinessResult>;
   resolveScope(ownerId: string, businessId: string): Promise<BusinessScope>;
+  getBusiness(businessId: string, ownerId: string | undefined): Promise<Business>;
+  updateBusiness(
+    businessId: string,
+    ownerId: string | undefined,
+    input: UpdateBusinessInput,
+  ): Promise<Business>;
 };

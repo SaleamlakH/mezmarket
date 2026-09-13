@@ -3,7 +3,7 @@ import type { Request, Response } from 'express';
 import { createBusinessController } from '../business.controller.js';
 import { AppError } from '../../../shared/errors/app-error.js';
 import { ERROR_CODES } from '../../../shared/errors/app-error.js';
-import type { BusinessService } from '../business.types.js';
+import type { BusinessService, UpdateBusinessInput } from '../business.types.js';
 
 function mockService(): BusinessService {
   return {
@@ -92,6 +92,71 @@ describe('business.controller', () => {
 
       await expect(controller.createBusiness(mockReq(), res)).rejects.toThrow(
         new AppError(ERROR_CODES.UNAUTHORIZED, 'Unauthorized', 401),
+      );
+    });
+  });
+
+  describe('GET /businesses/:businessId', () => {
+    it('returns 200 with the business from the service', async () => {
+      const controller = createBusinessController(service);
+      const business = { id: 'b-1', name: 'Shop' };
+      const res = mockRes();
+      const req = mockReq();
+      vi.mocked(service.getBusiness).mockResolvedValue(business as never);
+
+      await controller.getBusiness(req, res);
+
+      expect(service.getBusiness).toHaveBeenCalledWith('b-1', 'owner-1');
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({ business });
+    });
+
+    it('throws when the business is not found or not owned', async () => {
+      const controller = createBusinessController(service);
+      vi.mocked(service.getBusiness).mockRejectedValue(
+        new AppError(ERROR_CODES.NOT_FOUND, 'Business not found', 404),
+      );
+
+      await expect(controller.getBusiness(mockReq(), mockRes())).rejects.toThrow(
+        new AppError(ERROR_CODES.NOT_FOUND, 'Business not found', 404),
+      );
+    });
+  });
+
+  describe('PUT /businesses/:businessId', () => {
+    function input(): UpdateBusinessInput {
+      return {
+        name: 'Shop v2',
+        currencyCode: 'USD',
+        defaultTaxRate: 15,
+        taxDisplayMode: 'INCLUSIVE',
+        allowNegativeStock: false,
+        lowStockDefaultThreshold: 10,
+      };
+    }
+
+    it('returns 200 with the updated business', async () => {
+      const controller = createBusinessController(service);
+      const updated = { id: 'b-1', ...input() };
+      const res = mockRes();
+      const req = mockReq({ body: input() });
+      vi.mocked(service.updateBusiness).mockResolvedValue(updated as never);
+
+      await controller.updateBusiness(req, res);
+
+      expect(service.updateBusiness).toHaveBeenCalledWith('b-1', 'owner-1', input());
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({ business: updated });
+    });
+
+    it('throws when the business is not found or not owned', async () => {
+      const controller = createBusinessController(service);
+      vi.mocked(service.updateBusiness).mockRejectedValue(
+        new AppError(ERROR_CODES.NOT_FOUND, 'Business not found', 404),
+      );
+
+      await expect(controller.updateBusiness(mockReq(), mockRes())).rejects.toThrow(
+        new AppError(ERROR_CODES.NOT_FOUND, 'Business not found', 404),
       );
     });
   });

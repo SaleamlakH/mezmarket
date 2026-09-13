@@ -10,6 +10,8 @@ export function createBusinessRouter(
 
   router.get('/businesses', controller.listBusinesses);
   router.post('/businesses', validateBusinessInput, controller.createBusiness);
+  router.get('/businesses/:businessId', controller.getBusiness);
+  router.put('/businesses/:businessId', controller.updateBusiness);
 
   return router;
 }
