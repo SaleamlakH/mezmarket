@@ -4,6 +4,10 @@ import type { ApiClient } from '@/lib/apiClient';
 import type { OwnerApi } from './ownerApi';
 import type { OwnerResponse } from '@mez/types';
 
+vi.mock('@/lib/supabase', () => ({
+  supabaseClient: { auth: { getSession: vi.fn() } },
+}));
+
 const profile: OwnerResponse = {
   id: 'o1',
   name: 'Ada',
