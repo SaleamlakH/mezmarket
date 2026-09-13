@@ -3,7 +3,7 @@ import type {
   BusinessMemberRole,
   CreateBusinessInput,
   CreateBusinessResult,
-  TaxDisplayMode,
+  UpdateBusinessInput,
 } from '@mez/types';
 
 import type {
@@ -12,16 +12,13 @@ import type {
   BusinessMember,
 } from '../../../generated/prisma/client.js';
 
-export type { Business, BusinessMemberRole, CreateBusinessInput, CreateBusinessResult };
-
-export interface UpdateBusinessInput {
-  name: string;
-  currencyCode: string;
-  defaultTaxRate: number | null;
-  taxDisplayMode: TaxDisplayMode;
-  allowNegativeStock: boolean;
-  lowStockDefaultThreshold: number | null;
-}
+export type {
+  Business,
+  BusinessMemberRole,
+  CreateBusinessInput,
+  CreateBusinessResult,
+  UpdateBusinessInput,
+};
 
 export interface CreateBusinessRecord {
   business: BusinessRecord;
