@@ -8,13 +8,13 @@ import type { CreateBusinessInput, TaxDisplayMode } from '@mez/types';
 export type CreateBusinessFormValues = CreateBusinessInput;
 
 const nameSchema = z
-  .string()
+  .string({ error: 'Business name is required' })
   .trim()
   .min(1, 'Business name is required')
   .max(20, 'Business name must be at most 20 characters');
 
 const currencyCodeSchema = z
-  .string()
+  .string({ error: 'Currency is required' })
   .trim()
   .min(1, 'Currency is required')
   .transform((value) => value.toUpperCase())

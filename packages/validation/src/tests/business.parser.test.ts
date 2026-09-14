@@ -70,7 +70,21 @@ describe('parser', () => {
       expect(result.data).toEqual({ name: 'My Shop', currencyCode: 'USD' });
     });
 
-    it('should invalidate a missing name', () => {
+    it('should reject undefined name', () => {
+      const result = validateCreateBusiness({ currencyCode: 'USD' } as never);
+
+      expect(result.data).toBeNull();
+      expect(result.errors).toEqual({ name: 'Business name is required' });
+    });
+
+    it('should reject undefined currencyCode', () => {
+      const result = validateCreateBusiness({ name: 'My Shop' } as never);
+
+      expect(result.data).toBeNull();
+      expect(result.errors).toEqual({ currencyCode: 'Currency is required' });
+    });
+
+    it('should invalidate an empty name', () => {
       const result = validateCreateBusiness({ name: '', currencyCode: 'USD' });
 
       expect(result.data).toBeNull();
@@ -86,7 +100,7 @@ describe('parser', () => {
       });
     });
 
-    it('should invalidate a missing currencyCode', () => {
+    it('should invalidate an empty currencyCode', () => {
       const result = validateCreateBusiness({ name: 'My Shop', currencyCode: '' });
 
       expect(result.data).toBeNull();

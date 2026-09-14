@@ -1,5 +1,4 @@
 import type { ZodType } from 'zod';
-import type { CreateBusinessInput } from '@mez/types';
 import type { FieldErrors, ValidationResult } from './types.js';
 import {
   loginSchema,
@@ -32,7 +31,7 @@ export function validateSignupValues(values: SignupFormValues) {
 }
 
 export function validateCreateBusiness(values: CreateBusinessFormValues) {
-  return validateInput(createBusinessSchema, values) as ValidationResult<CreateBusinessInput>;
+  return validateInput(createBusinessSchema, values) as ValidationResult<CreateBusinessFormValues>;
 }
 
 export function validateUpdateOwnerValues(values: UpdateOwnerFormValues) {
