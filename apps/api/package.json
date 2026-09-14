@@ -19,7 +19,6 @@
   "author": "Sale Habtamu <saleamlak.7h@gmail.com>",
   "license": "ISC",
   "dependencies": {
-    "@mez/types": "workspace:*",
     "@mez/validation": "workspace:*",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
@@ -31,6 +30,7 @@
     "pg": "^8.22.0"
   },
   "devDependencies": {
+    "@mez/types": "workspace:*",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^26.0.1",

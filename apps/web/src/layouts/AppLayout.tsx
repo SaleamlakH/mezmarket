@@ -6,10 +6,13 @@ import { BottomTabBar } from '@/components/BottomTabBar';
 import { SIDEBAR_WIDTH_STYLE, NAV_TABS } from '@/layouts/navigation';
 
 const SETTINGS_PATH = '/settings';
+const PROFILE_PATH = '/settings/profile';
 
 export function AppLayout() {
   const { pathname } = useLocation();
-  const onSettings = pathname === SETTINGS_PATH;
+  const onSettings = pathname === SETTINGS_PATH || pathname === PROFILE_PATH;
+  const headerTitle = pathname === PROFILE_PATH ? 'Profile' : 'Settings';
+  const backTo = pathname === PROFILE_PATH ? SETTINGS_PATH : '/';
 
   return (
     <div className="self-start flex h-full w-full">
@@ -25,15 +28,15 @@ export function AppLayout() {
           {onSettings ? (
             <>
               <Link
-                to="/"
-                aria-label="Back to dashboard"
+                to={backTo}
+                aria-label="Back"
                 title="Back"
                 className="focus-ring inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-(--text) hover:bg-(--surface-secondary)"
               >
                 <ArrowLeft aria-hidden className="h-5 w-5" />
               </Link>
               <span className="flex-1 truncate text-center text-base font-semibold text-(--text)">
-                Settings
+                {headerTitle}
               </span>
               <span aria-hidden className="h-10 w-10 shrink-0" />
             </>
@@ -53,7 +56,7 @@ export function AppLayout() {
         </header>
 
         <main
-          className={`flex-1 overflow-y-auto px-4 pt-6 lg:px-6 ${onSettings ? 'pb-6' : 'pb-24 lg:pb-6'}`}
+          className={`flex-1 overflow-y-auto px-4 sm:pt-6 lg:px-6 ${onSettings ? 'pb-6' : 'pb-24 lg:pb-6'}`}
         >
           <Outlet />
         </main>

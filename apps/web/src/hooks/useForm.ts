@@ -4,7 +4,7 @@ import type { FieldErrors, ValidationResult } from '@mez/validation';
 export interface UseFormOptions<TValues, TData> {
   initialValues: TValues;
   validate: (values: TValues) => ValidationResult<TData>;
-  onSubmit: (data: TData) => void;
+  onSubmit: (data: TData) => Promise<void>;
   onSuccess: () => void;
 }
 

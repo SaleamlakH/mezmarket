@@ -4,10 +4,12 @@ import {
   type FieldErrors,
   validateLoginValues,
   validateSignupValues,
-  validateCreateBusiness,
   type LoginFormValues,
   type SignupFormValues,
+  validateCreateBusiness,
   type CreateBusinessFormValues,
+  validateUpdateOwnerValues,
+  type UpdateOwnerFormValues,
   type ValidationResult,
 } from '../index.js';
 
@@ -24,6 +26,10 @@ describe('index', () => {
     expect(validateCreateBusiness).toBeDefined();
   });
 
+  it('exports validateUpdateOwnerValues', () => {
+    expect(validateUpdateOwnerValues).toBeDefined();
+  });
+
   it('exports LoginFormValues', () => {
     expectTypeOf<LoginFormValues>().toBeObject();
   });
@@ -34,6 +40,10 @@ describe('index', () => {
 
   it('exports CreateBusinessFormValues', () => {
     expectTypeOf<CreateBusinessFormValues>().toEqualTypeOf<CreateBusinessInput>();
+  });
+
+  it('exports UpdateOwnerFormValues', () => {
+    expectTypeOf<UpdateOwnerFormValues>().toBeObject();
   });
 
   it('exports FieldErrors', () => {

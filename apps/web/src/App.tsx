@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { createBrowserRouter } from 'react-router';
+import { createBrowserRouter, Navigate } from 'react-router';
 import { AuthProvider } from './providers/auth-provider/AuthProvider';
 import { BusinessProvider } from './providers/business/BusinessProvider';
 import { ThemeProvider } from './providers/theme/ThemeProvider';
@@ -22,6 +22,8 @@ import { InventoryPage } from './features/inventory/pages/InventoryPage';
 import { SettingsPage } from './features/settings/pages/SettingsPage';
 import { businessService } from './features/business/api/businessService';
 import { CreateBusinessPage } from './features/business/pages/CreateBusinessPage';
+import { OwnerProfilePage } from './features/owner-profile/pages/OwnerProfilePage';
+import { ownerApi } from './features/owner-profile/api/ownerApi';
 
 const queryClient = new QueryClient();
 
@@ -37,10 +39,12 @@ const router = createBrowserRouter([
           {
             element: <AppLayout />,
             children: [
-              { index: true, element: <DashboardPage /> },
+              { index: true, element: <Navigate to="dashboard" replace /> },
+              { path: 'dashboard', element: <DashboardPage /> },
               { path: 'sales', element: <SalesPage /> },
               { path: 'inventory', element: <InventoryPage /> },
               { path: 'settings', element: <SettingsPage /> },
+              { path: 'settings/profile', element: <OwnerProfilePage ownerApi={ownerApi} /> },
             ],
           },
         ],
