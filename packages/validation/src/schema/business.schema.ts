@@ -1,11 +1,16 @@
 import z from 'zod';
-import type { CreateBusinessInput, TaxDisplayMode } from '@mez/types';
+import type { CreateBusinessInput, TaxDisplayMode, UpdateBusinessInput } from '@mez/types';
 
 /**
  * Values a user submits in the create-business form.
  * Shares the same shape as the API's create-business input.
  */
 export type CreateBusinessFormValues = CreateBusinessInput;
+
+/**
+ * Raw values a user submits in the business profile form.
+ */
+export type UpdateBusinessFormValues = UpdateBusinessInput;
 
 const nameSchema = z
   .string({ error: 'Business name is required' })
@@ -46,7 +51,7 @@ const defaultTaxRateSchema = z.preprocess(
     .optional(),
 );
 
-const taxDisplayModeValues = {
+export const taxDisplayModeValues = {
   EXCLUSIVE: 'EXCLUSIVE',
   INCLUSIVE: 'INCLUSIVE',
 } satisfies Record<TaxDisplayMode, TaxDisplayMode>;
@@ -66,5 +71,14 @@ export const createBusinessSchema = z.object({
   currencyCode: currencyCodeSchema,
   defaultTaxRate: defaultTaxRateSchema,
   taxDisplayMode: taxDisplayModeSchema,
+  lowStockDefaultThreshold: lowStockDefaultThresholdSchema,
+});
+
+export const updateBusinessSchema = z.object({
+  name: nameSchema,
+  currencyCode: currencyCodeSchema,
+  defaultTaxRate: defaultTaxRateSchema,
+  taxDisplayMode: taxDisplayModeSchema,
+  allowNegativeStock: z.boolean().optional(),
   lowStockDefaultThreshold: lowStockDefaultThresholdSchema,
 });

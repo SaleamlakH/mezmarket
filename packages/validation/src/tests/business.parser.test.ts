@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { validateCreateBusiness } from '../parser.js';
+import { validateCreateBusiness, validateUpdateBusiness } from '../parser.js';
+import { taxDisplayModeValues } from '../schema/business.schema.js';
 
 describe('parser', () => {
   describe('validateCreateBusiness', () => {
@@ -186,6 +187,188 @@ describe('parser', () => {
         currencyCode: 'USD',
         lowStockDefaultThreshold: -5,
       });
+
+      expect(result.data).toBeNull();
+      expect(result.errors).toEqual({
+        lowStockDefaultThreshold: 'Low stock threshold must be at least 0',
+      });
+    });
+  });
+
+  describe('validateUpdateBusiness', () => {
+    const base = { name: 'Selam Mart', currencyCode: 'ETB' };
+
+    it('should validate a valid update with only required fields', () => {
+      const result = validateUpdateBusiness(base);
+
+      expect(result.data).toEqual(base);
+      expect(result.errors).toBeNull();
+    });
+
+    it('should validate a full update with all fields', () => {
+      const input = {
+        ...base,
+        defaultTaxRate: 15,
+        taxDisplayMode: taxDisplayModeValues.INCLUSIVE,
+        allowNegativeStock: false,
+        lowStockDefaultThreshold: 10,
+      };
+
+      const result = validateUpdateBusiness(input);
+
+      expect(result.data).toEqual(input);
+      expect(result.errors).toBeNull();
+    });
+
+    it('should reject undefined name', () => {
+      const result = validateUpdateBusiness({ currencyCode: 'ETB' } as never);
+
+      expect(result.data).toBeNull();
+      expect(result.errors).toEqual({ name: 'Business name is required' });
+    });
+
+    it('should reject undefined currencyCode', () => {
+      const result = validateUpdateBusiness({ name: 'Selam Mart' } as never);
+
+      expect(result.data).toBeNull();
+      expect(result.errors).toEqual({ currencyCode: 'Currency is required' });
+    });
+
+    it('should invalidate an empty name', () => {
+      const result = validateUpdateBusiness({ ...base, name: '' });
+
+      expect(result.data).toBeNull();
+      expect(result.errors).toEqual({ name: 'Business name is required' });
+    });
+
+    it('should invalidate a name longer than 20 characters', () => {
+      const result = validateUpdateBusiness({ ...base, name: 'A'.repeat(21) });
+
+      expect(result.data).toBeNull();
+      expect(result.errors).toEqual({
+        name: 'Business name must be at most 20 characters',
+      });
+    });
+
+    it('should trim whitespace around name', () => {
+      const result = validateUpdateBusiness({ ...base, name: '  Selam Mart  ' });
+
+      expect(result.data).toEqual({ ...base, name: 'Selam Mart' });
+      expect(result.errors).toBeNull();
+    });
+
+    it('should invalidate an empty currencyCode', () => {
+      const result = validateUpdateBusiness({ ...base, currencyCode: '' });
+
+      expect(result.data).toBeNull();
+      expect(result.errors).toEqual({ currencyCode: 'Currency is required' });
+    });
+
+    it('should invalidate a currencyCode with the wrong length', () => {
+      const result = validateUpdateBusiness({ ...base, currencyCode: 'USDX' });
+
+      expect(result.data).toBeNull();
+      expect(result.errors).toEqual({
+        currencyCode: 'Enter a valid 3-letter ISO currency code',
+      });
+    });
+
+    it('should uppercase a lowercase currencyCode', () => {
+      const result = validateUpdateBusiness({ ...base, currencyCode: 'usd' });
+
+      expect(result.data).toEqual({ ...base, currencyCode: 'USD' });
+      expect(result.errors).toBeNull();
+    });
+
+    it('should convert numeric string fields to numbers', () => {
+      const result = validateUpdateBusiness({
+        ...base,
+        defaultTaxRate: '12.5' as never,
+        lowStockDefaultThreshold: '8' as never,
+      });
+
+      expect(result.data).toEqual({ ...base, defaultTaxRate: 12.5, lowStockDefaultThreshold: 8 });
+      expect(result.errors).toBeNull();
+    });
+
+    it('should treat empty numeric fields as unset', () => {
+      const result = validateUpdateBusiness({
+        ...base,
+        defaultTaxRate: '' as never,
+        lowStockDefaultThreshold: '' as never,
+      });
+
+      expect(result.data).toEqual(base);
+      expect(result.errors).toBeNull();
+    });
+
+    it('should preserve a zero defaultTaxRate', () => {
+      const result = validateUpdateBusiness({ ...base, defaultTaxRate: 0 });
+
+      expect(result.data).toEqual({ ...base, defaultTaxRate: 0 });
+      expect(result.errors).toBeNull();
+    });
+
+    it('should reject a null defaultTaxRate', () => {
+      const result = validateUpdateBusiness({ ...base, defaultTaxRate: null as never });
+
+      expect(result.data).toBeNull();
+      expect(result.errors).toEqual({ defaultTaxRate: expect.any(String) });
+    });
+
+    it('should invalidate a non-numeric defaultTaxRate', () => {
+      const result = validateUpdateBusiness({ ...base, defaultTaxRate: 'abc' as never });
+
+      expect(result.data).toBeNull();
+      expect(result.errors).toEqual({ defaultTaxRate: expect.any(String) });
+    });
+
+    it('should invalidate a defaultTaxRate above 100', () => {
+      const result = validateUpdateBusiness({ ...base, defaultTaxRate: 101 });
+
+      expect(result.data).toBeNull();
+      expect(result.errors).toEqual({ defaultTaxRate: 'Tax rate must be at most 100' });
+    });
+
+    it('should invalidate a negative defaultTaxRate', () => {
+      const result = validateUpdateBusiness({ ...base, defaultTaxRate: -1 });
+
+      expect(result.data).toBeNull();
+      expect(result.errors).toEqual({ defaultTaxRate: 'Tax rate must be at least 0' });
+    });
+
+    it('should accept both valid taxDisplayMode values', () => {
+      for (const taxDisplayMode of ['EXCLUSIVE', 'INCLUSIVE'] as const) {
+        const result = validateUpdateBusiness({ ...base, taxDisplayMode });
+
+        expect(result.data).toEqual({ ...base, taxDisplayMode });
+        expect(result.errors).toBeNull();
+      }
+    });
+
+    it('should invalidate an invalid taxDisplayMode', () => {
+      const result = validateUpdateBusiness({ ...base, taxDisplayMode: 'INVALID' as never });
+
+      expect(result.data).toBeNull();
+      expect(result.errors).toEqual({ taxDisplayMode: expect.any(String) });
+    });
+
+    it('should accept allowNegativeStock as a boolean', () => {
+      const result = validateUpdateBusiness({ ...base, allowNegativeStock: false });
+
+      expect(result.data).toEqual({ ...base, allowNegativeStock: false });
+      expect(result.errors).toBeNull();
+    });
+
+    it('should invalidate an allowNegativeStock that is not a boolean', () => {
+      const result = validateUpdateBusiness({ ...base, allowNegativeStock: 'yes' as never });
+
+      expect(result.data).toBeNull();
+      expect(result.errors).toEqual({ allowNegativeStock: expect.any(String) });
+    });
+
+    it('should invalidate a negative lowStockDefaultThreshold', () => {
+      const result = validateUpdateBusiness({ ...base, lowStockDefaultThreshold: -5 });
 
       expect(result.data).toBeNull();
       expect(result.errors).toEqual({

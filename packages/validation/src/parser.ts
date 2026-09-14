@@ -6,8 +6,13 @@ import {
   type LoginFormValues,
   type SignupFormValues,
 } from './schema/auth.schema.js';
-import { createBusinessSchema, type CreateBusinessFormValues } from './schema/business.schema.js';
 import { updateOwnerSchema, type UpdateOwnerFormValues } from './schema/owner.schema.js';
+import {
+  createBusinessSchema,
+  updateBusinessSchema,
+  type CreateBusinessFormValues,
+  type UpdateBusinessFormValues,
+} from './schema/business.schema.js';
 
 function validateInput<T>(schema: ZodType<T>, input: unknown): ValidationResult<T> {
   const result = schema.safeParse(input);
@@ -36,4 +41,10 @@ export function validateCreateBusiness(values: CreateBusinessFormValues) {
 
 export function validateUpdateOwnerValues(values: UpdateOwnerFormValues) {
   return validateInput(updateOwnerSchema, values);
+}
+
+export function validateUpdateBusiness(
+  values: UpdateBusinessFormValues,
+): ValidationResult<UpdateBusinessFormValues> {
+  return validateInput(updateBusinessSchema, values) as ValidationResult<UpdateBusinessFormValues>;
 }
