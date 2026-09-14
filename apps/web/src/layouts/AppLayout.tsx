@@ -6,13 +6,18 @@ import { BottomTabBar } from '@/components/BottomTabBar';
 import { SIDEBAR_WIDTH_STYLE, NAV_TABS } from '@/layouts/navigation';
 
 const SETTINGS_PATH = '/settings';
-const PROFILE_PATH = '/settings/profile';
+
+const SETTINGS_HEADER_TITLES: Record<string, string> = {
+  [SETTINGS_PATH]: 'Settings',
+  [`${SETTINGS_PATH}/profile`]: 'Profile',
+  [`${SETTINGS_PATH}/business`]: 'Business profile',
+};
 
 export function AppLayout() {
   const { pathname } = useLocation();
-  const onSettings = pathname === SETTINGS_PATH || pathname === PROFILE_PATH;
-  const headerTitle = pathname === PROFILE_PATH ? 'Profile' : 'Settings';
-  const backTo = pathname === PROFILE_PATH ? SETTINGS_PATH : '/';
+  const onSettings = pathname === SETTINGS_PATH || pathname.startsWith(`${SETTINGS_PATH}/`);
+  const settingsSubpage = pathname !== SETTINGS_PATH && onSettings;
+  const headerTitle = SETTINGS_HEADER_TITLES[pathname] ?? 'Settings';
 
   return (
     <div className="self-start flex h-full w-full">
@@ -28,7 +33,7 @@ export function AppLayout() {
           {onSettings ? (
             <>
               <Link
-                to={backTo}
+                to={settingsSubpage ? SETTINGS_PATH : '/'}
                 aria-label="Back"
                 title="Back"
                 className="focus-ring inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-(--text) hover:bg-(--surface-secondary)"

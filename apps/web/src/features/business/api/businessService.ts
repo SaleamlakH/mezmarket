@@ -6,6 +6,10 @@ export interface BusinessListResponse {
   businesses: BusinessResponse[];
 }
 
+export interface BusinessDetailResponse {
+  business: BusinessResponse;
+}
+
 export function createBusinessService(client: ApiClient): BusinessService {
   return {
     async listBusinesses() {
@@ -14,6 +18,17 @@ export function createBusinessService(client: ApiClient): BusinessService {
     },
     async createBusiness(input) {
       return client.post<CreateBusinessResponse>('/api/businesses', input);
+    },
+    async getBusiness(businessId) {
+      const response = await client.get<BusinessDetailResponse>(`/api/businesses/${businessId}`);
+      return response.business;
+    },
+    async updateBusiness(businessId, input) {
+      const response = await client.put<BusinessDetailResponse>(
+        `/api/businesses/${businessId}`,
+        input,
+      );
+      return response.business;
     },
   };
 }

@@ -1,12 +1,13 @@
 import { Link } from 'react-router';
-import { ChevronRight, UserRound } from 'lucide-react';
+import { ChevronRight, Store, UserRound } from 'lucide-react';
 import { ListCard } from '@/components/ListCard';
 import { SectionHeader } from '@/components/SectionHeader';
 
 export function SettingsPage() {
   return (
-    <main className="mx-auto max-w-3xl">
-      <h2 className="hidden sm:block mb-4 text-lg font-bold text-(--text)">Settings</h2>
+    <div className="mx-auto w-full max-w-2xl">
+      <h1 className="text-xl font-extrabold tracking-tight text-(--text)">Settings</h1>
+      <p className="mt-1 text-sm text-(--text-muted)">Manage your account, shop and preferences.</p>
 
       <SectionHeader title="Account" />
 
@@ -25,6 +26,25 @@ export function SettingsPage() {
           tag={<ChevronRight size={16} className="text-(--text-muted)" />}
         />
       </Link>
-    </main>
+
+      <SectionHeader title="Business" />
+
+      <Link to="business" className="group block focus-ring rounded-xl">
+        <ListCard
+          thumb={
+            <span className="flex h-full w-full items-center justify-center text-(--text-muted)">
+              <Store size={20} />
+            </span>
+          }
+          title="Business profile"
+          meta="Name, currency, tax and stock preferences"
+          tag={
+            <span className="text-[13px] text-(--text-muted) transition-colors group-hover:text-(--accent)">
+              ›
+            </span>
+          }
+        />
+      </Link>
+    </div>
   );
 }

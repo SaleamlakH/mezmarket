@@ -1,11 +1,18 @@
 import type { ReactNode } from 'react';
-import type { BusinessResponse, CreateBusinessInput, CreateBusinessResponse } from '@mez/types';
+import type {
+  BusinessResponse,
+  CreateBusinessInput,
+  CreateBusinessResponse,
+  UpdateBusinessInput,
+} from '@mez/types';
 
 export type BusinessStatus = 'loading' | 'ready' | 'error';
 
 export interface BusinessService {
   listBusinesses(): Promise<BusinessResponse[]>;
   createBusiness(input: CreateBusinessInput): Promise<CreateBusinessResponse>;
+  getBusiness(businessId: string): Promise<BusinessResponse>;
+  updateBusiness(businessId: string, input: UpdateBusinessInput): Promise<BusinessResponse>;
 }
 
 export interface BusinessContextValue {

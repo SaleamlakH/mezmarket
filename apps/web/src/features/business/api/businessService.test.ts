@@ -12,6 +12,7 @@ import type { BusinessResponse, CreateBusinessResponse } from '@mez/types';
 const client = {
   get: vi.fn(),
   post: vi.fn(),
+  put: vi.fn(),
 } as unknown as ApiClient;
 
 describe('createBusinessService', () => {
@@ -56,5 +57,48 @@ describe('createBusinessService', () => {
 
     expect(client.post).toHaveBeenCalledWith('/api/businesses', input);
     expect(result).toBe(response);
+  });
+
+  it('getBusiness fetches a single business from GET /api/businesses/:id', async () => {
+    const business = {
+      id: 'b-1',
+      ownerId: 'o-1',
+      name: 'Selam Mart',
+      currencyCode: 'ETB',
+      defaultTaxRate: null,
+      taxDisplayMode: 'EXCLUSIVE',
+      allowNegativeStock: true,
+      lowStockDefaultThreshold: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    } satisfies BusinessResponse;
+    vi.mocked(client.get).mockResolvedValue({ business });
+
+    const result = await service.getBusiness('b-1');
+
+    expect(client.get).toHaveBeenCalledWith('/api/businesses/b-1');
+    expect(result).toBe(business);
+  });
+
+  it('updateBusiness sends the input to PUT /api/businesses/:id and returns the business', async () => {
+    const updated = {
+      id: 'b-1',
+      ownerId: 'o-1',
+      name: 'Selam Mart 2',
+      currencyCode: 'ETB',
+      defaultTaxRate: 15,
+      taxDisplayMode: 'EXCLUSIVE',
+      allowNegativeStock: true,
+      lowStockDefaultThreshold: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-02-01T00:00:00.000Z',
+    } satisfies BusinessResponse;
+    vi.mocked(client.put).mockResolvedValue({ business: updated });
+
+    const input = { name: 'Selam Mart 2', defaultTaxRate: 15 };
+    const result = await service.updateBusiness('b-1', input);
+
+    expect(client.put).toHaveBeenCalledWith('/api/businesses/b-1', input);
+    expect(result).toBe(updated);
   });
 });
