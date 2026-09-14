@@ -10,6 +10,8 @@ function mockService(): BusinessService {
     getBusinesses: vi.fn(),
     createBusiness: vi.fn(),
     resolveScope: vi.fn(),
+    getBusiness: vi.fn(),
+    updateBusiness: vi.fn(),
   };
 }
 
@@ -138,7 +140,7 @@ describe('business.controller', () => {
       const controller = createBusinessController(service);
       const updated = { id: 'b-1', ...input() };
       const res = mockRes();
-      const req = mockReq({ body: input() });
+      const req = mockReq({ validBody: input() });
       vi.mocked(service.updateBusiness).mockResolvedValue(updated as never);
 
       await controller.updateBusiness(req, res);

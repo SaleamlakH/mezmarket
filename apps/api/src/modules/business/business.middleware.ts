@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
-import { validateCreateBusiness } from '@mez/validation';
+import { validateCreateBusiness, validateUpdateBusiness } from '@mez/validation';
 import { AppError, ERROR_CODES } from '../../shared/errors/app-error.js';
 import type { BusinessService } from './business.types.js';
 
@@ -36,4 +36,15 @@ export function createAuthorizeBusiness(businessService: BusinessService) {
     };
     next();
   };
+}
+
+export function validateBusinessUpdateInput(req: Request, _res: Response, next: NextFunction) {
+  const result = validateUpdateBusiness(req.body);
+
+  if (result.errors) {
+    throw new AppError(ERROR_CODES.BAD_REQUEST, 'Invalid request', 400, result.errors);
+  }
+
+  req.validBody = result.data;
+  next();
 }

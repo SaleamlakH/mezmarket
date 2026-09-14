@@ -33,7 +33,7 @@ export function createBusinessController(service: BusinessService): BusinessCont
 
     async updateBusiness(req: Request, res: Response) {
       const businessId = req.params.businessId as string;
-      const input = req.body as UpdateBusinessInput;
+      const input = req.validBody as UpdateBusinessInput;
       const business = await service.updateBusiness(businessId, req.auth?.ownerId, input);
       res.status(200).json({ business });
     },
