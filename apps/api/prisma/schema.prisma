@@ -233,7 +233,7 @@ model DimensionReference {
   dimensionId String    @id
   dimension   Dimension @relation(fields: [dimensionId], references: [id], onDelete: Cascade)
 
-  standardUnitId String
+  standardUnitId String       @unique
   standardUnit   StandardUnit @relation(fields: [standardUnitId], references: [id])
 
   @@map("dimension_reference")
@@ -245,13 +245,13 @@ model StandardUnit {
   dimensionId String
   dimension   Dimension @relation(fields: [dimensionId], references: [id], onDelete: Cascade)
 
-  name   String
-  symbol String
+  name   String @unique
+  symbol String @unique
 
   // How many of this unit equal one of the dimension's reference unit
   ratioToReferenceUnit Decimal @db.Decimal(18, 6)
 
-  dimensionReferences DimensionReference[]
+  dimensionReferences DimensionReference?
   productUnits        ProductUnit[]
 
   // Traceability-only reverse relations from snapshot fields elsewhere
