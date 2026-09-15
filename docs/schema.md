@@ -152,7 +152,7 @@ Different physical package sizes of what might look like "the same product" (a 5
 | name               | String                            |                                                                             |
 | brand              | String?                           |                                                                             |
 | description        | String?                           |                                                                             |
-| photoUrl           | String?                           |                                                                             |
+| photoId            | String? (FK → Upload, unique)     | 1:1 — at most one product per photo upload (see `Upload` below)             |
 | trackAsPartial     | Boolean                           | requires an MOU and a qualifying sell-capable unit smaller than 1 Base Unit |
 | lowStockThreshold  | Decimal?                          | in Base Unit terms                                                          |
 | currentSealedStock | Decimal                           | derived value, see §9                                                       |
@@ -168,6 +168,23 @@ No `sku`, no `cost_price` — neither is stored: SKU has no current feature depe
 | businessId  | String (FK → Business) |       |
 | name        | String                 |       |
 | description | String?                |       |
+
+### `Upload`
+
+The DB-backed state record for a file transferred directly to object storage via the presigned-URL pattern (see `docs/file-transfer-architecture.md`). The backend never touches file bytes — it issues a time-limited presigned URL and tracks the transfer's lifecycle here as PENDING → ACTIVE / FAILED. Not business-scoped: an Upload row is a storage-level fact, and any consuming entity (e.g. a `Product` photo) references it by FK.
+| Field | Type | Notes |
+|---|---|---|
+| id | String (PK, ulid) | the identifier the client uses when asking for the presigned URL |
+| storageKey | String (UQ) | the object-storage key/path; generated server-side, never guessed by the client |
+| mimeType | String? | known by the client at request time; optional |
+| sizeBytes | Int? | optional |
+| status | enum(`PENDING`,`ACTIVE`,`FAILED`) | `PENDING` = record created, upload not yet confirmed; `ACTIVE` = confirmed in storage, eligible for download; `FAILED` = not completed within the allowed window |
+| createdAt | DateTime | |
+| updatedAt | DateTime | |
+
+One deliberate choice: no `uploadedByUserId`/ownership FK. There is no `User` model (Supabase JWT → `AccountIdentity`), so the record carries no actor link for now; authorization to _download_ a photo is derived from the consuming entity's scope (the `Product`'s `businessId`), not from the upload itself.
+
+Relations: `product` (Product?, 1:1 — via `Product.photoId`, set only once the upload completes and the product is created/edited to reference it).
 
 ---
 
@@ -345,7 +362,7 @@ Append-only. Written explicitly by the application's service layer, in the same 
 |---|---|---|
 | id | String (PK, ulid) | |
 | businessId | String (FK → Business) | denormalized so "this business's audit log" needs no per-entity-type join |
-| entityType | enum(`STOCK_BATCH`,`SALE`,`CONTAINER`,`INVENTORY_ADJUSTMENT`,`STAFF`,`BUSINESS`,`PRODUCT`,…) | |
+| entityType | enum(`STOCK_BATCH`,`SALE`,`CONTAINER`,`INVENTORY_ADJUSTMENT`,`STAFF`,`BUSINESS`,`PRODUCT`,`UPLOAD`,…) | |
 | entityId | String | |
 | action | enum(`CREATED`,`CONFIRMED`,`VOIDED`,`CLOSED`,`REFUNDED`,`ADJUSTED`,`UPDATED`,`DEACTIVATED`,…) | |
 | businessMemberId | String (FK → BusinessMember) | |
@@ -364,6 +381,8 @@ Owner ──< Business ──< Branch ──< BusinessMember
                     └──< StockBatch ──< StockBatchLine
                     └──< Sale ──< SaleLine ──< SaleLineCost >── StockBatchLine
                                 └──< Payment
+
+Product ─── Upload (photoId, 1:1 nullable)
 
 Owner ──< BusinessMember (one per Business owned, role = owner)
 Business ──< BusinessMember (includes the owner + every regular team member)
