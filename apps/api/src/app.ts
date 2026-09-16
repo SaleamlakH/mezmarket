@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import express, { type Express, type Request, type Response } from 'express';
 import cors from 'cors';
-import { auth, businessRoutes, ownerRoutes, productsRoutes } from './composition.js';
+import { auth, businessRoutes, ownerRoutes, productsRoutes, unitsRoutes } from './composition.js';
 import { errorHandler } from './shared/errors/error-handler.js';
 
 const app: Express = express();
@@ -20,12 +20,14 @@ app.get('/health', (req: Request, res: Response) => {
   res.sendStatus(200);
 });
 
+// platform standard units and their dimension
+app.use('/api', unitsRoutes);
+
 // protect all api endpoints
 app.use('/api', auth);
+
 app.use('/api', businessRoutes);
-
 app.use('/api', ownerRoutes);
-
 app.use('/api', productsRoutes);
 
 app.use(errorHandler);
