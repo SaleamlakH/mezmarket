@@ -11,6 +11,8 @@ declare namespace Express {
   interface Request {
     auth?: {
       ownerId: string;
+      businessId?: string;
+      branchId?: string;
     };
     validBody: unknown;
   }

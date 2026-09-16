@@ -1,7 +1,8 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { NextFunction, Request, Response } from 'express';
-import { validateBusinessInput } from '../business.middleware.js';
+import { validateBusinessInput, createAuthorizeBusiness } from '../business.middleware.js';
 import { AppError, ERROR_CODES } from '../../../shared/errors/app-error.js';
+import type { BusinessService } from '../business.types.js';
 
 function call(body: unknown) {
   const req = { body } as unknown as Request;
@@ -40,5 +41,75 @@ describe('business.middleware', () => {
     );
     expect(next).not.toHaveBeenCalled();
     expect(res.locals.validated).toBeUndefined();
+  });
+});
+
+describe('createAuthorizeBusiness', () => {
+  function mockService(): BusinessService {
+    return {
+      getBusinesses: vi.fn(),
+      createBusiness: vi.fn(),
+      resolveScope: vi.fn(),
+    };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function call(overrides: { ownerId?: string; businessId?: string } = {}) {
+    const service = mockService();
+    const middleware = createAuthorizeBusiness(service);
+    const req = {
+      auth: overrides.ownerId !== undefined ? { ownerId: overrides.ownerId } : undefined,
+      params: overrides.businessId !== undefined ? { businessId: overrides.businessId } : {},
+    } as unknown as Request;
+    const res = {} as unknown as Response;
+    const next = vi.fn() as NextFunction;
+    return { service, req, res, next, run: () => middleware(req, res, next) };
+  }
+
+  it('attaches the resolved business and branch ids to req.auth and calls next', async () => {
+    const { service, req, next, run } = call({ ownerId: 'owner-1', businessId: 'b-1' });
+    vi.mocked(service.resolveScope).mockResolvedValue({ businessId: 'b-1', branchId: 'br-1' });
+
+    await run();
+
+    expect(service.resolveScope).toHaveBeenCalledWith('owner-1', 'b-1');
+    expect(req.auth).toEqual({ ownerId: 'owner-1', businessId: 'b-1', branchId: 'br-1' });
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it('throws UNAUTHORIZED when the owner id is missing', async () => {
+    const { service, next, run } = call({ businessId: 'b-1' });
+
+    await expect(run()).rejects.toEqual(
+      new AppError(ERROR_CODES.UNAUTHORIZED, 'Unauthorized', 401),
+    );
+    expect(service.resolveScope).not.toHaveBeenCalled();
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('throws BAD_REQUEST when the business id is missing', async () => {
+    const { service, next, run } = call({ ownerId: 'owner-1' });
+
+    await expect(run()).rejects.toEqual(
+      new AppError(ERROR_CODES.BAD_REQUEST, 'Missing business id', 400),
+    );
+    expect(service.resolveScope).not.toHaveBeenCalled();
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('leaves req.auth unchanged and does not call next when the business is not owned', async () => {
+    const { service, req, next, run } = call({ ownerId: 'owner-1', businessId: 'b-1' });
+    vi.mocked(service.resolveScope).mockRejectedValue(
+      new AppError(ERROR_CODES.NOT_FOUND, 'Business not found', 404),
+    );
+
+    await expect(run()).rejects.toEqual(
+      new AppError(ERROR_CODES.NOT_FOUND, 'Business not found', 404),
+    );
+    expect(req.auth).toEqual({ ownerId: 'owner-1' });
+    expect(next).not.toHaveBeenCalled();
   });
 });
