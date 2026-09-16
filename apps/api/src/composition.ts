@@ -21,6 +21,10 @@ import { createProductsRepository } from './modules/products/products.repository
 import { createProductsService } from './modules/products/products.service.js';
 import { createProductsController } from './modules/products/products.controller.js';
 import { createProductsRouter } from './modules/products/products.routes.js';
+import { createUnitsRepository } from './modules/units/units.repository.js';
+import { createUnitsService } from './modules/units/units.service.js';
+import { createUnitsController } from './modules/units/units.controller.js';
+import { createUnitsRouter } from './modules/units/units.routes.js';
 
 const authRepository = createAuthRepository(prisma);
 const authService = createAuthService(authRepository);
@@ -46,3 +50,8 @@ const productsRepository = createProductsRepository(prisma);
 const productsService = createProductsService(productsRepository);
 const productsController = createProductsController(productsService);
 export const productsRoutes = createProductsRouter(productsController, authorizeBusiness);
+
+const unitsRepository = createUnitsRepository(prisma);
+const unitsService = createUnitsService(unitsRepository);
+const unitsController = createUnitsController(unitsService);
+export const unitsRoutes = createUnitsRouter(unitsController);
