@@ -11,6 +11,8 @@ function mockRepository(): BusinessRepository {
   return {
     listForOwner: vi.fn(),
     createForOwner: vi.fn(),
+    getBusinessId: vi.fn(),
+    getBranchId: vi.fn(),
   };
 }
 
@@ -174,6 +176,38 @@ describe('business.service', () => {
 
       expect(result.business.defaultTaxRate).toBe(0);
       expect(result.business.lowStockDefaultThreshold).toBe(0);
+    });
+  });
+
+  describe('resolveScope', () => {
+    it('returns business id and branch id when both are resolved', async () => {
+      vi.mocked(repo.getBusinessId).mockResolvedValue('b-1');
+      vi.mocked(repo.getBranchId).mockResolvedValue('br-1');
+
+      const result = await service.resolveScope('owner-1', 'b-1');
+
+      expect(repo.getBusinessId).toHaveBeenCalledWith('owner-1', 'b-1');
+      expect(repo.getBranchId).toHaveBeenCalledWith('b-1');
+      expect(result).toEqual({ businessId: 'b-1', branchId: 'br-1' });
+    });
+
+    it('throws NOT_FOUND when the business is not owned', async () => {
+      vi.mocked(repo.getBusinessId).mockResolvedValue(null);
+      vi.mocked(repo.getBranchId).mockResolvedValue('br-1');
+
+      await expect(service.resolveScope('owner-1', 'missing')).rejects.toEqual(
+        new AppError(ERROR_CODES.NOT_FOUND, 'Business not found', 404),
+      );
+      expect(repo.getBranchId).toHaveBeenCalled();
+    });
+
+    it('throws NOT_FOUND when the business has no branch', async () => {
+      vi.mocked(repo.getBusinessId).mockResolvedValue('b-1');
+      vi.mocked(repo.getBranchId).mockResolvedValue(null);
+
+      await expect(service.resolveScope('owner-1', 'b-1')).rejects.toEqual(
+        new AppError(ERROR_CODES.NOT_FOUND, 'Business not found', 404),
+      );
     });
   });
 });

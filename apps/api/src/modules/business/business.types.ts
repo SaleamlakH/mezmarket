@@ -19,9 +19,16 @@ export interface CreateBusinessRecord {
   member: BusinessMember;
 }
 
+export type BusinessScope = {
+  businessId: string;
+  branchId: string;
+};
+
 export type BusinessRepository = {
   listForOwner(ownerId: string): Promise<BusinessRecord[]>;
   createForOwner(ownerId: string, input: CreateBusinessInput): Promise<CreateBusinessRecord>;
+  getBusinessId(ownerId: string, businessId: string): Promise<string | null>;
+  getBranchId(businessId: string): Promise<string | null>;
 };
 
 export type BusinessService = {
@@ -30,4 +37,5 @@ export type BusinessService = {
     ownerId: string | undefined,
     input: CreateBusinessInput,
   ): Promise<CreateBusinessResult>;
+  resolveScope(ownerId: string, businessId: string): Promise<BusinessScope>;
 };
