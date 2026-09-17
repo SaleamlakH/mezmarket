@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createProductsRepository } from '../products.repository.js';
-import type { ProductRepository, CreateProductRepoInput } from '../products.types.js';
+import type { ProductRepository, CreateProductInput } from '../products.types.js';
 import type { PrismaClient } from '../../../../generated/prisma/client.js';
 import { AppError, ERROR_CODES } from '../../../shared/errors/app-error.js';
 
@@ -42,7 +42,7 @@ function registerSuccess(tx: MockTx) {
   );
 }
 
-function input(overrides: Partial<CreateProductRepoInput> = {}): CreateProductRepoInput {
+function input(overrides: Partial<CreateProductInput> = {}): CreateProductInput {
   return {
     name: 'Sugar',
     categoryId: null,
@@ -61,7 +61,6 @@ function input(overrides: Partial<CreateProductRepoInput> = {}): CreateProductRe
     }),
     ...(overrides.baseUnit !== undefined && { baseUnit: overrides.baseUnit }),
     ...(overrides.mou !== undefined && { mou: overrides.mou }),
-    ...(overrides.photoId !== undefined && { photoId: overrides.photoId }),
   };
 }
 
@@ -167,7 +166,6 @@ describe('products.repository', () => {
           categoryId: 'c-1',
           lowStockThreshold: 0,
           trackAsPartial: true,
-          photoId: 'u-1',
         }),
       );
 
@@ -181,7 +179,6 @@ describe('products.repository', () => {
           categoryId: 'c-1',
           lowStockThreshold: 0,
           trackAsPartial: true,
-          photoId: 'u-1',
         },
       });
     });

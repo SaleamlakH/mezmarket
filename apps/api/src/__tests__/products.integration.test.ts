@@ -47,7 +47,6 @@ const WIRE_PRODUCT = {
   name: 'Shirt',
   brand: null,
   description: null,
-  photoId: null,
   trackAsPartial: false,
   lowStockThreshold: null,
   currentSealedStock: 10,

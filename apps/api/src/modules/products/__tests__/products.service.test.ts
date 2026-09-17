@@ -53,7 +53,6 @@ function prismaProduct(overrides: Record<string, unknown> = {}): ProductRecord {
     name: 'Sugar',
     brand: null,
     description: null,
-    photoId: null,
     trackAsPartial: false,
     lowStockThreshold: null,
     currentSealedStock: decimal(0) as Decimal,

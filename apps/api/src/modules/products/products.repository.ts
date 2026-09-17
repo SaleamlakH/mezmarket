@@ -1,7 +1,7 @@
 import { AppError, ERROR_CODES } from '../../shared/errors/app-error.js';
 import { UnitRole, type PrismaClient } from '../../../generated/prisma/client.js';
 import type {
-  CreateProductRepoInput,
+  CreateProductInput,
   CreateProductRepoResult,
   ProductRecord,
   ProductRepository,
@@ -23,7 +23,7 @@ export function createProductsRepository(prisma: PrismaClient): ProductRepositor
     async createForBusiness(
       businessId: string,
       branchId: string,
-      input: CreateProductRepoInput,
+      input: CreateProductInput,
     ): Promise<CreateProductRepoResult> {
       return prisma.$transaction(async (tx) => {
         const productPromise = tx.product.create({
@@ -38,7 +38,6 @@ export function createProductsRepository(prisma: PrismaClient): ProductRepositor
               lowStockThreshold: input.lowStockThreshold,
             }),
             ...(input.trackAsPartial === true && { trackAsPartial: input.trackAsPartial }),
-            ...(input.photoId != null && { photoId: input.photoId }),
           },
         });
 
