@@ -41,32 +41,29 @@ Under this pattern, the backend does not handle file bytes directly for either u
 The upload process is executed in three sequential phases, illustrated below.
 
 ```
-[Client]                    [Express Backend]              [Object Storage]
+[Client]                    [Express Backend]              [Object Storage (S3)]
    |                                |                                |
-   |-- 1. Request upload -------->|                                |
-   |                                |-- 2. Create DB record          |
+   |  (file selected)               |                                |
+   |-- 1. Request upload ------->   |-- 2. Validate metadata          |
+   |                                |-- 3. Create Upload record       |
    |                                |      (status: PENDING)         |
+   |                                |-- 4. Request presigned URL --->|
+   |                                |<-- 5. Return presigned URL ----|
+   |<- 6. presigned URL + uploadId-|                                |
    |                                |                                |
-   |                                |-- 3. Request presigned URL --->|
-   |                                |<-- 4. Return presigned URL ----|
-   |<- 5. Deliver presigned URL ---|                                |
-   |      and DB record ID         |                                |
-   |                                |                                |
-   |-- 6. Upload file (PUT) ------------------------------------------>|
-   |                                |                                |
-   |-- 7. Confirm completion ----->|                                |
-   |                                |-- 8. Update DB record          |
-   |                                |      (status: ACTIVE)          |
+   |  (form submitted)              |                                |
+   |-- 7a. PUT file ---------------------------------------------------->|
+   |-- 7b. Create reference record-->|
+         (concurrent with 7a)
 ```
 
-**Phase 1 — Initialization and Authorization**
-The client submits an upload request to the backend. The backend creates a database record with status `PENDING` and requests a presigned URL from the object storage provider. The URL, together with the database record identifier, is returned to the client.
+**Phase 1 — Initialization**
+The client requests upload authorization at the moment a file is selected, submitting basic file metadata (MIME type, size) for validation. The backend validates the metadata, creates a database record with status `PENDING`, and requests a presigned URL from the object storage provider. The URL and record identifier are returned to the client. No file bytes are transferred in this phase, and initialization is decoupled from the lifecycle of any form that will reference the upload — the client may continue collecting other input before submission.
 
-**Phase 2 — Direct Data Transfer**
-The client transmits the file directly to object storage using the presigned URL. The backend is not involved in this transfer and does not process the file payload.
+**Phase 2 — Direct Data Transfer and Record Creation**
+The client transmits the file directly to object storage using the presigned URL. This transfer is not required to precede or block the creation of any entity that will reference the upload; the two operations may occur concurrently at form submission. The backend is not involved in the file transfer and does not process the file payload.
 
-**Phase 3 — Confirmation**
-The client notifies the backend upon successful upload. The backend updates the corresponding database record to status `ACTIVE`, marking the file as available for use.
+There is no confirmation step. The backend does not rely on client notification to determine transfer outcome; status is instead resolved lazily, as described in Section 4.3.
 
 ---
 
@@ -78,18 +75,23 @@ Downloads follow the same direct-transfer principle as uploads, but the authoriz
 [Client]                    [Express Backend]              [Object Storage (S3)]
    |                                |                                |
    |-- 1. Request download ------->|                                |
-   |   (file ID + auth token)      |                                |
-   |                                |-- 2. Look up DB record          |
-   |                                |      (owner check, status)     |
+   |   (record ID + auth token)    |                                |
+   |                                |-- 2. Look up Upload via         |
+   |                                |      live Attachment            |
    |                                |                                |
-   |                                |-- 3. Authorization check --     |
-   |                                |   (is requester allowed?)      |
+   |                                |-- if status = PENDING:          |
+   |                                |     3. Verify object exists --->|
+   |                                |<-- 4. Existence result --------|
+   |                                |     5. Transition to            |
+   |                                |        ACTIVE or FAILED        |
    |                                |                                |
-   |                                |-- 4. Request presigned GET --->|
-   |                                |<-- 5. Return presigned URL ----|
-   |<- 6. Deliver presigned URL ---|                                |
+   |                                |-- 6. Authorization check --     |
+   |                                |   (only if ACTIVE)             |
+   |                                |-- 7. Request presigned GET --->|
+   |                                |<-- 8. Return presigned URL ----|
+   |<- 9. Deliver presigned URL ---|                                |
    |                                |                                |
-   |-- 7. GET file directly ------------------------------------------>|
+   |-- 10. GET file directly ----------------------------------------->|
 ```
 
 **Phase 1 — Request and Authorization**
@@ -118,7 +120,21 @@ Presigned download URLs are issued with a short lifetime (typically 1–15 minut
 
 A presigned download URL is issued only for records with status `ACTIVE`. Records in `PENDING` or `FAILED` status have no reliable guarantee that the corresponding file exists in storage, and must not be served.
 
-### 4.4 Audit Logging
+### 4.4 Claim Model
+
+An `Upload` record does not know what, if anything, references it. Instead, a separate record — an **Attachment** — represents a single claim: a specific entity's use of a specific upload. An `Upload` is considered claimed if at least one live `Attachment` referencing it exists; it is unclaimed if no such record exists, or if all `Attachment` records referencing it have been soft-deleted (Section 4.5).
+
+This indirection is what allows `Upload` to remain fully generic across consumer types: the backend never needs to modify `Upload` itself, or scan multiple consumer tables, to determine whether a given upload is currently in use.
+
+### 4.5 Attachment Lifecycle
+
+An `Attachment` is created at the moment an owning record is created or updated to reference an upload — for example, when a product is submitted. This does not presuppose that the file transfer has already completed by that point: per Section 3, the direct transfer to object storage and the creation of the owning record (and its `Attachment`) occur concurrently at submission, not sequentially. An `Attachment` may therefore reference an `Upload` that is still `PENDING`; this is expected, and is resolved the same way as any other `PENDING` record, lazily, at first download request (Section 4.3).
+
+Not every `Upload` is ever claimed by an `Attachment`. A file may be initialized and transferred and never referenced by any record — for example, when a user selects an image, initiates its upload, and changes their selection before the form is submitted. Such uploads are unclaimed from creation and are reclaimed identically to any other unclaimed upload (Section 6.2).
+
+An `Attachment` is removed by soft deletion rather than by deleting the row outright: a `deletedAt` timestamp is set to indicate that the owning record no longer references the upload, while the `Attachment` row itself is retained. The underlying `Upload` and its object in storage are not affected by this action — they become unclaimed and are handled by reconciliation, not deleted synchronously as part of removing the reference.
+
+### 4.6 Audit Logging
 
 Because downloaded files are private, each presigned-URL issuance should be logged (requester, file ID, timestamp) to support audit and access-review requirements. This logging is independent of the file's `PENDING` / `ACTIVE` / `FAILED` state and does not introduce any new lifecycle states.
 
@@ -156,6 +172,8 @@ Each file record progresses through a defined set of states. This lifecycle gove
 
 To maintain data consistency and control storage costs, two automated mechanisms are defined:
 
-1. **Database Reconciliation.** A scheduled process runs daily within the backend application. It identifies records remaining in the `PENDING` state for longer than six hours and transitions them to `FAILED`, preventing incomplete uploads from appearing as valid content or being downloadable.
+1. **Unresolved Transfer Reconciliation** A scheduled process runs periodically within the backend application. It identifies records remaining in `PENDING` status for longer than a defined threshold and not yet resolved by a prior download request. If the record predates the storage provider's own object lifecycle deletion window (point 2, below), the process performs a storage-layer existence check: if the object exists, the record is transitioned to `ACTIVE`; if not, it is transitioned to `FAILED`. Once that lifecycle window has passed, an unresolved record is transitioned to `FAILED` on age alone, without a storage call, since the underlying object is guaranteed to no longer exist by that point. Resolution by either this process or a download request, whichever occurs first, is authoritative and final.
 
 2. **Storage Lifecycle Policy.** An object lifecycle rule is configured directly on the storage bucket to automatically delete unconfirmed files after 24–48 hours, limiting the retention of unused data at the storage layer independent of application logic.
+
+3. **Unclaimed Upload Reconciliation.** Independently of transfer status, the process identifies Upload records with no live Attachment (Section 4.4) for longer than a defined grace period, and marks them for deletion. This single condition covers every path by which an upload becomes unused — replacement, pre-submission selection changes, or straightforward abandonment — without requiring the reconciliation process to have any awareness of which entity types reference uploads. The grace period must be sized to accommodate normal in-progress user interaction, such as time spent completing a form, not only transient system-level inconsistency.
