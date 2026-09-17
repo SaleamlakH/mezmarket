@@ -44,12 +44,6 @@ export type CreateProductInput = Pick<
   baseUnit: CreateBaseUnitInput;
   mou?: CreateMouInput;
 };
-
-// uploaded photoId is resolved by the api
-export type CreateProductRepoInput = CreateProductInput & {
-  photoId?: string;
-};
-
 export type CreateProductResult = Product & {
   units: ProductUnit[];
 };
@@ -64,7 +58,7 @@ export type ProductRepository = {
   createForBusiness(
     businessId: string,
     branchId: string,
-    input: CreateProductRepoInput,
+    input: CreateProductInput,
   ): Promise<CreateProductRepoResult>;
 };
 
