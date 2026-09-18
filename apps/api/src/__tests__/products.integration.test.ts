@@ -2,27 +2,35 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import type { AuthRepository } from '../modules/auth/auth.types.js';
 import type { BusinessRepository } from '../modules/business/business.types.js';
-import type { ProductRepository } from '../modules/products/products.types.js';
+import type {
+  AttachmentsRepository,
+  ProductRepository,
+} from '../modules/products/products.types.js';
 import { AppError, ERROR_CODES } from '../shared/errors/app-error.js';
 
-const { verifyJwt, authRepository, businessRepository, productsRepository } = vi.hoisted(() => ({
-  verifyJwt: vi.fn(),
-  authRepository: {
-    findIdentity: vi.fn(),
-    createIdentity: vi.fn(),
-  } satisfies AuthRepository,
-  businessRepository: {
-    listForOwner: vi.fn(),
-    createForOwner: vi.fn(),
-    getBusinessId: vi.fn(),
-    getBranchId: vi.fn(),
-  } satisfies BusinessRepository,
-  productsRepository: {
-    list: vi.fn(),
-    getById: vi.fn(),
-    createForBusiness: vi.fn(),
-  } satisfies ProductRepository,
-}));
+const { verifyJwt, authRepository, businessRepository, productsRepository, attachmentsRepository } =
+  vi.hoisted(() => ({
+    verifyJwt: vi.fn(),
+    authRepository: {
+      findIdentity: vi.fn(),
+      createIdentity: vi.fn(),
+    } satisfies AuthRepository,
+    businessRepository: {
+      listForOwner: vi.fn(),
+      createForOwner: vi.fn(),
+      getBusinessId: vi.fn(),
+      getBranchId: vi.fn(),
+    } satisfies BusinessRepository,
+    productsRepository: {
+      list: vi.fn(),
+      getById: vi.fn(),
+      createForBusiness: vi.fn(),
+    } satisfies ProductRepository,
+    attachmentsRepository: {
+      listForRecord: vi.fn().mockResolvedValue([]),
+      getForRecord: vi.fn().mockResolvedValue(null),
+    } satisfies AttachmentsRepository,
+  }));
 
 vi.mock('../lib/jwt.js', () => ({ verifyJwt }));
 vi.mock('../modules/auth/auth.repository.js', () => ({
@@ -33,6 +41,9 @@ vi.mock('../modules/business/business.repository.js', () => ({
 }));
 vi.mock('../modules/products/products.repository.js', () => ({
   createProductsRepository: () => productsRepository,
+}));
+vi.mock('../modules/products/attachments.repository.js', () => ({
+  createAttachmentsRepository: () => attachmentsRepository,
 }));
 
 import app from '../app.js';
@@ -51,6 +62,7 @@ const WIRE_PRODUCT = {
   lowStockThreshold: null,
   currentSealedStock: 10,
   active: true,
+  uploadId: null,
   createdAt: ISO,
   updatedAt: ISO,
 };
@@ -109,6 +121,8 @@ function authorize(businessId: string | null, branchId: string | null) {
 describe('products.integration', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    attachmentsRepository.listForRecord.mockResolvedValue([]);
+    attachmentsRepository.getForRecord.mockResolvedValue(null);
   });
 
   describe('unauthenticated', () => {
@@ -191,6 +205,20 @@ describe('products.integration', () => {
       expect(res.body).toEqual({ products: [WIRE_PRODUCT] });
       expect(productsRepository.list).toHaveBeenCalledWith('b-1', 'br-1');
     });
+
+    it('exposes the uploadId of the live attachment', async () => {
+      await authenticate('owner-1');
+      authorize('b-1', 'br-1');
+      productsRepository.list.mockResolvedValue([productRecord()]);
+      attachmentsRepository.listForRecord.mockResolvedValue([{ recordId: 'p-1', uploadId: 'u-1' }]);
+
+      const res = await request(app)
+        .get('/api/businesses/b-1/products')
+        .set('Authorization', 'Bearer token');
+
+      expect(res.status).toBe(200);
+      expect(res.body.products[0].uploadId).toBe('u-1');
+    });
   });
 
   describe('POST /api/businesses/:businessId/products', () => {
@@ -239,6 +267,30 @@ describe('products.integration', () => {
 
       expect(res.status).toBe(201);
       expect(res.body).toEqual({ ...WIRE_PRODUCT, units: [BASE_UNIT_WIRE, mouWire] });
+      expect(productsRepository.createForBusiness).toHaveBeenCalledWith('b-1', 'br-1', body);
+    });
+
+    it('creates a product with an uploaded image and echoes the uploadId', async () => {
+      await authenticate('owner-1');
+      authorize('b-1', 'br-1');
+      const body = {
+        name: 'Shirt',
+        baseUnit: { unitId: 'kg-1', price: '120.50' },
+        uploadId: 'u-1',
+      };
+      productsRepository.createForBusiness.mockResolvedValue({
+        ...productRecord(),
+        units: [productUnit()],
+        attachment: { id: 'a-1', uploadId: 'u-1' },
+      });
+
+      const res = await request(app)
+        .post('/api/businesses/b-1/products')
+        .set('Authorization', 'Bearer token')
+        .send(body);
+
+      expect(res.status).toBe(201);
+      expect(res.body.uploadId).toBe('u-1');
       expect(productsRepository.createForBusiness).toHaveBeenCalledWith('b-1', 'br-1', body);
     });
 

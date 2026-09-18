@@ -1,20 +1,24 @@
 import { AppError, ERROR_CODES } from '../../shared/errors/app-error.js';
+import { AttachmentRecordType } from '../../../generated/prisma/client.js';
 import type {
+  AttachmentsRepository,
   CreateProductInput,
   CreateProductResult,
   Product,
-  ProductRecord,
+  ProductRecordWithAttachments,
   ProductRepository,
   ProductService,
   ProductUnit,
   ProductUnitRecord,
 } from './products.types.js';
 
-function toProduct(record: ProductRecord): Product {
+function toProduct(record: ProductRecordWithAttachments): Product {
+  const { attachments, ...rest } = record;
   return {
-    ...record,
+    ...rest,
     lowStockThreshold: record.lowStockThreshold?.toNumber() ?? null,
     currentSealedStock: record.currentSealedStock.toNumber(),
+    uploadId: attachments?.[0]?.uploadId ?? null,
   };
 }
 
@@ -43,7 +47,10 @@ function requireProductId(id: string | undefined): string {
   return id;
 }
 
-export function createProductsService(repository: ProductRepository): ProductService {
+export function createProductsService(
+  repository: ProductRepository,
+  attachmentsRepository: AttachmentsRepository,
+): ProductService {
   return {
     async listProducts(
       businessId: string | undefined,
@@ -51,7 +58,27 @@ export function createProductsService(repository: ProductRepository): ProductSer
     ): Promise<Product[]> {
       const { businessId: b, branchId: br } = requireScope(businessId, branchId);
       const records = await repository.list(b, br);
-      return records.map(toProduct);
+
+      if (records.length === 0) return [];
+
+      const attachments = await attachmentsRepository.listForRecord(
+        AttachmentRecordType.PRODUCT,
+        records.map((record) => record.id),
+      );
+
+      const attachmentsByProductId = new Map<string, typeof attachments>();
+      for (const attachment of attachments) {
+        const existing = attachmentsByProductId.get(attachment.recordId);
+        if (existing) {
+          existing.push(attachment);
+        } else {
+          attachmentsByProductId.set(attachment.recordId, [attachment]);
+        }
+      }
+
+      return records.map((record) =>
+        toProduct({ ...record, attachments: attachmentsByProductId.get(record.id) ?? [] }),
+      );
     },
 
     async getProduct(
@@ -64,7 +91,16 @@ export function createProductsService(repository: ProductRepository): ProductSer
       if (!record) {
         throw new AppError(ERROR_CODES.NOT_FOUND, 'Product not found', 404);
       }
-      return toProduct(record);
+
+      const attachment = await attachmentsRepository.getForRecord(
+        AttachmentRecordType.PRODUCT,
+        record.id,
+      );
+
+      return toProduct({
+        ...record,
+        attachments: attachment ? [attachment] : [],
+      });
     },
 
     async createProduct(
@@ -74,8 +110,12 @@ export function createProductsService(repository: ProductRepository): ProductSer
     ): Promise<CreateProductResult> {
       const { businessId: b, branchId: br } = requireScope(businessId, branchId);
       const result = await repository.createForBusiness(b, br, input);
+      const product = toProduct({
+        ...result,
+        attachments: result.attachment ? [result.attachment] : [],
+      });
       return {
-        ...toProduct(result),
+        ...product,
         units: result.units.map(toUnit),
       };
     },

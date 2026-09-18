@@ -1,12 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createProductsService } from '../products.service.js';
 import type {
+  AttachmentsRepository,
   CreateProductInput,
   ProductRecord,
   ProductRepository,
   ProductService,
   ProductUnitRecord,
 } from '../products.types.js';
+import { AttachmentRecordType } from '../../../../generated/prisma/client.js';
 import { AppError, ERROR_CODES } from '../../../shared/errors/app-error.js';
 import type { Decimal } from '../../../../generated/prisma/internal/prismaNamespace.js';
 
@@ -15,6 +17,13 @@ function mockRepository(): ProductRepository {
     list: vi.fn(),
     getById: vi.fn(),
     createForBusiness: vi.fn(),
+  };
+}
+
+function mockAttachmentsRepository(): AttachmentsRepository {
+  return {
+    listForRecord: vi.fn().mockResolvedValue([]),
+    getForRecord: vi.fn().mockResolvedValue(null),
   };
 }
 
@@ -37,6 +46,7 @@ function input(overrides: Partial<CreateProductInput> = {}): CreateProductInput 
     }),
     ...(overrides.baseUnit !== undefined && { baseUnit: overrides.baseUnit }),
     ...(overrides.mou !== undefined && { mou: overrides.mou }),
+    ...(overrides.uploadId !== undefined && { uploadId: overrides.uploadId }),
   };
 }
 
@@ -83,12 +93,14 @@ function prismaUnit(overrides: Record<string, unknown> = {}): ProductUnitRecord 
 
 describe('products.service', () => {
   let repo: ProductRepository;
+  let attachmentsRepo: AttachmentsRepository;
   let service: ProductService;
 
   beforeEach(() => {
     vi.clearAllMocks();
     repo = mockRepository();
-    service = createProductsService(repo);
+    attachmentsRepo = mockAttachmentsRepository();
+    service = createProductsService(repo, attachmentsRepo);
   });
 
   describe('listProducts', () => {
@@ -98,6 +110,28 @@ describe('products.service', () => {
       await service.listProducts('b-1', 'br-1');
 
       expect(repo.list).toHaveBeenCalledWith('b-1', 'br-1');
+    });
+
+    it('skips the attachment lookup when there are no products', async () => {
+      vi.mocked(repo.list).mockResolvedValue([] as never);
+
+      await service.listProducts('b-1', 'br-1');
+
+      expect(attachmentsRepo.listForRecord).not.toHaveBeenCalled();
+    });
+
+    it('fetches attachments for the resolved product ids', async () => {
+      vi.mocked(repo.list).mockResolvedValue([
+        prismaProduct({ id: 'p-1' }),
+        prismaProduct({ id: 'p-2' }),
+      ] as never);
+
+      await service.listProducts('b-1', 'br-1');
+
+      expect(attachmentsRepo.listForRecord).toHaveBeenCalledWith(AttachmentRecordType.PRODUCT, [
+        'p-1',
+        'p-2',
+      ]);
     });
 
     it('maps stored products to the domain shape', async () => {
@@ -110,6 +144,7 @@ describe('products.service', () => {
           ...prismaProduct(),
           lowStockThreshold: null,
           currentSealedStock: 0,
+          uploadId: null,
         },
       ]);
     });
@@ -125,6 +160,45 @@ describe('products.service', () => {
       const result = await service.listProducts('b-1', 'br-1');
 
       expect(result[0]).toMatchObject({ lowStockThreshold: 10, currentSealedStock: 0 });
+    });
+
+    it('exposes the uploadId of the first live attachment', async () => {
+      vi.mocked(repo.list).mockResolvedValue([prismaProduct()] as never);
+      vi.mocked(attachmentsRepo.listForRecord).mockResolvedValue([
+        { recordId: 'p-1', uploadId: 'u-1' },
+      ] as never);
+
+      const result = await service.listProducts('b-1', 'br-1');
+
+      expect(result[0]?.uploadId).toBe('u-1');
+    });
+
+    it('maps uploadId from the first attachment only', async () => {
+      vi.mocked(repo.list).mockResolvedValue([prismaProduct()] as never);
+      vi.mocked(attachmentsRepo.listForRecord).mockResolvedValue([
+        { recordId: 'p-1', uploadId: 'u-1' },
+        { recordId: 'p-1', uploadId: 'u-2' },
+      ] as never);
+
+      const result = await service.listProducts('b-1', 'br-1');
+
+      expect(result[0]?.uploadId).toBe('u-1');
+    });
+
+    it('groups attachments to their matching product', async () => {
+      vi.mocked(repo.list).mockResolvedValue([
+        prismaProduct({ id: 'p-1' }),
+        prismaProduct({ id: 'p-2' }),
+      ] as never);
+      vi.mocked(attachmentsRepo.listForRecord).mockResolvedValue([
+        { recordId: 'p-1', uploadId: 'u-1' },
+        { recordId: 'p-2', uploadId: 'u-2' },
+      ] as never);
+
+      const result = await service.listProducts('b-1', 'br-1');
+
+      expect(result[0]?.uploadId).toBe('u-1');
+      expect(result[1]?.uploadId).toBe('u-2');
     });
 
     it('throws UNAUTHORIZED when the business id is missing', async () => {
@@ -176,6 +250,28 @@ describe('products.service', () => {
         lowStockThreshold: 4,
       });
     });
+
+    it('fetches the attachment for the resolved product', async () => {
+      vi.mocked(repo.getById).mockResolvedValue(prismaProduct() as never);
+
+      await service.getProduct('p-1', 'b-1', 'br-1');
+
+      expect(attachmentsRepo.getForRecord).toHaveBeenCalledWith(
+        AttachmentRecordType.PRODUCT,
+        'p-1',
+      );
+    });
+
+    it('exposes the uploadId of the live attachment', async () => {
+      vi.mocked(repo.getById).mockResolvedValue(prismaProduct() as never);
+      vi.mocked(attachmentsRepo.getForRecord).mockResolvedValue({
+        uploadId: 'u-1',
+      } as never);
+
+      const result = await service.getProduct('p-1', 'b-1', 'br-1');
+
+      expect(result.uploadId).toBe('u-1');
+    });
   });
 
   describe('createProduct', () => {
@@ -222,6 +318,42 @@ describe('products.service', () => {
       await expect(service.createProduct('b-1', 'br-1', input())).rejects.toEqual(
         new AppError(ERROR_CODES.BAD_REQUEST, 'Base unit not found', 400),
       );
+    });
+
+    it('passes the uploadId through to the repository input', async () => {
+      vi.mocked(repo.createForBusiness).mockResolvedValue({
+        ...prismaProduct(),
+        units: [prismaUnit()],
+      } as never);
+
+      await service.createProduct('b-1', 'br-1', input({ uploadId: 'u-1' }));
+
+      const repoInput = vi.mocked(repo.createForBusiness).mock.calls[0]?.[2];
+      expect(repoInput?.uploadId).toBe('u-1');
+    });
+
+    it('exposes the uploadId from the created attachment', async () => {
+      vi.mocked(repo.createForBusiness).mockResolvedValue({
+        ...prismaProduct(),
+        units: [prismaUnit()],
+        attachment: { id: 'a-1', uploadId: 'u-1' },
+      } as never);
+
+      const result = await service.createProduct('b-1', 'br-1', input());
+
+      expect(result.uploadId).toBe('u-1');
+    });
+
+    it('exposes a null uploadId when no attachment was created', async () => {
+      vi.mocked(repo.createForBusiness).mockResolvedValue({
+        ...prismaProduct(),
+        units: [prismaUnit()],
+        attachment: null,
+      } as never);
+
+      const result = await service.createProduct('b-1', 'br-1', input());
+
+      expect(result.uploadId).toBeNull();
     });
   });
 });
