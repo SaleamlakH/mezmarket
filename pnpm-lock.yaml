@@ -252,6 +252,9 @@ importers:
       '@prisma/client':
         specifier: ^7.8.0
         version: 7.8.0(prisma@7.8.0(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(typescript@6.0.3))(typescript@6.0.3)
+      '@supabase/supabase-js':
+        specifier: ^2.110.0
+        version: 2.110.0
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
@@ -270,6 +273,9 @@ importers:
       pg:
         specifier: ^8.22.0
         version: 8.22.0
+      ulid:
+        specifier: ^3.0.2
+        version: 3.0.2
     devDependencies:
       '@mez/types':
         specifier: workspace:*
@@ -3146,6 +3152,10 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
+  ulid@3.0.2:
+    resolution: {integrity: sha512-yu26mwteFYzBAot7KVMqFGCVpsF6g8wXfJzQUHvu1no3+rRRSFcSV2nKeYvNPLD2J4b08jYBDhHUjeH0ygIl9w==}
+    hasBin: true
+
   undici-types@7.18.2:
     resolution: {integrity: sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w==}
 
@@ -5989,6 +5999,8 @@ snapshots:
       - supports-color
 
   typescript@6.0.3: {}
+
+  ulid@3.0.2: {}
 
   undici-types@7.18.2: {}
 
