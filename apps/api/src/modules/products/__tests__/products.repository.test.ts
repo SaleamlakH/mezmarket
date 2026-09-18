@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createProductsRepository } from '../products.repository.js';
 import type { ProductRepository, CreateProductInput } from '../products.types.js';
+import { AttachmentRecordType } from '../../../../generated/prisma/client.js';
 import type { PrismaClient } from '../../../../generated/prisma/client.js';
 import { AppError, ERROR_CODES } from '../../../shared/errors/app-error.js';
 
@@ -14,6 +15,9 @@ type MockTx = {
   standardUnit: {
     findUnique: ReturnType<typeof vi.fn>;
   };
+  attachment: {
+    create: ReturnType<typeof vi.fn>;
+  };
 };
 
 function createPrismaStub() {
@@ -21,8 +25,12 @@ function createPrismaStub() {
     product: { create: vi.fn() },
     productUnit: { create: vi.fn() },
     standardUnit: { findUnique: vi.fn() },
+    attachment: { create: vi.fn() },
   };
-  const product = { findMany: vi.fn(), findFirst: vi.fn() };
+  const product = {
+    findMany: vi.fn().mockResolvedValue([]),
+    findFirst: vi.fn(),
+  };
   const $transaction = vi.fn((cb: (tx: MockTx) => unknown) => cb(tx));
 
   const prisma = { product, $transaction } as unknown as PrismaClient;
@@ -61,6 +69,7 @@ function input(overrides: Partial<CreateProductInput> = {}): CreateProductInput 
     }),
     ...(overrides.baseUnit !== undefined && { baseUnit: overrides.baseUnit }),
     ...(overrides.mou !== undefined && { mou: overrides.mou }),
+    ...(overrides.uploadId !== undefined && { uploadId: overrides.uploadId }),
   };
 }
 
@@ -126,6 +135,14 @@ describe('products.repository', () => {
       const result = await repo.getById('p-1', 'b-1');
 
       expect(result).toEqual(record);
+    });
+
+    it('returns null when the product is missing', async () => {
+      const { prisma, product } = createPrismaStub();
+      const repo = createProductsRepository(prisma);
+      product.findFirst.mockResolvedValue(null);
+
+      await expect(repo.getById('missing', 'b-1')).resolves.toBeNull();
     });
   });
 
@@ -299,6 +316,42 @@ describe('products.repository', () => {
         units: [{ id: 'pu-1' }],
       });
       expect(tx.productUnit.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not create an attachment when no uploadId is provided', async () => {
+      const { prisma, tx } = createPrismaStub();
+      const repo = createProductsRepository(prisma);
+      registerSuccess(tx);
+
+      const result = await repo.createForBusiness('b-1', 'br-1', input());
+
+      expect(tx.attachment.create).not.toHaveBeenCalled();
+      expect(result.attachment).toBeNull();
+    });
+
+    it('creates an attachment for the upload when uploadId is provided', async () => {
+      const { prisma, tx } = createPrismaStub();
+      const repo = createProductsRepository(prisma);
+      registerSuccess(tx);
+      tx.attachment.create.mockResolvedValue({
+        id: 'a-1',
+        uploadId: 'u-1',
+        recordType: AttachmentRecordType.PRODUCT,
+        recordId: 'p-1',
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        deletedAt: null,
+      });
+
+      const result = await repo.createForBusiness('b-1', 'br-1', input({ uploadId: 'u-1' }));
+
+      expect(tx.attachment.create).toHaveBeenCalledWith({
+        data: {
+          uploadId: 'u-1',
+          recordType: AttachmentRecordType.PRODUCT,
+          recordId: 'p-1',
+        },
+      });
+      expect(result.attachment).toMatchObject({ id: 'a-1', uploadId: 'u-1' });
     });
   });
 });

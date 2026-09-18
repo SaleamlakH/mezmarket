@@ -1,4 +1,6 @@
 import type {
+  Attachment as AttachmentRecord,
+  AttachmentRecordType,
   Dimension as DimensionRecord,
   Product as ProductRecord,
   ProductUnit as ProductUnitRecord,
@@ -8,6 +10,8 @@ import type {
 } from '../../../generated/prisma/client.js';
 
 export type {
+  AttachmentRecord,
+  AttachmentRecordType,
   DimensionRecord,
   ProductRecord,
   ProductUnitRecord,
@@ -19,6 +23,7 @@ export type {
 export type Product = Omit<ProductRecord, 'lowStockThreshold' | 'currentSealedStock'> & {
   lowStockThreshold: number | null;
   currentSealedStock: number;
+  uploadId: string | null;
 };
 
 export type ProductUnit = Omit<ProductUnitRecord, 'conversionRate' | 'price'> & {
@@ -43,13 +48,19 @@ export type CreateProductInput = Pick<
 > & {
   baseUnit: CreateBaseUnitInput;
   mou?: CreateMouInput;
+  uploadId?: string;
 };
 export type CreateProductResult = Product & {
   units: ProductUnit[];
 };
 
+export type ProductRecordWithAttachments = ProductRecord & {
+  attachments: AttachmentRecord[];
+};
+
 export type CreateProductRepoResult = ProductRecord & {
   units: ProductUnitRecord[];
+  attachment: AttachmentRecord | null;
 };
 
 export type ProductRepository = {
@@ -60,6 +71,14 @@ export type ProductRepository = {
     branchId: string,
     input: CreateProductInput,
   ): Promise<CreateProductRepoResult>;
+};
+
+export type AttachmentsRepository = {
+  listForRecord(recordType: AttachmentRecordType, recordIds: string[]): Promise<AttachmentRecord[]>;
+  getForRecord(
+    recordType: AttachmentRecordType,
+    recordId: string,
+  ): Promise<AttachmentRecord | null>;
 };
 
 export type ProductService = {

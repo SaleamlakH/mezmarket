@@ -1,22 +1,22 @@
 import { AppError, ERROR_CODES } from '../../shared/errors/app-error.js';
-import { UnitRole, type PrismaClient } from '../../../generated/prisma/client.js';
+import { UnitRole, AttachmentRecordType } from '../../../generated/prisma/client.js';
+import type { PrismaClient } from '../../../generated/prisma/client.js';
 import type {
   CreateProductInput,
   CreateProductRepoResult,
-  ProductRecord,
   ProductRepository,
 } from './products.types.js';
 
 export function createProductsRepository(prisma: PrismaClient): ProductRepository {
   return {
-    async list(businessId: string, branchId: string): Promise<ProductRecord[]> {
+    async list(businessId: string, branchId: string) {
       return prisma.product.findMany({
         where: { businessId, branchId, active: true },
         orderBy: { createdAt: 'desc' },
       });
     },
 
-    async getById(id: string, businessId: string): Promise<ProductRecord | null> {
+    async getById(id: string, businessId: string) {
       return prisma.product.findFirst({ where: { id, businessId } });
     },
 
@@ -99,8 +99,19 @@ export function createProductsRepository(prisma: PrismaClient): ProductRepositor
           })(),
         ]);
 
+        const attachment = input.uploadId
+          ? await tx.attachment.create({
+              data: {
+                uploadId: input.uploadId,
+                recordType: AttachmentRecordType.PRODUCT,
+                recordId: product.id,
+              },
+            })
+          : null;
+
         const units = createdMou ? [createdBaseUnit, createdMou] : [createdBaseUnit];
-        return { ...product, units };
+
+        return { ...product, units, attachment };
       });
     },
   };
