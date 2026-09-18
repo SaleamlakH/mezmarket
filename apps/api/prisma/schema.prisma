@@ -72,6 +72,10 @@ enum UploadStatus {
   FAILED
 }
 
+enum AttachmentRecordType {
+  PRODUCT
+}
+
 enum AuditEntityType {
   STOCK_BATCH
   STOCK_BATCH_LINE
@@ -404,7 +408,7 @@ model Attachment {
 
   // Generic reference to the owning entity, e.g. ("product", <productId>).
   // No DB-level FK; resolved at the application layer.
-  recordType String
+  recordType AttachmentRecordType
   recordId   String
 
   createdAt DateTime  @default(now())
