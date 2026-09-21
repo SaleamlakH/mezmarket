@@ -1,7 +1,5 @@
 import { AppError, ERROR_CODES } from '../../shared/errors/app-error.js';
-import { AttachmentRecordType } from '../../../generated/prisma/client.js';
 import type {
-  AttachmentsRepository,
   CreateProductInput,
   CreateProductResult,
   Product,
@@ -47,10 +45,7 @@ function requireProductId(id: string | undefined): string {
   return id;
 }
 
-export function createProductsService(
-  repository: ProductRepository,
-  attachmentsRepository: AttachmentsRepository,
-): ProductService {
+export function createProductsService(repository: ProductRepository): ProductService {
   return {
     async listProducts(
       businessId: string | undefined,
@@ -61,8 +56,7 @@ export function createProductsService(
 
       if (records.length === 0) return [];
 
-      const attachments = await attachmentsRepository.listForRecord(
-        AttachmentRecordType.PRODUCT,
+      const attachments = await repository.listAttachmentsForProducts(
         records.map((record) => record.id),
       );
 
@@ -92,10 +86,7 @@ export function createProductsService(
         throw new AppError(ERROR_CODES.NOT_FOUND, 'Product not found', 404);
       }
 
-      const attachment = await attachmentsRepository.getForRecord(
-        AttachmentRecordType.PRODUCT,
-        record.id,
-      );
+      const attachment = await repository.getProductAttachment(record.id);
 
       return toProduct({
         ...record,
@@ -110,13 +101,14 @@ export function createProductsService(
     ): Promise<CreateProductResult> {
       const { businessId: b, branchId: br } = requireScope(businessId, branchId);
       const result = await repository.createForBusiness(b, br, input);
+      const { attachment, units, ...productRecord } = result;
       const product = toProduct({
-        ...result,
-        attachments: result.attachment ? [result.attachment] : [],
+        ...productRecord,
+        attachments: attachment ? [attachment] : [],
       });
       return {
         ...product,
-        units: result.units.map(toUnit),
+        units: units.map(toUnit),
       };
     },
   };

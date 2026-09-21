@@ -20,6 +20,21 @@ export function createProductsRepository(prisma: PrismaClient): ProductRepositor
       return prisma.product.findFirst({ where: { id, businessId } });
     },
 
+    async listAttachmentsForProducts(productIds: string[]) {
+      return prisma.attachment.findMany({
+        where: {
+          recordType: AttachmentRecordType.PRODUCT,
+          recordId: { in: productIds },
+          deletedAt: null,
+        },
+      });
+    },
+
+    async getProductAttachment(productId: string) {
+      return prisma.attachment.findFirst({
+        where: { recordType: AttachmentRecordType.PRODUCT, recordId: productId, deletedAt: null },
+      });
+    },
     async createForBusiness(
       businessId: string,
       branchId: string,

@@ -31,11 +31,15 @@ function createPrismaStub() {
     findMany: vi.fn().mockResolvedValue([]),
     findFirst: vi.fn(),
   };
+  const attachment = {
+    findMany: vi.fn().mockResolvedValue([]),
+    findFirst: vi.fn().mockResolvedValue(null),
+  };
   const $transaction = vi.fn((cb: (tx: MockTx) => unknown) => cb(tx));
 
-  const prisma = { product, $transaction } as unknown as PrismaClient;
+  const prisma = { product, attachment, $transaction } as unknown as PrismaClient;
 
-  return { prisma, tx, product, $transaction };
+  return { prisma, tx, product, attachment, $transaction };
 }
 
 function registerSuccess(tx: MockTx) {
@@ -85,6 +89,8 @@ describe('products.repository', () => {
     expect(typeof repo.list).toBe('function');
     expect(typeof repo.getById).toBe('function');
     expect(typeof repo.createForBusiness).toBe('function');
+    expect(typeof repo.listAttachmentsForProducts).toBe('function');
+    expect(typeof repo.getProductAttachment).toBe('function');
   });
 
   describe('list', () => {
@@ -352,6 +358,67 @@ describe('products.repository', () => {
         },
       });
       expect(result.attachment).toMatchObject({ id: 'a-1', uploadId: 'u-1' });
+    });
+  });
+
+  describe('listAttachmentsForProducts', () => {
+    it('calls findMany with PRODUCT record type, ids and live attachments only', async () => {
+      const { prisma, attachment } = createPrismaStub();
+      const repo = createProductsRepository(prisma);
+
+      await repo.listAttachmentsForProducts(['p-1', 'p-2']);
+
+      expect(attachment.findMany).toHaveBeenCalledWith({
+        where: {
+          recordType: AttachmentRecordType.PRODUCT,
+          recordId: { in: ['p-1', 'p-2'] },
+          deletedAt: null,
+        },
+      });
+    });
+
+    it('returns exactly the records resolved by findMany', async () => {
+      const { prisma, attachment } = createPrismaStub();
+      const repo = createProductsRepository(prisma);
+
+      const records = [{ id: 'a-1', uploadId: 'u-1' }];
+      attachment.findMany.mockResolvedValue(records);
+
+      await expect(repo.listAttachmentsForProducts(['p-1'])).resolves.toEqual(records);
+    });
+  });
+
+  describe('getProductAttachment', () => {
+    it('calls findFirst with PRODUCT record type, id and live attachments only', async () => {
+      const { prisma, attachment } = createPrismaStub();
+      const repo = createProductsRepository(prisma);
+
+      await repo.getProductAttachment('p-1');
+
+      expect(attachment.findFirst).toHaveBeenCalledWith({
+        where: {
+          recordType: AttachmentRecordType.PRODUCT,
+          recordId: 'p-1',
+          deletedAt: null,
+        },
+      });
+    });
+
+    it('returns the resolved record', async () => {
+      const { prisma, attachment } = createPrismaStub();
+      const repo = createProductsRepository(prisma);
+
+      const record = { id: 'a-1', uploadId: 'u-1' };
+      attachment.findFirst.mockResolvedValue(record);
+
+      await expect(repo.getProductAttachment('p-1')).resolves.toEqual(record);
+    });
+
+    it('returns null when there is no live attachment', async () => {
+      const { prisma } = createPrismaStub();
+      const repo = createProductsRepository(prisma);
+
+      await expect(repo.getProductAttachment('p-1')).resolves.toBeNull();
     });
   });
 });
