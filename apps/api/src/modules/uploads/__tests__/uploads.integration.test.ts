@@ -69,7 +69,7 @@ function buildApp(resolveUploads: ResolveUploads = async (_req, _res, next) => n
 
 describe('uploads.integration', () => {
   describe('POST /api/uploads', () => {
-    it('creates an upload and returns the presigned upload url without the storage key', async () => {
+    it('creates an upload and returns the presigned upload url including the storage key', async () => {
       const { app, repo, storage } = buildApp();
       vi.mocked(repo.create).mockResolvedValue(uploadRecord() as never);
       vi.mocked(storage.createUploadUrl).mockResolvedValue('https://file/signed-upload');
@@ -82,6 +82,7 @@ describe('uploads.integration', () => {
       expect(res.body).toEqual({
         upload: {
           id: 'u-1',
+          storageKey: 'uploads/product/u-1.jpg',
           mimeType: 'image/jpeg',
           sizeBytes: 1024,
           status: UploadStatus.PENDING,
@@ -90,7 +91,7 @@ describe('uploads.integration', () => {
         },
         uploadUrl: 'https://file/signed-upload',
       });
-      expect(res.body.upload).not.toHaveProperty('storageKey');
+      expect(res.body.upload).toHaveProperty('storageKey', 'uploads/product/u-1.jpg');
 
       const input = vi.mocked(repo.create).mock.calls[0]?.[0];
       expect(input?.storageKey).toBe(`uploads/product/${input?.id}.jpg`);

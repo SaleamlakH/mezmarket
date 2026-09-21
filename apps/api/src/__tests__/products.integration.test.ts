@@ -449,6 +449,7 @@ describe('products.integration', () => {
         expect(res.body).toEqual({
           upload: {
             id: 'u-1',
+            storageKey: 'uploads/product/u-1.jpg',
             mimeType: 'image/jpeg',
             sizeBytes: 1024,
             status: UploadStatus.PENDING,

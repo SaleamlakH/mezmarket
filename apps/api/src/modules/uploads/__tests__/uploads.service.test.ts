@@ -82,7 +82,7 @@ describe('uploads.service', () => {
       expect(storage.createUploadUrl).toHaveBeenCalledWith(storageKey);
     });
 
-    it('returns the created upload with the presigned url, without the storage key', async () => {
+    it('returns the created upload with the presigned url, including the storage key', async () => {
       const record = uploadRecord();
       vi.mocked(repo.create).mockResolvedValue(record as never);
       vi.mocked(storage.createUploadUrl).mockResolvedValue('https://file/signed-upload');
@@ -92,13 +92,14 @@ describe('uploads.service', () => {
       expect(result.uploadUrl).toBe('https://file/signed-upload');
       expect(result.upload).toEqual({
         id: 'u-1',
+        storageKey: 'uploads/u-1.jpg',
         mimeType: 'image/jpeg',
         sizeBytes: 1024,
         status: UploadStatus.PENDING,
         createdAt: new Date('2026-01-01T00:00:00.000Z'),
         updatedAt: new Date('2026-01-01T00:00:00.000Z'),
       });
-      expect(result.upload).not.toHaveProperty('storageKey');
+      expect(result.upload).toHaveProperty('storageKey', 'uploads/u-1.jpg');
     });
 
     it('propagates storage failures', async () => {

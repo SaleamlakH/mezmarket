@@ -1,17 +1,11 @@
+import type { Unit, Dimension } from '@mez/types';
+
 import type {
   Dimension as DimensionRecord,
   StandardUnit as StandardUnitRecord,
 } from '../../../generated/prisma/client.js';
 
-export type { StandardUnitRecord };
-
-export type Unit = Omit<StandardUnitRecord, 'ratioToReferenceUnit'> & {
-  ratioToReferenceUnit: number;
-};
-
-export interface Dimension extends DimensionRecord {
-  units: Unit[];
-}
+export type { Unit, Dimension, StandardUnitRecord };
 
 export interface DimensionWithUnitRecord extends DimensionRecord {
   standardUnits: StandardUnitRecord[];

@@ -1,33 +1,21 @@
 import type {
-  Attachment as AttachmentRecord,
-  AttachmentRecordType,
-  Upload as UploadRecord,
   UploadStatus,
-} from '../../../generated/prisma/client.js';
+  CreateUploadInput,
+  CreateUploadResult,
+  DownloadUrlResult,
+  DownloadUrlsResult,
+} from '@mez/types';
 
-export type { AttachmentRecord, UploadRecord, UploadStatus };
+import type { Upload as UploadRecord } from '../../../generated/prisma/client.js';
 
-export type CreateUploadInput = {
-  record: AttachmentRecordType;
-  mimeType?: string;
-  sizeBytes?: number;
+export type {
+  UploadStatus,
+  CreateUploadInput,
+  CreateUploadResult,
+  DownloadUrlResult,
+  DownloadUrlsResult,
+  UploadRecord,
 };
-
-export type CreateUploadRecord = Omit<UploadRecord, 'storageKey'>;
-
-export type CreateUploadResult = {
-  upload: CreateUploadRecord;
-  uploadUrl: string;
-};
-
-export type DownloadUrlResult = {
-  url: string;
-};
-
-export type DownloadUrlsResult = {
-  uploadId: string;
-  url: string | null;
-}[];
 
 export type UploadRepository = {
   create(input: {
