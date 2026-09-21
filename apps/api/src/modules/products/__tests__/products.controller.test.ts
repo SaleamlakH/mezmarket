@@ -46,7 +46,7 @@ describe('products.controller', () => {
       await controller.listProducts(mockReq(), res);
 
       expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith({ products });
+      expect(res.json).toHaveBeenCalledWith(products);
     });
 
     it('passes the business and branch ids to the service', async () => {

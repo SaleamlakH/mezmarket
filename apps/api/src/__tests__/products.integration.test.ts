@@ -245,7 +245,7 @@ describe('products.integration', () => {
         .set('Authorization', 'Bearer token');
 
       expect(res.status).toBe(200);
-      expect(res.body.products[0].uploadId).toBe('u-1');
+      expect(res.body[0].uploadId).toBe('u-1');
     });
   });
 

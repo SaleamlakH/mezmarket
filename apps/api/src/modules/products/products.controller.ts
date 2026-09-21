@@ -11,7 +11,7 @@ export function createProductsController(service: ProductService): ProductContro
   return {
     async listProducts(req: Request, res: Response) {
       const products = await service.listProducts(req.auth?.businessId, req.auth?.branchId);
-      res.status(200).json({ products });
+      res.status(200).json(products);
     },
 
     async createProduct(req: Request, res: Response) {
