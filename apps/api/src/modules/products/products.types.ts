@@ -1,59 +1,30 @@
 import type {
+  Product,
+  ProductUnit,
+  ProductWithUnits,
+  CreateProductInput,
+  CreateBaseUnitInput,
+  CreateMouInput,
+  CreateProductResult,
+} from '@mez/types';
+
+import type {
   Attachment as AttachmentRecord,
-  AttachmentRecordType,
-  Dimension as DimensionRecord,
   Product as ProductRecord,
   ProductUnit as ProductUnitRecord,
-  StandardUnit as StandardUnitRecord,
-  UnitDependsOn,
-  UnitRole,
 } from '../../../generated/prisma/client.js';
 
 export type {
-  AttachmentRecord,
-  AttachmentRecordType,
-  DimensionRecord,
+  Product,
+  ProductUnit,
+  ProductWithUnits,
+  CreateProductInput,
+  CreateBaseUnitInput,
+  CreateMouInput,
+  CreateProductResult,
   ProductRecord,
   ProductUnitRecord,
-  StandardUnitRecord,
-  UnitDependsOn,
-  UnitRole,
-};
-
-export type Product = Omit<ProductRecord, 'lowStockThreshold' | 'currentSealedStock'> & {
-  lowStockThreshold: number | null;
-  currentSealedStock: number;
-  uploadId: string | null;
-};
-
-export type ProductUnit = Omit<ProductUnitRecord, 'conversionRate' | 'price'> & {
-  conversionRate: number | null;
-  price: number | null;
-};
-
-export interface CreateBaseUnitInput {
-  unitId: string;
-  price: string;
-}
-
-export interface CreateMouInput {
-  unitId: string;
-  conversionRate: number;
-  price?: number;
-}
-
-export type CreateProductInput = Pick<
-  Product,
-  'name' | 'brand' | 'description' | 'lowStockThreshold' | 'trackAsPartial' | 'categoryId'
-> & {
-  baseUnit: CreateBaseUnitInput;
-  mou?: CreateMouInput;
-  uploadId?: string;
-};
-export type CreateProductResult = ProductWithUnits;
-
-export type ProductWithUnits = Product & {
-  units: ProductUnit[];
+  AttachmentRecord,
 };
 
 export type ProductRecordWithAttachments = ProductRecord & {

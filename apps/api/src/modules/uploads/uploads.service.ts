@@ -7,17 +7,10 @@ import type {
   CreateUploadResult,
   DownloadUrlResult,
   DownloadUrlsResult,
-  UploadRecord,
   UploadRepository,
   UploadService,
 } from './uploads.types.js';
 import { ulid } from 'ulid';
-
-function withoutStorageKey(record: UploadRecord): CreateUploadResult['upload'] {
-  const { storageKey: _storageKey, ...upload } = record;
-  void _storageKey;
-  return upload;
-}
 
 export function createUploadsService(
   repository: UploadRepository,
@@ -37,7 +30,7 @@ export function createUploadsService(
 
       const uploadUrl = await storage.createUploadUrl(storageKey);
 
-      return { upload: withoutStorageKey(record), uploadUrl };
+      return { upload: record, uploadUrl };
     },
 
     async getUploadUrl(uploadId: string | undefined): Promise<DownloadUrlResult> {
