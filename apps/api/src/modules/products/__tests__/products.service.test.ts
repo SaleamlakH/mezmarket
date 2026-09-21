@@ -1,14 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createProductsService } from '../products.service.js';
 import type {
-  AttachmentsRepository,
   CreateProductInput,
   ProductRecord,
   ProductRepository,
   ProductService,
   ProductUnitRecord,
 } from '../products.types.js';
-import { AttachmentRecordType } from '../../../../generated/prisma/client.js';
 import { AppError, ERROR_CODES } from '../../../shared/errors/app-error.js';
 import type { Decimal } from '../../../../generated/prisma/internal/prismaNamespace.js';
 
@@ -17,13 +15,8 @@ function mockRepository(): ProductRepository {
     list: vi.fn(),
     getById: vi.fn(),
     createForBusiness: vi.fn(),
-  };
-}
-
-function mockAttachmentsRepository(): AttachmentsRepository {
-  return {
-    listForRecord: vi.fn().mockResolvedValue([]),
-    getForRecord: vi.fn().mockResolvedValue(null),
+    listAttachmentsForProducts: vi.fn().mockResolvedValue([]),
+    getProductAttachment: vi.fn().mockResolvedValue(null),
   };
 }
 
@@ -93,14 +86,12 @@ function prismaUnit(overrides: Record<string, unknown> = {}): ProductUnitRecord 
 
 describe('products.service', () => {
   let repo: ProductRepository;
-  let attachmentsRepo: AttachmentsRepository;
   let service: ProductService;
 
   beforeEach(() => {
     vi.clearAllMocks();
     repo = mockRepository();
-    attachmentsRepo = mockAttachmentsRepository();
-    service = createProductsService(repo, attachmentsRepo);
+    service = createProductsService(repo);
   });
 
   describe('listProducts', () => {
@@ -117,7 +108,7 @@ describe('products.service', () => {
 
       await service.listProducts('b-1', 'br-1');
 
-      expect(attachmentsRepo.listForRecord).not.toHaveBeenCalled();
+      expect(repo.listAttachmentsForProducts).not.toHaveBeenCalled();
     });
 
     it('fetches attachments for the resolved product ids', async () => {
@@ -128,10 +119,7 @@ describe('products.service', () => {
 
       await service.listProducts('b-1', 'br-1');
 
-      expect(attachmentsRepo.listForRecord).toHaveBeenCalledWith(AttachmentRecordType.PRODUCT, [
-        'p-1',
-        'p-2',
-      ]);
+      expect(repo.listAttachmentsForProducts).toHaveBeenCalledWith(['p-1', 'p-2']);
     });
 
     it('maps stored products to the domain shape', async () => {
@@ -164,7 +152,7 @@ describe('products.service', () => {
 
     it('exposes the uploadId of the first live attachment', async () => {
       vi.mocked(repo.list).mockResolvedValue([prismaProduct()] as never);
-      vi.mocked(attachmentsRepo.listForRecord).mockResolvedValue([
+      vi.mocked(repo.listAttachmentsForProducts).mockResolvedValue([
         { recordId: 'p-1', uploadId: 'u-1' },
       ] as never);
 
@@ -175,7 +163,7 @@ describe('products.service', () => {
 
     it('maps uploadId from the first attachment only', async () => {
       vi.mocked(repo.list).mockResolvedValue([prismaProduct()] as never);
-      vi.mocked(attachmentsRepo.listForRecord).mockResolvedValue([
+      vi.mocked(repo.listAttachmentsForProducts).mockResolvedValue([
         { recordId: 'p-1', uploadId: 'u-1' },
         { recordId: 'p-1', uploadId: 'u-2' },
       ] as never);
@@ -190,7 +178,7 @@ describe('products.service', () => {
         prismaProduct({ id: 'p-1' }),
         prismaProduct({ id: 'p-2' }),
       ] as never);
-      vi.mocked(attachmentsRepo.listForRecord).mockResolvedValue([
+      vi.mocked(repo.listAttachmentsForProducts).mockResolvedValue([
         { recordId: 'p-1', uploadId: 'u-1' },
         { recordId: 'p-2', uploadId: 'u-2' },
       ] as never);
@@ -256,15 +244,12 @@ describe('products.service', () => {
 
       await service.getProduct('p-1', 'b-1', 'br-1');
 
-      expect(attachmentsRepo.getForRecord).toHaveBeenCalledWith(
-        AttachmentRecordType.PRODUCT,
-        'p-1',
-      );
+      expect(repo.getProductAttachment).toHaveBeenCalledWith('p-1');
     });
 
     it('exposes the uploadId of the live attachment', async () => {
       vi.mocked(repo.getById).mockResolvedValue(prismaProduct() as never);
-      vi.mocked(attachmentsRepo.getForRecord).mockResolvedValue({
+      vi.mocked(repo.getProductAttachment).mockResolvedValue({
         uploadId: 'u-1',
       } as never);
 
@@ -342,6 +327,7 @@ describe('products.service', () => {
       const result = await service.createProduct('b-1', 'br-1', input());
 
       expect(result.uploadId).toBe('u-1');
+      expect(result).not.toHaveProperty('attachment');
     });
 
     it('exposes a null uploadId when no attachment was created', async () => {

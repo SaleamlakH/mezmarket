@@ -71,14 +71,8 @@ export type ProductRepository = {
     branchId: string,
     input: CreateProductInput,
   ): Promise<CreateProductRepoResult>;
-};
-
-export type AttachmentsRepository = {
-  listForRecord(recordType: AttachmentRecordType, recordIds: string[]): Promise<AttachmentRecord[]>;
-  getForRecord(
-    recordType: AttachmentRecordType,
-    recordId: string,
-  ): Promise<AttachmentRecord | null>;
+  listAttachmentsForProducts(productIds: string[]): Promise<AttachmentRecord[]>;
+  getProductAttachment(productId: string): Promise<AttachmentRecord | null>;
 };
 
 export type ProductService = {
