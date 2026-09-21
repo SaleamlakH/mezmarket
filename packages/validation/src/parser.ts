@@ -1,4 +1,5 @@
 import type { ZodType } from 'zod';
+import type { CreateProductInput, CreateUploadInput } from '@mez/types';
 import type { FieldErrors, ValidationResult } from './types.js';
 import {
   loginSchema,
@@ -13,6 +14,8 @@ import {
   type CreateBusinessFormValues,
   type UpdateBusinessFormValues,
 } from './schema/business.schema.js';
+import { createProductSchema, type CreateProductFormValues } from './schema/product.schema.js';
+import { createUploadSchema, type CreateUploadClientInput } from './schema/upload.schema.js';
 
 function validateInput<T>(schema: ZodType<T>, input: unknown): ValidationResult<T> {
   const result = schema.safeParse(input);
@@ -47,4 +50,11 @@ export function validateUpdateBusiness(
   values: UpdateBusinessFormValues,
 ): ValidationResult<UpdateBusinessFormValues> {
   return validateInput(updateBusinessSchema, values) as ValidationResult<UpdateBusinessFormValues>;
+}
+export function validateCreateProduct(values: CreateProductFormValues) {
+  return validateInput(createProductSchema, values) as ValidationResult<CreateProductInput>;
+}
+
+export function validateCreateUpload(values: CreateUploadClientInput) {
+  return validateInput(createUploadSchema, values) as ValidationResult<CreateUploadInput>;
 }
