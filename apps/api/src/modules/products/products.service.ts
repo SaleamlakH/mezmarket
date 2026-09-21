@@ -45,6 +45,13 @@ function requireProductId(id: string | undefined): string {
   return id;
 }
 
+function requireBusinessId(businessId: string | undefined): string {
+  if (!businessId) {
+    throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Unauthorized', 401);
+  }
+  return businessId;
+}
+
 export function createProductsService(repository: ProductRepository): ProductService {
   return {
     async listProducts(
@@ -110,6 +117,47 @@ export function createProductsService(repository: ProductRepository): ProductSer
         ...product,
         units: units.map(toUnit),
       };
+    },
+
+    async resolveUploadId(
+      productId: string | undefined,
+      businessId: string | undefined,
+    ): Promise<string> {
+      const b = requireBusinessId(businessId);
+      const pid = requireProductId(productId);
+
+      const product = await repository.getById(pid, b);
+      if (!product) {
+        throw new AppError(ERROR_CODES.NOT_FOUND, 'Upload not found', 404);
+      }
+
+      const attachment = await repository.getProductAttachment(pid);
+      if (!attachment?.uploadId) {
+        throw new AppError(ERROR_CODES.NOT_FOUND, 'Upload not found', 404);
+      }
+
+      return attachment.uploadId;
+    },
+
+    async resolveUploadIds(
+      businessId: string | undefined,
+      branchId: string | undefined,
+    ): Promise<string[]> {
+      const { businessId: b, branchId: br } = requireScope(businessId, branchId);
+      const records = await repository.list(b, br);
+      if (records.length === 0) return [];
+
+      const attachments = await repository.listAttachmentsForProducts(
+        records.map((record) => record.id),
+      );
+
+      return [
+        ...new Set(
+          attachments
+            .map((attachment) => attachment.uploadId)
+            .filter((uploadId): uploadId is string => uploadId != null),
+        ),
+      ];
     },
   };
 }

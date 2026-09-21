@@ -9,6 +9,8 @@ function mockService(): ProductService {
     listProducts: vi.fn(),
     getProduct: vi.fn(),
     createProduct: vi.fn(),
+    resolveUploadId: vi.fn(),
+    resolveUploadIds: vi.fn(),
   };
 }
 

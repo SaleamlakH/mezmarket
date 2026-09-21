@@ -18,5 +18,6 @@ declare namespace Express {
       branchId?: string;
     };
     validBody: unknown;
+    uploadIds?: string[];
   }
 }

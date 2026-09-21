@@ -342,4 +342,90 @@ describe('products.service', () => {
       expect(result.uploadId).toBeNull();
     });
   });
+
+  describe('resolveUploadId', () => {
+    it('returns the uploadId of the product live attachment', async () => {
+      vi.mocked(repo.getById).mockResolvedValue(prismaProduct() as never);
+      vi.mocked(repo.getProductAttachment).mockResolvedValue({ uploadId: 'u-1' } as never);
+
+      const result = await service.resolveUploadId('p-1', 'b-1');
+
+      expect(repo.getById).toHaveBeenCalledWith('p-1', 'b-1');
+      expect(repo.getProductAttachment).toHaveBeenCalledWith('p-1');
+      expect(result).toBe('u-1');
+    });
+
+    it('throws NOT_FOUND when the product is not in scope', async () => {
+      vi.mocked(repo.getById).mockResolvedValue(null);
+
+      await expect(service.resolveUploadId('p-1', 'b-1')).rejects.toEqual(
+        new AppError(ERROR_CODES.NOT_FOUND, 'Upload not found', 404),
+      );
+      expect(repo.getProductAttachment).not.toHaveBeenCalled();
+    });
+
+    it('throws NOT_FOUND when the product has no live attachment', async () => {
+      vi.mocked(repo.getById).mockResolvedValue(prismaProduct() as never);
+      vi.mocked(repo.getProductAttachment).mockResolvedValue(null);
+
+      await expect(service.resolveUploadId('p-1', 'b-1')).rejects.toEqual(
+        new AppError(ERROR_CODES.NOT_FOUND, 'Upload not found', 404),
+      );
+      expect(repo.getProductAttachment).toHaveBeenCalledWith('p-1');
+    });
+
+    it('throws BAD_REQUEST when the product id is missing', async () => {
+      await expect(service.resolveUploadId(undefined, 'b-1')).rejects.toEqual(
+        new AppError(ERROR_CODES.BAD_REQUEST, 'Missing product id', 400),
+      );
+    });
+
+    it('throws UNAUTHORIZED when the business id is missing', async () => {
+      await expect(service.resolveUploadId('p-1', undefined)).rejects.toEqual(
+        new AppError(ERROR_CODES.UNAUTHORIZED, 'Unauthorized', 401),
+      );
+    });
+  });
+
+  describe('resolveUploadIds', () => {
+    it('returns the deduped uploadIds of the active products live attachments', async () => {
+      vi.mocked(repo.list).mockResolvedValue([
+        prismaProduct({ id: 'p-1' }),
+        prismaProduct({ id: 'p-2' }),
+      ] as never);
+      vi.mocked(repo.listAttachmentsForProducts).mockResolvedValue([
+        { recordId: 'p-1', uploadId: 'u-1' },
+        { recordId: 'p-2', uploadId: 'u-2' },
+        { recordId: 'p-1', uploadId: 'u-1' },
+        { recordId: 'p-1', uploadId: null },
+      ] as never);
+
+      const result = await service.resolveUploadIds('b-1', 'br-1');
+
+      expect(repo.list).toHaveBeenCalledWith('b-1', 'br-1');
+      expect(repo.listAttachmentsForProducts).toHaveBeenCalledWith(['p-1', 'p-2']);
+      expect(result).toEqual(['u-1', 'u-2']);
+    });
+
+    it('returns an empty list when there are no products', async () => {
+      vi.mocked(repo.list).mockResolvedValue([] as never);
+
+      const result = await service.resolveUploadIds('b-1', 'br-1');
+
+      expect(result).toEqual([]);
+      expect(repo.listAttachmentsForProducts).not.toHaveBeenCalled();
+    });
+
+    it('throws UNAUTHORIZED when the business id is missing', async () => {
+      await expect(service.resolveUploadIds(undefined, 'br-1')).rejects.toEqual(
+        new AppError(ERROR_CODES.UNAUTHORIZED, 'Unauthorized', 401),
+      );
+    });
+
+    it('throws UNAUTHORIZED when the branch id is missing', async () => {
+      await expect(service.resolveUploadIds('b-1', undefined)).rejects.toEqual(
+        new AppError(ERROR_CODES.UNAUTHORIZED, 'Unauthorized', 401),
+      );
+    });
+  });
 });
