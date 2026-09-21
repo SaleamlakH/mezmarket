@@ -87,4 +87,6 @@ export type ProductService = {
     branchId: string | undefined,
     input: CreateProductInput,
   ): Promise<CreateProductResult>;
+  resolveUploadId(productId: string | undefined, businessId: string | undefined): Promise<string>;
+  resolveUploadIds(businessId: string | undefined, branchId: string | undefined): Promise<string[]>;
 };

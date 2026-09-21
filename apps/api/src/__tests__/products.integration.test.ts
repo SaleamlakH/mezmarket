@@ -2,14 +2,24 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import type { AuthRepository } from '../modules/auth/auth.types.js';
 import type { BusinessRepository } from '../modules/business/business.types.js';
-import type {
-  AttachmentsRepository,
-  ProductRepository,
-} from '../modules/products/products.types.js';
+import type { ProductRepository } from '../modules/products/products.types.js';
+import type { UploadRepository } from '../modules/uploads/uploads.types.js';
+import { UploadStatus } from '../../generated/prisma/client.js';
 import { AppError, ERROR_CODES } from '../shared/errors/app-error.js';
 
-const { verifyJwt, authRepository, businessRepository, productsRepository, attachmentsRepository } =
-  vi.hoisted(() => ({
+const {
+  verifyJwt,
+  authRepository,
+  businessRepository,
+  productsRepository,
+  uploadsRepository,
+  storage,
+} = vi.hoisted(() => {
+  process.env.SUPABASE_URL = 'https://example.supabase.co';
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key';
+  process.env.STORAGE_BUCKET = 'bucket';
+
+  return {
     verifyJwt: vi.fn(),
     authRepository: {
       findIdentity: vi.fn(),
@@ -25,12 +35,22 @@ const { verifyJwt, authRepository, businessRepository, productsRepository, attac
       list: vi.fn(),
       getById: vi.fn(),
       createForBusiness: vi.fn(),
+      listAttachmentsForProducts: vi.fn(),
+      getProductAttachment: vi.fn(),
     } satisfies ProductRepository,
-    attachmentsRepository: {
-      listForRecord: vi.fn().mockResolvedValue([]),
-      getForRecord: vi.fn().mockResolvedValue(null),
-    } satisfies AttachmentsRepository,
-  }));
+    uploadsRepository: {
+      create: vi.fn(),
+      getById: vi.fn(),
+      getManyByIds: vi.fn(),
+      setStatus: vi.fn(),
+    } satisfies UploadRepository,
+    storage: {
+      createUploadUrl: vi.fn(),
+      objectExists: vi.fn(),
+      createDownloadUrl: vi.fn(),
+    },
+  };
+});
 
 vi.mock('../lib/jwt.js', () => ({ verifyJwt }));
 vi.mock('../modules/auth/auth.repository.js', () => ({
@@ -42,8 +62,12 @@ vi.mock('../modules/business/business.repository.js', () => ({
 vi.mock('../modules/products/products.repository.js', () => ({
   createProductsRepository: () => productsRepository,
 }));
-vi.mock('../modules/products/attachments.repository.js', () => ({
-  createAttachmentsRepository: () => attachmentsRepository,
+vi.mock('../modules/uploads/uploads.repository.js', () => ({
+  createUploadsRepository: () => uploadsRepository,
+}));
+vi.mock('../lib/storage/storage.js', () => ({
+  createSupabaseClient: vi.fn(),
+  createSupabaseStorage: () => storage,
 }));
 
 import app from '../app.js';
@@ -121,8 +145,10 @@ function authorize(businessId: string | null, branchId: string | null) {
 describe('products.integration', () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    attachmentsRepository.listForRecord.mockResolvedValue([]);
-    attachmentsRepository.getForRecord.mockResolvedValue(null);
+    productsRepository.list.mockResolvedValue([]);
+    productsRepository.listAttachmentsForProducts.mockResolvedValue([]);
+    productsRepository.getProductAttachment.mockResolvedValue(null);
+    uploadsRepository.getManyByIds.mockResolvedValue([]);
   });
 
   describe('unauthenticated', () => {
@@ -210,7 +236,9 @@ describe('products.integration', () => {
       await authenticate('owner-1');
       authorize('b-1', 'br-1');
       productsRepository.list.mockResolvedValue([productRecord()]);
-      attachmentsRepository.listForRecord.mockResolvedValue([{ recordId: 'p-1', uploadId: 'u-1' }]);
+      productsRepository.listAttachmentsForProducts.mockResolvedValue([
+        { recordId: 'p-1', uploadId: 'u-1' },
+      ]);
 
       const res = await request(app)
         .get('/api/businesses/b-1/products')
@@ -291,6 +319,7 @@ describe('products.integration', () => {
 
       expect(res.status).toBe(201);
       expect(res.body.uploadId).toBe('u-1');
+      expect(res.body).not.toHaveProperty('attachment');
       expect(productsRepository.createForBusiness).toHaveBeenCalledWith('b-1', 'br-1', body);
     });
 
@@ -340,6 +369,249 @@ describe('products.integration', () => {
       expect(res.status).toBe(404);
       expect(res.body).toEqual({
         error: { code: ERROR_CODES.NOT_FOUND, message: expect.any(String) },
+      });
+    });
+  });
+
+  describe('uploads mounted under the products router', () => {
+    function uploadRecord(overrides: Record<string, unknown> = {}) {
+      return {
+        id: 'u-1',
+        storageKey: 'uploads/product/u-1.jpg',
+        mimeType: 'image/jpeg',
+        sizeBytes: 1024,
+        status: UploadStatus.PENDING,
+        createdAt: ISO,
+        updatedAt: ISO,
+        ...overrides,
+      };
+    }
+
+    describe('POST /api/businesses/:businessId/products/uploads', () => {
+      it('rejects creating an upload without a token', async () => {
+        const res = await request(app)
+          .post('/api/businesses/b-1/products/uploads')
+          .send({ record: 'PRODUCT', mimeType: 'image/jpeg', sizeBytes: 1024 });
+
+        expect(res.status).toBe(401);
+        expect(res.body).toEqual({
+          error: { code: ERROR_CODES.UNAUTHORIZED, message: expect.any(String) },
+        });
+        expect(uploadsRepository.create).not.toHaveBeenCalled();
+      });
+
+      it('rejects creating an upload when the business is not owned', async () => {
+        await authenticate('owner-1');
+        authorize(null, 'br-1');
+
+        const res = await request(app)
+          .post('/api/businesses/b-1/products/uploads')
+          .set('Authorization', 'Bearer token')
+          .send({ record: 'PRODUCT', mimeType: 'image/jpeg', sizeBytes: 1024 });
+
+        expect(res.status).toBe(404);
+        expect(res.body).toEqual({
+          error: { code: ERROR_CODES.NOT_FOUND, message: expect.any(String) },
+        });
+        expect(uploadsRepository.create).not.toHaveBeenCalled();
+      });
+
+      it('creates an upload and returns the presigned upload url', async () => {
+        await authenticate('owner-1');
+        authorize('b-1', 'br-1');
+        uploadsRepository.create.mockResolvedValue(uploadRecord());
+        storage.createUploadUrl.mockResolvedValue('https://file/signed-upload');
+
+        const res = await request(app)
+          .post('/api/businesses/b-1/products/uploads')
+          .set('Authorization', 'Bearer token')
+          .send({ record: 'PRODUCT', mimeType: 'image/jpeg', sizeBytes: 1024 });
+
+        expect(res.status).toBe(201);
+        expect(res.body).toEqual({
+          upload: {
+            id: 'u-1',
+            mimeType: 'image/jpeg',
+            sizeBytes: 1024,
+            status: UploadStatus.PENDING,
+            createdAt: ISO,
+            updatedAt: ISO,
+          },
+          uploadUrl: 'https://file/signed-upload',
+        });
+        const input = uploadsRepository.create.mock.calls[0]?.[0];
+        expect(input?.storageKey).toBe(`uploads/product/${input?.id}.jpg`);
+        expect(storage.createUploadUrl).toHaveBeenCalledWith(input?.storageKey);
+      });
+    });
+
+    describe('GET /api/businesses/:businessId/products/:recordId/uploads/:uploadId/url', () => {
+      it('rejects fetching a download url without a token', async () => {
+        const res = await request(app).get('/api/businesses/b-1/products/p-1/uploads/u-1/url');
+
+        expect(res.status).toBe(401);
+        expect(res.body).toEqual({
+          error: { code: ERROR_CODES.UNAUTHORIZED, message: expect.any(String) },
+        });
+        expect(productsRepository.getById).not.toHaveBeenCalled();
+        expect(uploadsRepository.getById).not.toHaveBeenCalled();
+      });
+
+      it('rejects fetching a download url when the business is not owned', async () => {
+        await authenticate('owner-1');
+        authorize(null, 'br-1');
+
+        const res = await request(app)
+          .get('/api/businesses/b-1/products/p-1/uploads/u-1/url')
+          .set('Authorization', 'Bearer token');
+
+        expect(res.status).toBe(404);
+        expect(res.body).toEqual({
+          error: { code: ERROR_CODES.NOT_FOUND, message: expect.any(String) },
+        });
+        expect(productsRepository.getById).not.toHaveBeenCalled();
+        expect(uploadsRepository.getById).not.toHaveBeenCalled();
+      });
+
+      it('returns a presigned download url for the product upload', async () => {
+        await authenticate('owner-1');
+        authorize('b-1', 'br-1');
+        productsRepository.getById.mockResolvedValue(productRecord());
+        productsRepository.getProductAttachment.mockResolvedValue({
+          recordId: 'p-1',
+          uploadId: 'u-1',
+        });
+        uploadsRepository.getById.mockResolvedValue(uploadRecord({ status: UploadStatus.ACTIVE }));
+        storage.createDownloadUrl.mockResolvedValue('https://file/signed-download');
+
+        const res = await request(app)
+          .get('/api/businesses/b-1/products/p-1/uploads/u-1/url')
+          .set('Authorization', 'Bearer token');
+
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({ url: 'https://file/signed-download' });
+        expect(productsRepository.getById).toHaveBeenCalledWith('p-1', 'b-1');
+        expect(productsRepository.getProductAttachment).toHaveBeenCalledWith('p-1');
+        expect(uploadsRepository.getById).toHaveBeenCalledWith('u-1');
+        expect(storage.createDownloadUrl).toHaveBeenCalledWith('uploads/product/u-1.jpg');
+      });
+
+      it('reconciles a pending upload to ACTIVE when the object exists', async () => {
+        await authenticate('owner-1');
+        authorize('b-1', 'br-1');
+        productsRepository.getById.mockResolvedValue(productRecord());
+        productsRepository.getProductAttachment.mockResolvedValue({
+          recordId: 'p-1',
+          uploadId: 'u-1',
+        });
+        uploadsRepository.getById.mockResolvedValue(uploadRecord());
+        storage.objectExists.mockResolvedValue(true);
+        storage.createDownloadUrl.mockResolvedValue('https://file/signed-download');
+
+        const res = await request(app)
+          .get('/api/businesses/b-1/products/p-1/uploads/u-1/url')
+          .set('Authorization', 'Bearer token');
+
+        expect(res.status).toBe(200);
+        expect(uploadsRepository.setStatus).toHaveBeenCalledWith('u-1', UploadStatus.ACTIVE);
+        expect(res.body).toEqual({ url: 'https://file/signed-download' });
+      });
+
+      it('rejects fetching a download url when the product has no live attachment', async () => {
+        await authenticate('owner-1');
+        authorize('b-1', 'br-1');
+        productsRepository.getById.mockResolvedValue(productRecord());
+        productsRepository.getProductAttachment.mockResolvedValue(null);
+
+        const res = await request(app)
+          .get('/api/businesses/b-1/products/p-1/uploads/u-1/url')
+          .set('Authorization', 'Bearer token');
+
+        expect(res.status).toBe(404);
+        expect(res.body).toEqual({
+          error: { code: ERROR_CODES.NOT_FOUND, message: expect.any(String) },
+        });
+        expect(uploadsRepository.getById).not.toHaveBeenCalled();
+        expect(storage.createDownloadUrl).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('GET /api/businesses/:businessId/products/uploads/urls', () => {
+      function productUploadRecord(id: string) {
+        return uploadRecord({
+          id,
+          storageKey: `uploads/product/${id}.jpg`,
+          status: UploadStatus.ACTIVE,
+        });
+      }
+
+      it('rejects batch download without a token', async () => {
+        const res = await request(app).get('/api/businesses/b-1/products/uploads/urls');
+
+        expect(res.status).toBe(401);
+        expect(res.body).toEqual({
+          error: { code: ERROR_CODES.UNAUTHORIZED, message: expect.any(String) },
+        });
+        expect(productsRepository.listAttachmentsForProducts).not.toHaveBeenCalled();
+        expect(uploadsRepository.getManyByIds).not.toHaveBeenCalled();
+      });
+
+      it('rejects batch download when the business is not owned', async () => {
+        await authenticate('owner-1');
+        authorize(null, 'br-1');
+
+        const res = await request(app)
+          .get('/api/businesses/b-1/products/uploads/urls')
+          .set('Authorization', 'Bearer token');
+
+        expect(res.status).toBe(404);
+        expect(res.body).toEqual({
+          error: { code: ERROR_CODES.NOT_FOUND, message: expect.any(String) },
+        });
+        expect(productsRepository.listAttachmentsForProducts).not.toHaveBeenCalled();
+      });
+
+      it('returns a matched download url for each product upload id', async () => {
+        await authenticate('owner-1');
+        authorize('b-1', 'br-1');
+        productsRepository.list.mockResolvedValue([productRecord(), productRecord({ id: 'p-2' })]);
+        productsRepository.listAttachmentsForProducts.mockResolvedValue([
+          { recordId: 'p-1', uploadId: 'u-1' },
+          { recordId: 'p-2', uploadId: 'u-2' },
+        ]);
+        uploadsRepository.getManyByIds.mockImplementation(
+          async (ids: string[]) => ids.map((id) => productUploadRecord(id)) as never,
+        );
+        storage.createDownloadUrl.mockImplementation(
+          async (storageKey: string) => `https://file/${storageKey}`,
+        );
+
+        const res = await request(app)
+          .get('/api/businesses/b-1/products/uploads/urls')
+          .set('Authorization', 'Bearer token');
+
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual([
+          { uploadId: 'u-1', url: 'https://file/uploads/product/u-1.jpg' },
+          { uploadId: 'u-2', url: 'https://file/uploads/product/u-2.jpg' },
+        ]);
+        expect(productsRepository.list).toHaveBeenCalledWith('b-1', 'br-1');
+        expect(productsRepository.listAttachmentsForProducts).toHaveBeenCalledWith(['p-1', 'p-2']);
+        expect(uploadsRepository.getManyByIds).toHaveBeenCalledWith(['u-1', 'u-2']);
+      });
+
+      it('returns an empty batch when the business has no products', async () => {
+        await authenticate('owner-1');
+        authorize('b-1', 'br-1');
+
+        const res = await request(app)
+          .get('/api/businesses/b-1/products/uploads/urls')
+          .set('Authorization', 'Bearer token');
+
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual([]);
+        expect(productsRepository.listAttachmentsForProducts).not.toHaveBeenCalled();
+        expect(uploadsRepository.getManyByIds).not.toHaveBeenCalled();
       });
     });
   });
