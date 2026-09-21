@@ -47,7 +47,9 @@ function decimal(value: number) {
   return { toNumber: () => value };
 }
 
-function prismaProduct(overrides: Record<string, unknown> = {}): ProductRecord {
+function prismaProduct(overrides: Record<string, unknown> = {}): ProductRecord & {
+  productUnits: ProductUnitRecord[];
+} {
   return {
     id: 'p-1',
     businessId: 'b-1',
@@ -60,6 +62,7 @@ function prismaProduct(overrides: Record<string, unknown> = {}): ProductRecord {
     lowStockThreshold: null,
     currentSealedStock: decimal(0) as Decimal,
     active: true,
+    productUnits: [],
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
     ...overrides,
@@ -127,14 +130,44 @@ describe('products.service', () => {
 
       const result = await service.listProducts('b-1', 'br-1');
 
+      const { productUnits, ...expected } = prismaProduct();
+      void productUnits;
       expect(result).toEqual([
         {
-          ...prismaProduct(),
+          ...expected,
           lowStockThreshold: null,
           currentSealedStock: 0,
           uploadId: null,
+          units: [],
         },
       ]);
+    });
+
+    it('includes the mapped units of each product', async () => {
+      vi.mocked(repo.list).mockResolvedValue([
+        prismaProduct({ productUnits: [prismaUnit(), prismaUnit({ id: 'pu-2' })] }),
+      ] as never);
+
+      const result = await service.listProducts('b-1', 'br-1');
+
+      expect(result[0]).toMatchObject({
+        units: [
+          { id: 'pu-1', conversionRate: null, price: 50, purchaseCapable: true, sellCapable: true },
+          { id: 'pu-2', conversionRate: null, price: 50, purchaseCapable: true, sellCapable: true },
+        ],
+      });
+    });
+
+    it('maps units to their matching product', async () => {
+      vi.mocked(repo.list).mockResolvedValue([
+        prismaProduct({ id: 'p-1', productUnits: [prismaUnit()] }),
+        prismaProduct({ id: 'p-2', productUnits: [] }),
+      ] as never);
+
+      const result = await service.listProducts('b-1', 'br-1');
+
+      expect(result[0]?.units).toHaveLength(1);
+      expect(result[1]?.units).toEqual([]);
     });
 
     it('converts non-null decimals to numbers and keeps zero as 0', async () => {
@@ -236,7 +269,21 @@ describe('products.service', () => {
         id: 'p-1',
         name: 'Sugar',
         lowStockThreshold: 4,
+        units: [],
       });
+    });
+
+    it('includes the mapped units of the product', async () => {
+      vi.mocked(repo.getById).mockResolvedValue(
+        prismaProduct({ productUnits: [prismaUnit(), prismaUnit({ id: 'pu-2' })] }) as never,
+      );
+
+      const result = await service.getProduct('p-1', 'b-1', 'br-1');
+
+      expect(result.units).toMatchObject([
+        { id: 'pu-1', conversionRate: null, price: 50 },
+        { id: 'pu-2', conversionRate: null, price: 50 },
+      ]);
     });
 
     it('fetches the attachment for the resolved product', async () => {

@@ -8,10 +8,12 @@ import type {
   ProductService,
   ProductUnit,
   ProductUnitRecord,
+  ProductWithUnits,
 } from './products.types.js';
 
 function toProduct(record: ProductRecordWithAttachments): Product {
-  const { attachments, ...rest } = record;
+  const { attachments, productUnits: _productUnits, ...rest } = record;
+  void _productUnits;
   return {
     ...rest,
     lowStockThreshold: record.lowStockThreshold?.toNumber() ?? null,
@@ -57,7 +59,7 @@ export function createProductsService(repository: ProductRepository): ProductSer
     async listProducts(
       businessId: string | undefined,
       branchId: string | undefined,
-    ): Promise<Product[]> {
+    ): Promise<ProductWithUnits[]> {
       const { businessId: b, branchId: br } = requireScope(businessId, branchId);
       const records = await repository.list(b, br);
 
@@ -77,16 +79,17 @@ export function createProductsService(repository: ProductRepository): ProductSer
         }
       }
 
-      return records.map((record) =>
-        toProduct({ ...record, attachments: attachmentsByProductId.get(record.id) ?? [] }),
-      );
+      return records.map((record) => ({
+        ...toProduct({ ...record, attachments: attachmentsByProductId.get(record.id) ?? [] }),
+        units: record.productUnits.map(toUnit),
+      }));
     },
 
     async getProduct(
       id: string | undefined,
       businessId: string | undefined,
       branchId: string | undefined,
-    ): Promise<Product> {
+    ): Promise<ProductWithUnits> {
       const { businessId: b } = requireScope(businessId, branchId);
       const record = await repository.getById(requireProductId(id), b);
       if (!record) {
@@ -95,10 +98,13 @@ export function createProductsService(repository: ProductRepository): ProductSer
 
       const attachment = await repository.getProductAttachment(record.id);
 
-      return toProduct({
-        ...record,
-        attachments: attachment ? [attachment] : [],
-      });
+      return {
+        ...toProduct({
+          ...record,
+          attachments: attachment ? [attachment] : [],
+        }),
+        units: record.productUnits.map(toUnit),
+      };
     },
 
     async createProduct(
