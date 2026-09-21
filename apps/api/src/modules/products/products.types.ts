@@ -50,12 +50,19 @@ export type CreateProductInput = Pick<
   mou?: CreateMouInput;
   uploadId?: string;
 };
-export type CreateProductResult = Product & {
+export type CreateProductResult = ProductWithUnits;
+
+export type ProductWithUnits = Product & {
   units: ProductUnit[];
 };
 
 export type ProductRecordWithAttachments = ProductRecord & {
   attachments: AttachmentRecord[];
+  productUnits?: ProductUnitRecord[];
+};
+
+export type ProductRecordWithUnits = ProductRecord & {
+  productUnits: ProductUnitRecord[];
 };
 
 export type CreateProductRepoResult = ProductRecord & {
@@ -64,8 +71,8 @@ export type CreateProductRepoResult = ProductRecord & {
 };
 
 export type ProductRepository = {
-  list(businessId: string, branchId: string): Promise<ProductRecord[]>;
-  getById(id: string, businessId: string): Promise<ProductRecord | null>;
+  list(businessId: string, branchId: string): Promise<ProductRecordWithUnits[]>;
+  getById(id: string, businessId: string): Promise<ProductRecordWithUnits | null>;
   createForBusiness(
     businessId: string,
     branchId: string,
@@ -76,12 +83,15 @@ export type ProductRepository = {
 };
 
 export type ProductService = {
-  listProducts(businessId: string | undefined, branchId: string | undefined): Promise<Product[]>;
+  listProducts(
+    businessId: string | undefined,
+    branchId: string | undefined,
+  ): Promise<ProductWithUnits[]>;
   getProduct(
     id: string | undefined,
     businessId: string | undefined,
     branchId: string | undefined,
-  ): Promise<Product>;
+  ): Promise<ProductWithUnits>;
   createProduct(
     businessId: string | undefined,
     branchId: string | undefined,

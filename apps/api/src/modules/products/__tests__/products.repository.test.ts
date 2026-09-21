@@ -94,7 +94,7 @@ describe('products.repository', () => {
   });
 
   describe('list', () => {
-    it('calls findMany with business + branch filter and active only', async () => {
+    it('calls findMany with business + branch filter, active only, and included units', async () => {
       const { prisma, product } = createPrismaStub();
       const repo = createProductsRepository(prisma);
 
@@ -103,6 +103,7 @@ describe('products.repository', () => {
       expect(product.findMany).toHaveBeenCalledWith({
         where: { businessId: 'b-1', branchId: 'br-1', active: true },
         orderBy: { createdAt: 'desc' },
+        include: { productUnits: { orderBy: [{ unitRole: 'asc' }, { createdAt: 'asc' }] } },
       });
     });
 
@@ -110,7 +111,10 @@ describe('products.repository', () => {
       const { prisma, product } = createPrismaStub();
       const repo = createProductsRepository(prisma);
 
-      const records = [{ id: 'p-1' }, { id: 'p-2' }];
+      const records = [
+        { id: 'p-1', productUnits: [] },
+        { id: 'p-2', productUnits: [] },
+      ];
       product.findMany.mockResolvedValue(records);
 
       const result = await repo.list('b-1', 'br-1');
@@ -120,7 +124,7 @@ describe('products.repository', () => {
   });
 
   describe('getById', () => {
-    it('calls findFirst with id and business filter', async () => {
+    it('calls findFirst with id, business filter and included units', async () => {
       const { prisma, product } = createPrismaStub();
       const repo = createProductsRepository(prisma);
 
@@ -128,14 +132,15 @@ describe('products.repository', () => {
 
       expect(product.findFirst).toHaveBeenCalledWith({
         where: { id: 'p-1', businessId: 'b-1' },
+        include: { productUnits: { orderBy: [{ unitRole: 'asc' }, { createdAt: 'asc' }] } },
       });
     });
 
-    it('returns the resolved record', async () => {
+    it('returns the resolved record with its units', async () => {
       const { prisma, product } = createPrismaStub();
       const repo = createProductsRepository(prisma);
 
-      const record = { id: 'p-1' };
+      const record = { id: 'p-1', productUnits: [] };
       product.findFirst.mockResolvedValue(record);
 
       const result = await repo.getById('p-1', 'b-1');

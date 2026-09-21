@@ -107,7 +107,12 @@ const BASE_UNIT_WIRE = {
 };
 
 function productRecord(overrides: Record<string, unknown> = {}) {
-  return { ...WIRE_PRODUCT, currentSealedStock: { toNumber: () => 10 }, ...overrides };
+  return {
+    ...WIRE_PRODUCT,
+    currentSealedStock: { toNumber: () => 10 },
+    productUnits: [],
+    ...overrides,
+  };
 }
 
 function productUnit(overrides: Record<string, unknown> = {}) {
@@ -228,8 +233,21 @@ describe('products.integration', () => {
         .set('Authorization', 'Bearer token');
 
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ products: [WIRE_PRODUCT] });
+      expect(res.body).toEqual([{ ...WIRE_PRODUCT, units: [] }]);
       expect(productsRepository.list).toHaveBeenCalledWith('b-1', 'br-1');
+    });
+
+    it('includes the units of each product', async () => {
+      await authenticate('owner-1');
+      authorize('b-1', 'br-1');
+      productsRepository.list.mockResolvedValue([productRecord({ productUnits: [productUnit()] })]);
+
+      const res = await request(app)
+        .get('/api/businesses/b-1/products')
+        .set('Authorization', 'Bearer token');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual([{ ...WIRE_PRODUCT, units: [BASE_UNIT_WIRE] }]);
     });
 
     it('exposes the uploadId of the live attachment', async () => {
@@ -353,7 +371,7 @@ describe('products.integration', () => {
         .set('Authorization', 'Bearer token');
 
       expect(res.status).toBe(200);
-      expect(res.body).toEqual(WIRE_PRODUCT);
+      expect(res.body).toEqual({ ...WIRE_PRODUCT, units: [] });
       expect(productsRepository.getById).toHaveBeenCalledWith('p-1', 'b-1');
     });
 

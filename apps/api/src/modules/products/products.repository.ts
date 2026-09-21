@@ -13,11 +13,19 @@ export function createProductsRepository(prisma: PrismaClient): ProductRepositor
       return prisma.product.findMany({
         where: { businessId, branchId, active: true },
         orderBy: { createdAt: 'desc' },
+        include: {
+          productUnits: { orderBy: [{ unitRole: 'asc' }, { createdAt: 'asc' }] },
+        },
       });
     },
 
     async getById(id: string, businessId: string) {
-      return prisma.product.findFirst({ where: { id, businessId } });
+      return prisma.product.findFirst({
+        where: { id, businessId },
+        include: {
+          productUnits: { orderBy: [{ unitRole: 'asc' }, { createdAt: 'asc' }] },
+        },
+      });
     },
 
     async listAttachmentsForProducts(productIds: string[]) {
