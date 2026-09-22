@@ -46,7 +46,7 @@ describe('uploads.controller', () => {
       const res = mockRes();
 
       await controller.createUpload(
-        mockReq({ body: { record: 'PRODUCT', mimeType: 'image/jpeg', sizeBytes: 1024 } }),
+        mockReq({ validBody: { record: 'PRODUCT', mimeType: 'image/jpeg', sizeBytes: 1024 } }),
         res,
       );
 
@@ -54,14 +54,14 @@ describe('uploads.controller', () => {
       expect(res.json).toHaveBeenCalledWith(result);
     });
 
-    it('passes the request body to the service', async () => {
+    it('passes the validated payload to the service', async () => {
       const controller = createUploadsController(service);
-      const body = { record: 'PRODUCT', mimeType: 'image/jpeg', sizeBytes: 1024 };
+      const validBody = { record: 'PRODUCT', mimeType: 'image/jpeg', sizeBytes: 1024 };
       vi.mocked(service.createUpload).mockResolvedValue({} as never);
 
-      await controller.createUpload(mockReq({ body }), mockRes());
+      await controller.createUpload(mockReq({ validBody }), mockRes());
 
-      expect(service.createUpload).toHaveBeenCalledWith(body);
+      expect(service.createUpload).toHaveBeenCalledWith(validBody);
     });
 
     it('propagates service errors', async () => {
@@ -72,7 +72,7 @@ describe('uploads.controller', () => {
 
       await expect(
         controller.createUpload(
-          mockReq({ body: { record: 'PRODUCT', mimeType: 'application/pdf' } }),
+          mockReq({ validBody: { record: 'PRODUCT', mimeType: 'application/pdf' } }),
           mockRes(),
         ),
       ).rejects.toThrow(new AppError(ERROR_CODES.BAD_REQUEST, 'Invalid request', 400));

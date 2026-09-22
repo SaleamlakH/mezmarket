@@ -21,7 +21,10 @@ import { createProductsRepository } from './modules/products/products.repository
 import { createProductsService } from './modules/products/products.service.js';
 import { createProductsController } from './modules/products/products.controller.js';
 import { createProductsRouter } from './modules/products/products.routes.js';
-import { createUploadResolver } from './modules/products/products.middleware.js';
+import {
+  createUploadResolver,
+  validateProductInput,
+} from './modules/products/products.middleware.js';
 import { createUnitsRepository } from './modules/units/units.repository.js';
 import { createUnitsService } from './modules/units/units.service.js';
 import { createUnitsController } from './modules/units/units.controller.js';
@@ -36,6 +39,7 @@ import { createUploadsRepository } from './modules/uploads/uploads.repository.js
 import { createUploadsService } from './modules/uploads/uploads.service.js';
 import { createUploadsController } from './modules/uploads/uploads.controller.js';
 import { createUploadsRouter } from './modules/uploads/uploads.routes.js';
+import { validateUploadInput } from './modules/uploads/uploads.middleware.js';
 import type { Router } from 'express';
 
 function buildStorage(): StorageClient {
@@ -93,11 +97,16 @@ const uploadsRepository = createUploadsRepository(prisma);
 const uploadsService = createUploadsService(uploadsRepository, storage);
 const uploadsController = createUploadsController(uploadsService);
 const resolveUploads = createUploadResolver(productsService);
-const uploadsRouter: Router = createUploadsRouter(uploadsController, resolveUploads);
+const uploadsRouter: Router = createUploadsRouter(
+  uploadsController,
+  validateUploadInput,
+  resolveUploads,
+);
 
 export const productsRoutes = createProductsRouter(
   productsController,
   authorizeBusiness,
+  validateProductInput,
   uploadsRouter,
 );
 
