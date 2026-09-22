@@ -155,10 +155,6 @@ export const createProductSchema = z
     uploadId: optionalText(z.string().trim().min(1, 'Upload is required').optional()),
   })
   .strict()
-  .refine((data) => !data.trackAsPartial || data.mou !== undefined, {
-    message: 'A product tracked as partial requires an MOU', // Fixed key from 'error' to 'message'
-    path: ['mou'],
-  })
   .refine((data) => !data.mou || data.mou.dimensionId !== data.baseUnit.dimensionId, {
     message: 'MOU must be in a different dimension from the base unit',
     path: ['mou', 'dimensionId'],

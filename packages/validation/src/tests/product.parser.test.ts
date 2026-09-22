@@ -244,11 +244,10 @@ describe('validateCreateProduct', () => {
     expect(result.errors).toEqual({ 'mou.unitId': expect.any(String) });
   });
 
-  it('rejects trackAsPartial without an MOU', () => {
+  it('accepts trackAsPartial without an MOU', () => {
     const result = validateCreateProduct(validProduct({ trackAsPartial: true }));
 
-    expect(result.data).toBeNull();
-    expect(result.errors).toEqual({ mou: expect.any(String) });
+    expect(result.errors).toBeNull();
   });
 
   it('accepts trackAsPartial when an MOU is provided', () => {
