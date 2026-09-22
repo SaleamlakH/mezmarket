@@ -74,52 +74,58 @@ export function createProductsRepository(prisma: PrismaClient): ProductRepositor
 
         const product = await productPromise;
 
+        const baseLookupResult = await baseLookupPromise;
+
+        if (!baseLookupResult) {
+          throw new AppError(ERROR_CODES.BAD_REQUEST, 'Base unit not found', 400);
+        }
+
+        const mouLookupResult = await mouLookupPromise;
+
+        if (input.mou && !mouLookupResult) {
+          throw new AppError(ERROR_CODES.BAD_REQUEST, 'MOU unit not found', 400);
+        }
+
+        if (mouLookupResult && mouLookupResult.dimensionId === baseLookupResult.dimensionId) {
+          throw new AppError(
+            ERROR_CODES.BAD_REQUEST,
+            'MOU must be in a different dimension from the base unit',
+            400,
+          );
+        }
+
         const [createdBaseUnit, createdMou] = await Promise.all([
-          // resolve base  standard unit and create base unit
-          (async () => {
-            const baseStandardUnit = await baseLookupPromise;
+          // create base unit from the resolved standard unit
+          tx.productUnit.create({
+            data: {
+              productId: product.id,
+              unitRole: UnitRole.BASE,
+              standardUnitId: baseLookupResult.id,
+              name: baseLookupResult.symbol,
+              dependsOn: null,
+              conversionRate: null,
+              price: input.baseUnit.price,
+              purchaseCapable: true,
+              sellCapable: true,
+            },
+          }),
 
-            if (!baseStandardUnit) {
-              throw new AppError(ERROR_CODES.BAD_REQUEST, 'Base unit not found', 400);
-            }
-
-            return tx.productUnit.create({
-              data: {
-                productId: product.id,
-                unitRole: UnitRole.BASE,
-                standardUnitId: baseStandardUnit.id,
-                name: baseStandardUnit.symbol,
-                dependsOn: null,
-                conversionRate: null,
-                price: input.baseUnit.price,
-                purchaseCapable: true,
-                sellCapable: true,
-              },
-            });
-          })(),
-
-          // resolve mou standard unit and create mou
-          (async () => {
-            const mouStandardUnit = await mouLookupPromise;
-
-            if (mouStandardUnit && input.mou) {
-              return tx.productUnit.create({
+          // create mou unit when the payload and standard unit resolve
+          input.mou && mouLookupResult
+            ? tx.productUnit.create({
                 data: {
                   productId: product.id,
                   unitRole: UnitRole.MOU,
-                  standardUnitId: mouStandardUnit.id,
-                  name: mouStandardUnit.symbol,
+                  standardUnitId: mouLookupResult.id,
+                  name: mouLookupResult.symbol,
                   dependsOn: 'BASE',
                   conversionRate: input.mou.conversionRate,
                   ...(input.mou.price !== undefined && { price: input.mou.price }),
                   purchaseCapable: false,
                   sellCapable: true,
                 },
-              });
-            }
-
-            return null;
-          })(),
+              })
+            : Promise.resolve(null),
         ]);
 
         const attachment = input.uploadId

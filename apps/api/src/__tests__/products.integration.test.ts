@@ -273,6 +273,11 @@ describe('products.integration', () => {
       authorize('b-1', 'br-1');
       const body = {
         name: 'Shirt',
+        baseUnit: { unitId: 'kg-1', dimensionId: 'd-1', price: '120.50' },
+        mou: { unitId: 'pc-1', dimensionId: 'd-2', conversionRate: 10, price: 10 },
+      };
+      const validatedBody = {
+        name: 'Shirt',
         baseUnit: { unitId: 'kg-1', price: '120.50' },
         mou: { unitId: 'pc-1', conversionRate: 10, price: 10 },
       };
@@ -313,13 +318,22 @@ describe('products.integration', () => {
 
       expect(res.status).toBe(201);
       expect(res.body).toEqual({ ...WIRE_PRODUCT, units: [BASE_UNIT_WIRE, mouWire] });
-      expect(productsRepository.createForBusiness).toHaveBeenCalledWith('b-1', 'br-1', body);
+      expect(productsRepository.createForBusiness).toHaveBeenCalledWith(
+        'b-1',
+        'br-1',
+        validatedBody,
+      );
     });
 
     it('creates a product with an uploaded image and echoes the uploadId', async () => {
       await authenticate('owner-1');
       authorize('b-1', 'br-1');
       const body = {
+        name: 'Shirt',
+        baseUnit: { unitId: 'kg-1', dimensionId: 'd-1', price: '120.50' },
+        uploadId: 'u-1',
+      };
+      const validatedBody = {
         name: 'Shirt',
         baseUnit: { unitId: 'kg-1', price: '120.50' },
         uploadId: 'u-1',
@@ -338,7 +352,31 @@ describe('products.integration', () => {
       expect(res.status).toBe(201);
       expect(res.body.uploadId).toBe('u-1');
       expect(res.body).not.toHaveProperty('attachment');
-      expect(productsRepository.createForBusiness).toHaveBeenCalledWith('b-1', 'br-1', body);
+      expect(productsRepository.createForBusiness).toHaveBeenCalledWith(
+        'b-1',
+        'br-1',
+        validatedBody,
+      );
+    });
+
+    it('returns BAD_REQUEST with field details when the payload is invalid', async () => {
+      await authenticate('owner-1');
+      authorize('b-1', 'br-1');
+
+      const res = await request(app)
+        .post('/api/businesses/b-1/products')
+        .set('Authorization', 'Bearer token')
+        .send({ name: 'Shirt' });
+
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({
+        error: {
+          code: ERROR_CODES.BAD_REQUEST,
+          message: 'Invalid request',
+          details: { baseUnit: expect.any(String) },
+        },
+      });
+      expect(productsRepository.createForBusiness).not.toHaveBeenCalled();
     });
 
     it('returns BAD_REQUEST when the base unit is unknown', async () => {
@@ -351,7 +389,7 @@ describe('products.integration', () => {
       const res = await request(app)
         .post('/api/businesses/b-1/products')
         .set('Authorization', 'Bearer token')
-        .send({ name: 'Shirt', baseUnit: { unitId: 'missing', price: '10' } });
+        .send({ name: 'Shirt', baseUnit: { unitId: 'missing', dimensionId: 'd-1', price: '10' } });
 
       expect(res.status).toBe(400);
       expect(res.body).toEqual({

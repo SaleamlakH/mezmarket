@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import type { Request, Response } from 'express';
-import { createUploadResolver } from '../products.middleware.js';
+import type { NextFunction, Request, Response } from 'express';
+import { createUploadResolver, validateProductInput } from '../products.middleware.js';
+import { AppError, ERROR_CODES } from '../../../shared/errors/app-error.js';
 import type { ProductService } from '../products.types.js';
 
 function mockService(): ProductService {
@@ -22,6 +23,55 @@ function mockReq(overrides: Record<string, unknown> = {}) {
     ...overrides,
   } as unknown as Request;
 }
+
+describe('validateProductInput', () => {
+  function call(body: unknown) {
+    const req = { body } as unknown as Request;
+    const res = {} as unknown as Response;
+    const next = vi.fn() as NextFunction;
+    return { run: () => validateProductInput(req, res, next), req, next };
+  }
+
+  it('passes through and stores the validated product on req.validBody', () => {
+    const { run, req, next } = call({
+      name: 'Shirt',
+      baseUnit: { unitId: 'kg-1', dimensionId: 'd-1', price: '120.50' },
+    });
+
+    run();
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(req.validBody).toEqual({
+      name: 'Shirt',
+      baseUnit: { unitId: 'kg-1', price: '120.50' },
+    });
+  });
+
+  it('rejects an invalid body with field details', () => {
+    const { run, next } = call({
+      name: '',
+      baseUnit: { unitId: 'kg-1', dimensionId: 'd-1', price: '120.50' },
+    });
+
+    expect(run).toThrow(
+      new AppError(ERROR_CODES.BAD_REQUEST, 'Invalid request', 400, {
+        name: expect.any(String),
+      }),
+    );
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('rejects a payload missing the base unit', () => {
+    const { run, next } = call({ name: 'Shirt' });
+
+    expect(run).toThrow(
+      new AppError(ERROR_CODES.BAD_REQUEST, 'Invalid request', 400, {
+        baseUnit: expect.any(String),
+      }),
+    );
+    expect(next).not.toHaveBeenCalled();
+  });
+});
 
 describe('products.middleware', () => {
   it('skips resolution for POST requests', async () => {

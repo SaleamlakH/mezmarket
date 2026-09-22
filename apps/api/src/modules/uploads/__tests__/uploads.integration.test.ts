@@ -5,6 +5,7 @@ import request from 'supertest';
 import { createUploadsService } from '../uploads.service.js';
 import { createUploadsController } from '../uploads.controller.js';
 import { createUploadsRouter } from '../uploads.routes.js';
+import { validateUploadInput } from '../uploads.middleware.js';
 import type { UploadRecord, UploadRepository } from '../uploads.types.js';
 import type { StorageClient } from '../../../lib/storage/storage.js';
 import { UploadStatus } from '../../../../generated/prisma/client.js';
@@ -59,6 +60,7 @@ function buildApp(resolveUploads: ResolveUploads = async (_req, _res, next) => n
     '/api',
     createUploadsRouter(
       createUploadsController(createUploadsService(repo, storage)),
+      validateUploadInput,
       resolveUploads,
     ),
   );
@@ -96,6 +98,24 @@ describe('uploads.integration', () => {
       const input = vi.mocked(repo.create).mock.calls[0]?.[0];
       expect(input?.storageKey).toBe(`uploads/product/${input?.id}.jpg`);
       expect(storage.createUploadUrl).toHaveBeenCalledWith(input?.storageKey);
+    });
+
+    it('returns 400 with field details when the payload is invalid', async () => {
+      const { app, repo } = buildApp();
+
+      const res = await request(app)
+        .post('/api/uploads')
+        .send({ record: 'PRODUCT', mimeType: 'application/pdf', sizeBytes: 1024 });
+
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({
+        error: {
+          code: ERROR_CODES.BAD_REQUEST,
+          message: 'Invalid request',
+          details: { mimeType: expect.any(String) },
+        },
+      });
+      expect(repo.create).not.toHaveBeenCalled();
     });
 
     it('returns 500 when signing the upload url fails', async () => {

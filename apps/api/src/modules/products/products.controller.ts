@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import type { ProductService } from './products.types.js';
+import type { CreateProductInput, ProductService } from './products.types.js';
 
 export type ProductController = {
   listProducts(req: Request, res: Response): Promise<void>;
@@ -18,7 +18,7 @@ export function createProductsController(service: ProductService): ProductContro
       const product = await service.createProduct(
         req.auth?.businessId,
         req.auth?.branchId,
-        req.body,
+        req.validBody as CreateProductInput,
       );
       res.status(201).json(product);
     },

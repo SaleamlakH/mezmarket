@@ -44,8 +44,10 @@ function createPrismaStub() {
 
 function registerSuccess(tx: MockTx) {
   tx.standardUnit.findUnique.mockImplementation(({ where }: { where: { id: string } }) => {
-    if (where.id === 'kg-1') return Promise.resolve({ id: 'kg-1', symbol: 'kg' });
-    if (where.id === 'pc-1') return Promise.resolve({ id: 'pc-1', symbol: 'pc' });
+    if (where.id === 'kg-1')
+      return Promise.resolve({ id: 'kg-1', symbol: 'kg', dimensionId: 'd-1' });
+    if (where.id === 'pc-1')
+      return Promise.resolve({ id: 'pc-1', symbol: 'pc', dimensionId: 'd-2' });
     return Promise.resolve(null);
   });
   tx.product.create.mockResolvedValue({ id: 'p-1' });
@@ -307,26 +309,52 @@ describe('products.repository', () => {
       expect(tx.productUnit.create).not.toHaveBeenCalled();
     });
 
-    it('omits the MOU unit when its standard unit is missing', async () => {
+    it('throws BAD_REQUEST when the MOU standard unit is missing', async () => {
       const { prisma, tx } = createPrismaStub();
       const repo = createProductsRepository(prisma);
       tx.standardUnit.findUnique.mockImplementation(({ where }: { where: { id: string } }) =>
-        Promise.resolve(where.id === 'kg-1' ? { id: 'kg-1', symbol: 'kg' } : null),
+        Promise.resolve(
+          where.id === 'kg-1' ? { id: 'kg-1', symbol: 'kg', dimensionId: 'd-1' } : null,
+        ),
       );
       tx.product.create.mockResolvedValue({ id: 'p-1' });
-      tx.productUnit.create.mockResolvedValue({ id: 'pu-1' });
 
-      const result = await repo.createForBusiness(
-        'b-1',
-        'br-1',
-        input({ mou: { unitId: 'pc-1', conversionRate: 10 } }),
+      await expect(
+        repo.createForBusiness(
+          'b-1',
+          'br-1',
+          input({ mou: { unitId: 'pc-1', conversionRate: 10 } }),
+        ),
+      ).rejects.toEqual(new AppError(ERROR_CODES.BAD_REQUEST, 'MOU unit not found', 400));
+      expect(tx.productUnit.create).not.toHaveBeenCalled();
+    });
+
+    it('throws BAD_REQUEST when the MOU is in the same dimension as the base unit', async () => {
+      const { prisma, tx } = createPrismaStub();
+      const repo = createProductsRepository(prisma);
+      tx.standardUnit.findUnique.mockImplementation(({ where }: { where: { id: string } }) =>
+        Promise.resolve(
+          where.id === 'kg-1'
+            ? { id: 'kg-1', symbol: 'kg', dimensionId: 'd-1' }
+            : { id: 'pc-1', symbol: 'pc', dimensionId: 'd-1' },
+        ),
       );
+      tx.product.create.mockResolvedValue({ id: 'p-1' });
 
-      expect(result).toMatchObject({
-        id: 'p-1',
-        units: [{ id: 'pu-1' }],
-      });
-      expect(tx.productUnit.create).toHaveBeenCalledTimes(1);
+      await expect(
+        repo.createForBusiness(
+          'b-1',
+          'br-1',
+          input({ mou: { unitId: 'pc-1', conversionRate: 10 } }),
+        ),
+      ).rejects.toEqual(
+        new AppError(
+          ERROR_CODES.BAD_REQUEST,
+          'MOU must be in a different dimension from the base unit',
+          400,
+        ),
+      );
+      expect(tx.productUnit.create).not.toHaveBeenCalled();
     });
 
     it('does not create an attachment when no uploadId is provided', async () => {

@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import type { UploadService } from './uploads.types.js';
+import type { CreateUploadInput, UploadService } from './uploads.types.js';
 
 export type UploadController = {
   createUpload(req: Request, res: Response): Promise<void>;
@@ -10,7 +10,7 @@ export type UploadController = {
 export function createUploadsController(service: UploadService): UploadController {
   return {
     async createUpload(req: Request, res: Response) {
-      const result = await service.createUpload(req.body);
+      const result = await service.createUpload(req.validBody as CreateUploadInput);
       res.status(201).json(result);
     },
 
