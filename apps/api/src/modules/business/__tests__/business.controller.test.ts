@@ -11,6 +11,7 @@ function mockService(): BusinessService {
   return {
     getBusinesses: vi.fn(),
     createBusiness: vi.fn(),
+    resolveScope: vi.fn(),
   };
 }
 

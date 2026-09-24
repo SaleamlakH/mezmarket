@@ -21,12 +21,13 @@ function createPrismaStub() {
     branch: { create: vi.fn() },
     businessMember: { create: vi.fn() },
   };
-  const business = { findMany: vi.fn() };
+  const business = { findMany: vi.fn(), findFirst: vi.fn() };
+  const branch = { findFirst: vi.fn() };
   const $transaction = vi.fn((cb: (tx: MockTx) => unknown) => cb(tx));
 
-  const prisma = { business, $transaction } as unknown as PrismaClient;
+  const prisma = { business, branch, $transaction } as unknown as PrismaClient;
 
-  return { prisma, tx, business, $transaction };
+  return { prisma, tx, business, branch, $transaction };
 }
 
 function registerSuccess(tx: MockTx) {
@@ -46,6 +47,8 @@ describe('business.repository', () => {
 
     expect(typeof repo.listForOwner).toBe('function');
     expect(typeof repo.createForOwner).toBe('function');
+    expect(typeof repo.getBusinessId).toBe('function');
+    expect(typeof repo.getBranchId).toBe('function');
   });
 
   describe('listForOwner', () => {
@@ -169,6 +172,59 @@ describe('business.repository', () => {
           role: 'OWNER',
         },
       });
+    });
+  });
+
+  describe('getBusinessId', () => {
+    it('returns the business id when it is owned', async () => {
+      const { prisma, business } = createPrismaStub();
+      const repo = createBusinessRepository(prisma);
+      business.findFirst.mockResolvedValue({ id: 'b-1' });
+
+      const result = await repo.getBusinessId('owner-1', 'b-1');
+
+      expect(business.findFirst).toHaveBeenCalledWith({
+        where: { id: 'b-1', ownerId: 'owner-1' },
+        select: { id: true },
+      });
+      expect(result).toBe('b-1');
+    });
+
+    it('returns null when the business is not owned', async () => {
+      const { prisma, business } = createPrismaStub();
+      const repo = createBusinessRepository(prisma);
+      business.findFirst.mockResolvedValue(null);
+
+      const result = await repo.getBusinessId('owner-1', 'b-1');
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('getBranchId', () => {
+    it('returns the main branch id for the business', async () => {
+      const { prisma, branch } = createPrismaStub();
+      const repo = createBusinessRepository(prisma);
+      branch.findFirst.mockResolvedValue({ id: 'br-1' });
+
+      const result = await repo.getBranchId('b-1');
+
+      expect(branch.findFirst).toHaveBeenCalledWith({
+        where: { businessId: 'b-1' },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true },
+      });
+      expect(result).toBe('br-1');
+    });
+
+    it('returns null when the business has no branch yet', async () => {
+      const { prisma, branch } = createPrismaStub();
+      const repo = createBusinessRepository(prisma);
+      branch.findFirst.mockResolvedValue(null);
+
+      const result = await repo.getBranchId('b-1');
+
+      expect(result).toBeNull();
     });
   });
 });

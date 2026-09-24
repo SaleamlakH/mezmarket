@@ -59,5 +59,24 @@ export function createBusinessRepository(prisma: PrismaClient): BusinessReposito
         return { business, branch, member };
       });
     },
+
+    async getBusinessId(ownerId: string, businessId: string): Promise<string | null> {
+      const business = await prisma.business.findFirst({
+        where: { id: businessId, ownerId },
+        select: { id: true },
+      });
+
+      return business?.id ?? null;
+    },
+
+    async getBranchId(businessId: string): Promise<string | null> {
+      const branch = await prisma.branch.findFirst({
+        where: { businessId },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true },
+      });
+
+      return branch?.id ?? null;
+    },
   };
 }

@@ -1,6 +1,7 @@
 import type {
   Business,
   BusinessRepository,
+  BusinessScope,
   BusinessService,
   CreateBusinessInput,
   CreateBusinessResult,
@@ -39,6 +40,19 @@ export function createBusinessService(repository: BusinessRepository): BusinessS
           lowStockDefaultThreshold: result.business.lowStockDefaultThreshold?.toNumber() ?? null,
         },
       };
+    },
+
+    async resolveScope(ownerId: string, businessId: string): Promise<BusinessScope> {
+      const [resolvedBusinessId, branchId] = await Promise.all([
+        repository.getBusinessId(ownerId, businessId),
+        repository.getBranchId(businessId),
+      ]);
+
+      if (!resolvedBusinessId || !branchId) {
+        throw new AppError(ERROR_CODES.NOT_FOUND, 'Business not found', 404);
+      }
+
+      return { businessId: resolvedBusinessId, branchId };
     },
   };
 }
