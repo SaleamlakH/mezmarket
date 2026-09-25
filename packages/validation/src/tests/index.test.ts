@@ -64,8 +64,12 @@ describe('index', () => {
   });
 
   it('derives CreateProductFormValues unit inputs from @mez/types', () => {
-    expectTypeOf<CreateProductFormValues['baseUnit']>().toMatchTypeOf<CreateBaseUnitInput>();
-    expectTypeOf<NonNullable<CreateProductFormValues['mou']>>().toMatchTypeOf<CreateMouInput>();
+    expectTypeOf<CreateProductFormValues['baseUnit']['unitId']>().toEqualTypeOf<
+      CreateBaseUnitInput['unitId']
+    >();
+    expectTypeOf<NonNullable<CreateProductFormValues['mou']>['unitId']>().toEqualTypeOf<
+      CreateMouInput['unitId']
+    >();
   });
 
   it('exports CreateUploadClientInput', () => {

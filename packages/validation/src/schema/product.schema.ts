@@ -1,31 +1,36 @@
 import z from 'zod';
 import type { CreateBaseUnitInput, CreateMouInput, CreateProductInput } from '@mez/types';
 
-export interface CreateBaseUnitFormValues extends CreateBaseUnitInput {
+export type CreateBaseUnitFormValues = Omit<CreateBaseUnitInput, 'price'> & {
   dimensionId: string;
-}
+  price: string;
+};
 
-export interface CreateMouFormValues extends CreateMouInput {
+export type CreateMouFormValues = Omit<CreateMouInput, 'conversionRate' | 'price'> & {
   dimensionId: string;
-}
+  conversionRate: string;
+  price?: string;
+};
 
-/**
- * Values a user submits when creating a product, derived from
- * `dimensionId` is required on each unit input purely so the pack relation
- * (base ↔ MOU) for fast validation;
- * it is stripped from the validated output and never reaches the API.
- */
 export type CreateProductFormValues = Partial<
-  Pick<
-    CreateProductInput,
-    'brand' | 'description' | 'lowStockThreshold' | 'trackAsPartial' | 'categoryId'
-  >
+  Pick<CreateProductInput, 'brand' | 'description' | 'trackAsPartial' | 'categoryId'> & {
+    lowStockThreshold: string;
+  }
 > &
   Pick<CreateProductInput, 'name'> & {
     baseUnit: CreateBaseUnitFormValues;
     mou?: CreateMouFormValues;
     uploadId?: CreateProductInput['uploadId'];
   };
+
+/**
+ * Helper to prevent empty form strings ("") from turning into 0 on optional fields.
+ * It forces empty strings to `undefined` so that `.optional()` behaves correctly.
+ */
+const preprocessOptionalNumber = (val: unknown) => {
+  if (typeof val === 'string' && val.trim() === '') return undefined;
+  return val;
+};
 
 const unitIdSchema = z.string({ error: 'Unit is required' }).trim().min(1, 'Unit is required');
 
@@ -34,15 +39,10 @@ const dimensionIdSchema = z
   .trim()
   .min(1, 'Dimension is required');
 
-/**
- * Price is submitted as a string (matching `CreateBaseUnitInput.price`) and
- * validated against the `Decimal(10, 2)` column it will be written to.
- */
-const priceStringSchema = z
-  .string({ error: 'Base unit price is required' })
-  .trim()
-  .regex(/^\d+(\.\d{1,2})?$/, 'Enter a valid price')
-  .refine((value) => Number(value) > 0, 'Price must be greater than 0');
+const priceStringSchema = z.preprocess(
+  preprocessOptionalNumber,
+  z.coerce.number({ error: 'Enter a valid price' }).positive('Price must be greater than 0'),
+);
 
 const baseUnitSchema = z
   .object(
@@ -59,10 +59,16 @@ const mouSchema = z
   .object({
     unitId: unitIdSchema,
     dimensionId: dimensionIdSchema,
-    conversionRate: z
+    conversionRate: z.coerce
       .number({ error: 'Conversion rate is required' })
       .positive('Conversion rate must be greater than 0'),
-    price: z.number().min(0, 'Price must be at least 0').optional(),
+    price: z.preprocess(
+      preprocessOptionalNumber,
+      z.coerce
+        .number({ error: 'Enter a valid price' })
+        .min(0, 'Price must be at least 0')
+        .optional(),
+    ),
   })
   .strict();
 
@@ -73,35 +79,33 @@ export const createProductSchema = z
       .trim()
       .min(1, 'Product name is required')
       .max(100, 'Product name must be at most 100 characters'),
-    brand: z.string().trim().max(50, 'Brand must be at most 50 characters').nullable().optional(),
+    brand: z.string().trim().max(50, 'Brand must be at most 50 characters').optional(),
     description: z
       .string()
       .trim()
       .max(500, 'Description must be at most 500 characters')
-      .nullable()
       .optional(),
-    lowStockThreshold: z
-      .number()
-      .min(0, 'Low stock threshold must be at least 0')
-      .nullable()
-      .optional(),
+    lowStockThreshold: z.preprocess(
+      preprocessOptionalNumber,
+      z.coerce.number().min(0, 'Low stock threshold must be at least 0').optional(),
+    ),
     trackAsPartial: z.boolean().optional(),
-    categoryId: z.string().trim().min(1, 'Category is required').nullable().optional(),
+    categoryId: z.string().trim().min(1, 'Category is required').optional(),
     baseUnit: baseUnitSchema,
     mou: mouSchema.optional(),
     uploadId: z.string().trim().min(1, 'Upload is required').optional(),
   })
   .strict()
   .refine((data) => !data.trackAsPartial || data.mou !== undefined, {
-    error: 'A product tracked as partial requires an MOU',
+    message: 'A product tracked as partial requires an MOU', // Fixed key from 'error' to 'message'
     path: ['mou'],
   })
   .refine((data) => !data.mou || data.mou.dimensionId !== data.baseUnit.dimensionId, {
-    error: 'MOU must be in a different dimension from the base unit',
+    message: 'MOU must be in a different dimension from the base unit',
     path: ['mou', 'dimensionId'],
   })
   .refine((data) => !data.mou || data.mou.unitId !== data.baseUnit.unitId, {
-    error: 'MOU must be different from the base unit',
+    message: 'MOU must be different from the base unit',
     path: ['mou', 'unitId'],
   })
   .transform((data) => ({
