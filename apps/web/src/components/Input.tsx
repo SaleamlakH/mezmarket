@@ -12,7 +12,7 @@ export function Input({ id, state = 'default', error, className, ...rest }: Inpu
   return (
     <input
       id={id}
-      className={`focus-ring w-full rounded-[13px] border bg-(--field) px-4 py-3.5 text-md text-(--text) outline-none transition-colors duration-150 placeholder:text-(--text-muted) focus:border-transparent ${border} ${className}`}
+      className={`w-full rounded-[13px] border bg-(--field) px-3.5 py-3 text-sm text-(--text) outline-none transition-colors duration-150 placeholder:text-(--text-muted) focus:border-(--accent) ${border} ${className}`}
       {...rest}
     />
   );
