@@ -9,7 +9,7 @@
     "dist"
   ],
   "scripts": {
-    "dev": "tsc -p tsconfig.json --watch",
+    "dev": "tsc -p tsconfig.prod.json --watch",
     "build": "tsc -p tsconfig.prod.json",
     "lint": "eslint . --fix",
     "lint:check": "eslint .",
