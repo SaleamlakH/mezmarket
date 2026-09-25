@@ -28,7 +28,7 @@ function input(overrides: Partial<CreateProductInput> = {}): CreateProductInput 
     description: null,
     trackAsPartial: false,
     lowStockThreshold: null,
-    baseUnit: { unitId: 'kg-1', price: '50' },
+    baseUnit: { unitId: 'kg-1', price: 50 },
     ...(overrides.name !== undefined && { name: overrides.name }),
     ...(overrides.categoryId !== undefined && { categoryId: overrides.categoryId }),
     ...(overrides.brand !== undefined && { brand: overrides.brand }),
@@ -316,13 +316,13 @@ describe('products.service', () => {
       await service.createProduct(
         'b-1',
         'br-1',
-        input({ baseUnit: { unitId: 'kg-1', price: '50' } }),
+        input({ baseUnit: { unitId: 'kg-1', price: 50 } }),
       );
 
       expect(repo.createForBusiness).toHaveBeenCalledWith(
         'b-1',
         'br-1',
-        input({ baseUnit: { unitId: 'kg-1', price: '50' } }),
+        input({ baseUnit: { unitId: 'kg-1', price: 50 } }),
       );
     });
 
