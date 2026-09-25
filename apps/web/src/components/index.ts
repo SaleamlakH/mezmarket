@@ -43,4 +43,6 @@ export { LineItem, LineTotal, Sheet, InvoiceSheet } from './Sheet';
 export type { LineItemProps, LineTotalProps, SheetProps, InvoiceSheetProps } from './Sheet';
 export { Loader } from './Loader';
 export type { LoaderProps } from './Loader';
+export { Dialog } from './Dialog';
+export type { DialogProps } from './Dialog';
 export { ThemeToggle } from './ThemeToggle';
