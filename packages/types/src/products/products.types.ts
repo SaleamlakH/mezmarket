@@ -86,7 +86,7 @@ export type ProductWithUnitsResponse = RequireAllKeys<
 
 export interface CreateBaseUnitInput {
   unitId: string;
-  price: string;
+  price: number;
 }
 
 export interface CreateMouInput {
