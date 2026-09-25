@@ -17,7 +17,7 @@ describe('validateCreateProduct', () => {
     expect(result.errors).toBeNull();
     expect(result.data).toEqual({
       name: 'Shirt',
-      baseUnit: { unitId: 'kg-1', price: '120.50' },
+      baseUnit: { unitId: 'kg-1', price: 120.5 },
     });
   });
 
@@ -42,7 +42,7 @@ describe('validateCreateProduct', () => {
       trackAsPartial: false,
       lowStockThreshold: 5,
       uploadId: 'u-1',
-      baseUnit: { unitId: 'kg-1', price: '120.50' },
+      baseUnit: { unitId: 'kg-1', price: 120.5 },
       mou: { unitId: 'pc-1', conversionRate: 10, price: 15 },
     });
   });
@@ -66,7 +66,7 @@ describe('validateCreateProduct', () => {
     });
 
     expect(result.errors).toBeNull();
-    expect(result.data?.baseUnit.price).toBe('50');
+    expect(result.data?.baseUnit.price).toBe(50);
   });
 
   it('rejects an empty name', () => {
@@ -108,15 +108,15 @@ describe('validateCreateProduct', () => {
     expect(result.errors).toEqual({ 'baseUnit.price': expect.any(String) });
   });
 
-  it('rejects a price string with more than two decimals', () => {
+  it('accepts a price string with more than two decimals', () => {
     const result = validateCreateProduct(
       validProduct({
         baseUnit: { unitId: 'kg-1', dimensionId: 'd-1', price: '10.123' },
       }),
     );
 
-    expect(result.data).toBeNull();
-    expect(result.errors).toEqual({ 'baseUnit.price': expect.any(String) });
+    expect(result.errors).toBeNull();
+    expect(result.data?.baseUnit.price).toBe(10.123);
   });
 
   it('rejects a zero price', () => {
