@@ -17,6 +17,7 @@ import { ErrorPage } from './pages/ErrorPage';
 import { DesignSystem } from './DesignSystem';
 import { AppLayout } from './layouts/AppLayout';
 import { DashboardPage } from './features/dashboard/pages/DashboardPage';
+import { ProductsPage } from './features/products/pages/ProductsPage';
 import { SalesPage } from './features/sales/pages/SalesPage';
 import { InventoryPage } from './features/inventory/pages/InventoryPage';
 import { SettingsPage } from './features/settings/pages/SettingsPage';
@@ -42,6 +43,7 @@ const router = createBrowserRouter([
             children: [
               { index: true, element: <Navigate to="dashboard" replace /> },
               { path: 'dashboard', element: <DashboardPage /> },
+              { path: 'products', element: <ProductsPage /> },
               { path: 'sales', element: <SalesPage /> },
               { path: 'inventory', element: <InventoryPage /> },
               { path: 'settings', element: <SettingsPage /> },
