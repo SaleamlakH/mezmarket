@@ -24,24 +24,69 @@ export type CreateProductFormValues = Partial<
   };
 
 /**
- * Helper to prevent empty form strings ("") from turning into 0 on optional fields.
- * It forces empty strings to `undefined` so that `.optional()` behaves correctly.
+ * Zod 4 reports a type mismatch as a fatal `invalid_type` issue, and a single
+ * fatal issue aborts the whole product object which causes cross-field MOU rules
+ * chained after that object silently skipped until the rest of the form happened
+ * to be valid: an empty sell price.
+ *
+ * The helpers below normalise their input first so a field can only fail with a
+ * non-fatal issue (`too_small`, `too_big` or `custom`). That keeps the MOU rules
+ * reporting alongside the field errors instead of being swallowed. A genuine
+ * type violation such as `name: 123` still aborts, because coercing it would
+ * mean accepting malformed input.
  */
-const preprocessOptionalNumber = (val: unknown) => {
-  if (typeof val === 'string' && val.trim() === '') return undefined;
-  return val;
+const nullishToEmptyString = (val: unknown) => (val === undefined || val === null ? '' : val);
+
+const nullishToUndefined = (val: unknown) => (val === undefined || val === null ? undefined : val);
+
+const toTrimmedText = (val: unknown) =>
+  val === undefined || val === null ? '' : String(val).trim();
+
+const blankToUndefined = (val: unknown) => {
+  const text = toTrimmedText(val);
+  return text === '' ? undefined : text;
 };
 
-const unitIdSchema = z.string({ error: 'Unit is required' }).trim().min(1, 'Unit is required');
+/** Keeps an absent optional field absent instead of turning it into `""`. */
+const optionalText = <T extends z.ZodType<string | undefined>>(schema: T) =>
+  z.preprocess(nullishToUndefined, schema);
 
-const dimensionIdSchema = z
-  .string({ error: 'Dimension is required' })
-  .trim()
-  .min(1, 'Dimension is required');
+/** Parses a required, strictly positive number from text so it never yields `NaN`. */
+const requiredNumber = (invalidMessage: string, positiveMessage: string) =>
+  z
+    .preprocess(toTrimmedText, z.string({ error: invalidMessage }))
+    .refine((value) => value !== '' && Number.isFinite(Number(value)), {
+      error: invalidMessage,
+    })
+    // Guarded so a value that is not a number yet reports only one issue.
+    .refine((value) => value === '' || !Number.isFinite(Number(value)) || Number(value) > 0, {
+      error: positiveMessage,
+    })
+    .transform(Number);
 
-const priceStringSchema = z.preprocess(
-  preprocessOptionalNumber,
-  z.coerce.number({ error: 'Enter a valid price' }).positive('Price must be greater than 0'),
+/** Parses an optional, non-negative number, leaving a blank field undefined. */
+const optionalNumber = (invalidMessage: string, minimumMessage: string) =>
+  z.preprocess(
+    blankToUndefined,
+    z
+      .string({ error: invalidMessage })
+      .trim()
+      .refine((value) => Number.isFinite(Number(value)), { error: invalidMessage })
+      .refine((value) => !Number.isFinite(Number(value)) || Number(value) >= 0, {
+        error: minimumMessage,
+      })
+      .transform(Number)
+      .optional(),
+  );
+
+const unitIdSchema = z.preprocess(
+  nullishToEmptyString,
+  z.string({ error: 'Unit is required' }).trim().min(1, 'Unit is required'),
+);
+
+const dimensionIdSchema = z.preprocess(
+  nullishToEmptyString,
+  z.string({ error: 'Dimension is required' }).trim().min(1, 'Dimension is required'),
 );
 
 const baseUnitSchema = z
@@ -49,7 +94,7 @@ const baseUnitSchema = z
     {
       unitId: unitIdSchema,
       dimensionId: dimensionIdSchema,
-      price: priceStringSchema,
+      price: requiredNumber('Enter a valid price', 'Price must be greater than 0'),
     },
     { error: 'Base unit is required' },
   )
@@ -59,41 +104,39 @@ const mouSchema = z
   .object({
     unitId: unitIdSchema,
     dimensionId: dimensionIdSchema,
-    conversionRate: z.coerce
-      .number({ error: 'Conversion rate is required' })
-      .positive('Conversion rate must be greater than 0'),
-    price: z.preprocess(
-      preprocessOptionalNumber,
-      z.coerce
-        .number({ error: 'Enter a valid price' })
-        .min(0, 'Price must be at least 0')
-        .optional(),
+    conversionRate: requiredNumber(
+      'Conversion rate is required',
+      'Conversion rate must be greater than 0',
     ),
+    price: optionalNumber('Enter a valid price', 'Price must be at least 0'),
   })
   .strict();
 
 export const createProductSchema = z
   .object({
-    name: z
-      .string({ error: 'Product name is required' })
-      .trim()
-      .min(1, 'Product name is required')
-      .max(100, 'Product name must be at most 100 characters'),
-    brand: z.string().trim().max(50, 'Brand must be at most 50 characters').optional(),
-    description: z
-      .string()
-      .trim()
-      .max(500, 'Description must be at most 500 characters')
-      .optional(),
-    lowStockThreshold: z.preprocess(
-      preprocessOptionalNumber,
-      z.coerce.number().min(0, 'Low stock threshold must be at least 0').optional(),
+    name: z.preprocess(
+      nullishToEmptyString,
+      z
+        .string({ error: 'Product name is required' })
+        .trim()
+        .min(1, 'Product name is required')
+        .max(100, 'Product name must be at most 100 characters'),
+    ),
+    brand: optionalText(
+      z.string().trim().max(50, 'Brand must be at most 50 characters').optional(),
+    ),
+    description: optionalText(
+      z.string().trim().max(500, 'Description must be at most 500 characters').optional(),
+    ),
+    lowStockThreshold: optionalNumber(
+      'Enter a valid threshold',
+      'Low stock threshold must be at least 0',
     ),
     trackAsPartial: z.boolean().optional(),
-    categoryId: z.string().trim().min(1, 'Category is required').optional(),
+    categoryId: optionalText(z.string().trim().min(1, 'Category is required').optional()),
     baseUnit: baseUnitSchema,
     mou: mouSchema.optional(),
-    uploadId: z.string().trim().min(1, 'Upload is required').optional(),
+    uploadId: optionalText(z.string().trim().min(1, 'Upload is required').optional()),
   })
   .strict()
   .refine((data) => !data.trackAsPartial || data.mou !== undefined, {
