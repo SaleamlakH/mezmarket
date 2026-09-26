@@ -84,6 +84,22 @@ const unitIdSchema = z.preprocess(
   z.string({ error: 'Unit is required' }).trim().min(1, 'Unit is required'),
 );
 
+/**
+ * An MOU only exists once a content unit is selected (set unitId). A bland object
+ * may reach the schema, which causes strict required validation failure.
+ * Dropping it here keeps the optional MOU out of both the validation and the
+ * payload, instead of reporting a required error for a field nobody filled in.
+ */
+const dropUnselectedMou = (val: unknown) => {
+  if (
+    val &&
+    typeof val === 'object' &&
+    !String((val as { unitId?: unknown }).unitId ?? '').trim()
+  ) {
+    return undefined;
+  }
+  return val;
+};
 const dimensionIdSchema = z.preprocess(
   nullishToEmptyString,
   z.string({ error: 'Dimension is required' }).trim().min(1, 'Dimension is required'),
@@ -135,7 +151,7 @@ export const createProductSchema = z
     trackAsPartial: z.boolean().optional(),
     categoryId: optionalText(z.string().trim().min(1, 'Category is required').optional()),
     baseUnit: baseUnitSchema,
-    mou: mouSchema.optional(),
+    mou: z.preprocess(dropUnselectedMou, mouSchema.optional()),
     uploadId: optionalText(z.string().trim().min(1, 'Upload is required').optional()),
   })
   .strict()
