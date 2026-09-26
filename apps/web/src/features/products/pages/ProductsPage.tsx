@@ -139,6 +139,7 @@ export function ProductsPage() {
 
       <AddProductDialog
         open={dialogOpen}
+        businessId={businessId ?? ''}
         onClose={() => setDialogOpen(false)}
         onCreated={handleCreated}
       />
