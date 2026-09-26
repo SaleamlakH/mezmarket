@@ -262,6 +262,19 @@ describe('validateCreateProduct', () => {
     expect(result.errors).toBeNull();
   });
 
+  it('stops requiring a conversion rate once the content unit is unset', () => {
+    const withUnit = validateCreateProduct(
+      validProduct({ mou: { unitId: 'pc-1', dimensionId: 'd-2', conversionRate: '' } }),
+    );
+    const withoutUnit = validateCreateProduct(
+      validProduct({ mou: { unitId: '', dimensionId: 'd-2', conversionRate: '' } }),
+    );
+
+    expect(withUnit.errors).toEqual({ 'mou.conversionRate': expect.any(String) });
+    expect(withoutUnit.errors).toBeNull();
+    expect(withoutUnit.data?.mou).toBeUndefined();
+  });
+
   it('returns the root error when the whole payload is undefined', () => {
     const result = validateCreateProduct(undefined as unknown as CreateProductFormValues);
 
@@ -292,5 +305,143 @@ describe('validateCreateProduct', () => {
 
     expect(result.data).toBeNull();
     expect(result.errors).toEqual({ lowStockThreshold: expect.any(String) });
+  });
+});
+
+/**
+ * The cross-field MOU rules are chained after the product object, so a fatal
+ * field error used to abort the whole parse and skip every one of them. An empty
+ * sell price was the common case: it coerced to `NaN` and the content unit
+ * conflict stayed invisible until a price had been typed.
+ *
+ * Each case pins the rule that the conflict is reported together with the
+ * offending field, rather than only after the rest of the form becomes valid.
+ * Only the error keys are asserted, since the copy lives in this schema.
+ */
+describe('cross-field MOU rules are independent of the other fields', () => {
+  /** Same unit as the base unit, so `mou.unitId` is in conflict. */
+  const sameUnitMou = { unitId: 'kg-1', dimensionId: 'd-2', conversionRate: 10 };
+  /** Same dimension as the base unit, so `mou.dimensionId` is in conflict. */
+  const sameDimensionMou = { unitId: 'pc-1', dimensionId: 'd-1', conversionRate: 10 };
+
+  it('reports the unit conflict while the price is empty', () => {
+    const result = validateCreateProduct(
+      validProduct({
+        baseUnit: { unitId: 'kg-1', dimensionId: 'd-1', price: '' },
+        mou: sameUnitMou,
+      }),
+    );
+
+    expect(result.data).toBeNull();
+    expect(result.errors).toEqual(
+      expect.objectContaining({
+        'baseUnit.price': expect.any(String),
+        'mou.unitId': expect.any(String),
+      }),
+    );
+  });
+
+  it('reports the dimension conflict while the price is empty', () => {
+    const result = validateCreateProduct(
+      validProduct({
+        baseUnit: { unitId: 'kg-1', dimensionId: 'd-1', price: '' },
+        mou: sameDimensionMou,
+      }),
+    );
+
+    expect(result.data).toBeNull();
+    expect(result.errors).toEqual(
+      expect.objectContaining({
+        'baseUnit.price': expect.any(String),
+        'mou.dimensionId': expect.any(String),
+      }),
+    );
+  });
+
+  it('reports the unit conflict while the price is not a number', () => {
+    const result = validateCreateProduct(
+      validProduct({
+        baseUnit: { unitId: 'kg-1', dimensionId: 'd-1', price: 'abc' },
+        mou: sameUnitMou,
+      }),
+    );
+
+    expect(result.errors).toEqual(
+      expect.objectContaining({
+        'baseUnit.price': expect.any(String),
+        'mou.unitId': expect.any(String),
+      }),
+    );
+  });
+
+  it('reports the unit conflict while the conversion rate is not a number', () => {
+    const result = validateCreateProduct(
+      validProduct({
+        mou: { ...sameUnitMou, conversionRate: 'abc' },
+      }),
+    );
+
+    expect(result.errors).toEqual(
+      expect.objectContaining({
+        'mou.conversionRate': expect.any(String),
+        'mou.unitId': expect.any(String),
+      }),
+    );
+  });
+
+  it('reports the unit conflict while the name is missing', () => {
+    const result = validateCreateProduct(validProduct({ name: undefined, mou: sameUnitMou }));
+
+    expect(result.errors).toEqual(
+      expect.objectContaining({
+        name: expect.any(String),
+        'mou.unitId': expect.any(String),
+      }),
+    );
+  });
+
+  it('reports the missing MOU dimension while the name is missing', () => {
+    const result = validateCreateProduct(
+      validProduct({
+        name: undefined,
+        mou: { unitId: 'pc-1', conversionRate: 10 },
+      }),
+    );
+
+    expect(result.errors).toEqual(
+      expect.objectContaining({
+        name: expect.any(String),
+        'mou.dimensionId': expect.any(String),
+      }),
+    );
+  });
+
+  it('reports the partial rule while the price is empty', () => {
+    const result = validateCreateProduct(
+      validProduct({
+        trackAsPartial: true,
+        baseUnit: { unitId: 'kg-1', dimensionId: 'd-1', price: '' },
+      }),
+    );
+
+    expect(result.errors).toEqual(
+      expect.objectContaining({
+        'baseUnit.price': expect.any(String),
+        mou: expect.any(String),
+      }),
+    );
+  });
+
+  it('reports the unit conflict while the low stock threshold is not a number', () => {
+    const result = validateCreateProduct(
+      validProduct({ lowStockThreshold: 'abc', mou: sameUnitMou }),
+    );
+
+    expect(result.errors).toEqual(
+      expect.objectContaining({
+        lowStockThreshold: expect.any(String),
+        'mou.unitId': expect.any(String),
+      }),
+    );
   });
 });
