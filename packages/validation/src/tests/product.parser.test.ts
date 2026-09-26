@@ -262,6 +262,34 @@ describe('validateCreateProduct', () => {
     expect(result.errors).toBeNull();
   });
 
+  it('drops an MOU that has no content unit selected', () => {
+    const result = validateCreateProduct(
+      validProduct({
+        mou: { unitId: '', dimensionId: '', conversionRate: '' },
+      }),
+    );
+
+    expect(result.errors).toBeNull();
+    expect(result.data).toEqual({ name: 'Shirt', baseUnit: { unitId: 'kg-1', price: 120.5 } });
+    expect(result.data?.mou).toBeUndefined();
+  });
+
+  it('drops an MOU whose content unit is only whitespace', () => {
+    const result = validateCreateProduct(
+      validProduct({ mou: { unitId: '   ', dimensionId: 'd-2', conversionRate: '10' } }),
+    );
+
+    expect(result.errors).toBeNull();
+    expect(result.data?.mou).toBeUndefined();
+  });
+
+  it('still requires the dimension once a content unit is selected', () => {
+    const result = validateCreateProduct(
+      validProduct({ mou: { unitId: 'pc-1', conversionRate: '10' } }),
+    );
+
+    expect(result.errors).toEqual({ 'mou.dimensionId': expect.any(String) });
+  });
   it('stops requiring a conversion rate once the content unit is unset', () => {
     const withUnit = validateCreateProduct(
       validProduct({ mou: { unitId: 'pc-1', dimensionId: 'd-2', conversionRate: '' } }),
