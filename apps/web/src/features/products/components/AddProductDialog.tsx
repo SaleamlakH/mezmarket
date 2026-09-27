@@ -37,6 +37,7 @@ function ProductForm({ businessId, onCreated, onClose }: ProductFormProps) {
     formState: { errors, isSubmitting },
     handleSubmit,
     file,
+    previewUrl,
     imageError,
     pickImage,
     dimensions,
@@ -93,10 +94,10 @@ function ProductForm({ businessId, onCreated, onClose }: ProductFormProps) {
               : 'min-h-23 cursor-pointer border-dashed hover:border-(--accent) hover:text-(--accent) md:aspect-square'
           }`}
         >
-          {file ? (
+          {previewUrl ? (
             <img
-              src={URL.createObjectURL(file)}
-              alt=""
+              src={previewUrl}
+              alt="Preview of the selected product image"
               className="absolute inset-0 h-full w-full object-contain p-3.5"
             />
           ) : (

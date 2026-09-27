@@ -346,6 +346,35 @@ describe('AddProductDialog', () => {
     expect(fieldError('Content unit')).toBeNull();
   });
 
+  it('does not re-create the preview url when the form re-renders', async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <AddProductDialog open businessId="b-1" onClose={onClose} onCreated={onCreated} />,
+      { wrapper },
+    );
+
+    await screen.findByText('Add photo');
+    const input = container.querySelector('#product-image') as HTMLInputElement;
+    const photo = new File(['x'], 'photo.jpg', { type: 'image/jpeg' });
+    await user.upload(input, photo);
+
+    // The preview image is decorative, so it exposes no role and is queried directly.
+    await waitFor(() => expect(container.querySelector('img')).not.toBeNull());
+    const src = (container.querySelector('img') as HTMLImageElement).getAttribute('src');
+    expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
+
+    // Typing into a text field does not re-render the form, because react hook
+    // form keeps those inputs uncontrolled. Choosing a base unit does: it writes
+    // to a watched value, so this is what exercises a re-render.
+    await waitFor(() => expect(screen.queryByRole('option', { name: /Kilogram/ })).not.toBeNull());
+    const dialog = screen.getByRole('dialog');
+    await user.selectOptions(within(dialog).getByLabelText('Base unit'), 'u-1');
+
+    expect((container.querySelector('img') as HTMLImageElement).getAttribute('src')).toBe(src);
+    expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+  });
+
   it('creates a product with a base unit and an MOU', async () => {
     const user = userEvent.setup();
     render(<AddProductDialog open businessId="b-1" onClose={onClose} onCreated={onCreated} />, {
