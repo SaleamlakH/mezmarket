@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm, type Resolver, type UseFormReturn } from 'react-hook-form';
 import type { BaseSyntheticEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -64,6 +64,7 @@ export interface UseCreateProductFormReturn extends Omit<
 > {
   handleSubmit: (event?: BaseSyntheticEvent) => Promise<unknown>;
   file: File | null;
+  previewUrl: string | null;
   imageError: string | null;
   pickImage: (file: File | null) => void;
   dimensions: DimensionResponse[];
@@ -81,7 +82,18 @@ export function useCreateProductForm({
 }: UseCreateProductFormOptions): UseCreateProductFormReturn {
   const queryClient = useQueryClient();
   const [file, setFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
+
+  // Every preview url is minted in `pickImage` and revoked as soon as it is
+  // superseded, so this only has to reclaim the one still held on unmount.
+  useEffect(() => {
+    if (!previewUrl) return;
+
+    return () => {
+      URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
 
   const form = useForm<CreateProductFormValues, unknown, CreateProductInput>({
     resolver: zodResolver(createProductSchema) as Resolver<
@@ -147,12 +159,20 @@ export function useCreateProductForm({
     const { file: validated, error } = validateProductImage(next);
     setFile(validated);
     setImageError(error);
+
+    if (validated) {
+      const url = URL.createObjectURL(validated);
+      setPreviewUrl(url);
+    } else {
+      setPreviewUrl(null);
+    }
   };
 
   return {
     ...form,
     handleSubmit,
     file,
+    previewUrl,
     imageError,
     pickImage,
     dimensions,

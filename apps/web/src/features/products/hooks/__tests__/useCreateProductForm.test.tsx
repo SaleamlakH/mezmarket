@@ -537,4 +537,81 @@ describe('useCreateProductForm', () => {
     await waitFor(() => expect(result.current.formError).toBe('Creation failed'));
     expect(result.current.file).toBe(photo);
   });
+
+  it('exposes a preview url for the picked image', () => {
+    const { result } = renderForm(onCreated);
+    const photo = new File(['x'], 'photo.jpg', { type: 'image/jpeg' });
+
+    act(() => result.current.pickImage(photo));
+
+    expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
+    expect(URL.createObjectURL).toHaveBeenCalledWith(photo);
+    expect(result.current.previewUrl).toBe(vi.mocked(URL.createObjectURL).mock.results[0]?.value);
+  });
+
+  it('revokes the superseded preview url when a new image is picked', () => {
+    const { result } = renderForm(onCreated);
+
+    act(() => result.current.pickImage(new File(['x'], 'first.jpg', { type: 'image/jpeg' })));
+    const first = result.current.previewUrl;
+    expect(first).not.toBeNull();
+
+    act(() => result.current.pickImage(new File(['x'], 'second.jpg', { type: 'image/jpeg' })));
+
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith(first);
+    expect(result.current.previewUrl).not.toBe(first);
+  });
+
+  it('revokes the preview url and clears it when the image is removed', () => {
+    const { result } = renderForm(onCreated);
+
+    act(() => result.current.pickImage(new File(['x'], 'photo.jpg', { type: 'image/jpeg' })));
+    const preview = result.current.previewUrl;
+    act(() => result.current.pickImage(null));
+
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith(preview);
+    expect(result.current.previewUrl).toBeNull();
+  });
+
+  it('revokes the preview url when a rejected pick clears the held image', () => {
+    const { result } = renderForm(onCreated);
+
+    act(() => result.current.pickImage(new File(['x'], 'photo.jpg', { type: 'image/jpeg' })));
+    const preview = result.current.previewUrl;
+    act(() => result.current.pickImage(new File(['x'], 'doc.txt', { type: 'text/plain' })));
+
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith(preview);
+    expect(result.current.previewUrl).toBeNull();
+  });
+
+  it('revokes the preview url on unmount', () => {
+    const { result, unmount } = renderForm(onCreated);
+
+    act(() => result.current.pickImage(new File(['x'], 'photo.jpg', { type: 'image/jpeg' })));
+    const preview = result.current.previewUrl;
+    expect(preview).not.toBeNull();
+
+    unmount();
+
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith(preview);
+  });
+
+  it('keeps the preview url stable when the form re-renders', async () => {
+    const { result } = renderForm(onCreated);
+
+    act(() => result.current.pickImage(new File(['x'], 'photo.jpg', { type: 'image/jpeg' })));
+    const { previewUrl } = result.current;
+    expect(previewUrl).not.toBeNull();
+
+    // `setValue` on an uncontrolled field does not re-render the hook, so the
+    // re-render is forced through `errors`, which the hook reads while rendering.
+    await act(async () => {
+      await result.current.trigger('name');
+    });
+
+    expect(result.current.formState.errors.name).toBeDefined();
+    expect(result.current.previewUrl).toBe(previewUrl);
+    expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+  });
 });
