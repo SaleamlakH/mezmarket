@@ -13,7 +13,7 @@ export interface NavTab {
 export const SIDEBAR_WIDTH_STYLE = { width: '16rem' };
 
 export const NAV_TABS: NavTab[] = [
-  { key: 'dashboard', label: 'Dashboard', path: '/', icon: <LayoutGrid aria-hidden /> },
+  { key: 'dashboard', label: 'Dashboard', path: '/dashboard', icon: <LayoutGrid aria-hidden /> },
   { key: 'sales', label: 'Sales', path: '/sales', icon: <ShoppingCart aria-hidden /> },
   { key: 'inventory', label: 'Inventory', path: '/inventory', icon: <Warehouse aria-hidden /> },
   { key: 'products', label: 'Products', path: '/products', icon: <Package aria-hidden /> },
