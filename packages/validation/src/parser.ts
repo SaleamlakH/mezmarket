@@ -1,13 +1,27 @@
 import type { ZodType } from 'zod';
-import type { CreateProductInput, CreateUploadInput } from '@mez/types';
 import type { FieldErrors, ValidationResult } from './types.js';
+import { updateOwnerSchema, type UpdateOwnerFormValues } from './schema/owner.schema.js';
+import { createUploadSchema, type CreateUploadClientInput } from './schema/upload.schema.js';
+import type {
+  BatchFormValues,
+  BatchLineFormValues,
+  CreateProductInput,
+  CreateUploadInput,
+  UpdateBatchFormValues,
+  UpdateBatchLineFormValues,
+} from '@mez/types';
 import {
   loginSchema,
   signupSchema,
   type LoginFormValues,
   type SignupFormValues,
 } from './schema/auth.schema.js';
-import { updateOwnerSchema, type UpdateOwnerFormValues } from './schema/owner.schema.js';
+import {
+  createBatchLineSchema,
+  createBatchSchema,
+  updateBatchLineSchema,
+  updateBatchSchema,
+} from './schema/batch.schema.js';
 import {
   createBusinessSchema,
   updateBusinessSchema,
@@ -15,7 +29,6 @@ import {
   type UpdateBusinessFormValues,
 } from './schema/business.schema.js';
 import { createProductSchema } from './schema/product.schema.js';
-import { createUploadSchema, type CreateUploadClientInput } from './schema/upload.schema.js';
 
 /**
  * Parses `input` against `schema` and flattens any failure into one
@@ -64,4 +77,19 @@ export function validateCreateProduct(values: unknown) {
 
 export function validateCreateUpload(values: CreateUploadClientInput) {
   return validateInput(createUploadSchema, values) as ValidationResult<CreateUploadInput>;
+}
+export function validateCreateBatch(values: BatchFormValues) {
+  return validateInput(createBatchSchema, values);
+}
+
+export function validateUpdateBatch(values: UpdateBatchFormValues) {
+  return validateInput(updateBatchSchema, values);
+}
+
+export function validateBatchLine(values: BatchLineFormValues) {
+  return validateInput(createBatchLineSchema, values);
+}
+
+export function validateUpdateBatchLine(values: UpdateBatchLineFormValues) {
+  return validateInput(updateBatchLineSchema, values);
 }
