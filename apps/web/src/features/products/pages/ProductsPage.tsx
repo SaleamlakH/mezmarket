@@ -1,5 +1,6 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Plus } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import type { CreateProductResponse, ProductWithUnitsResponse } from '@mez/types';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
@@ -10,8 +11,7 @@ import { useBusinessContext } from '@/providers/business/useBusinessContext';
 import { AddProductDialog } from '../components/AddProductDialog';
 import { ProductCard } from '../components/ProductCard';
 import { useProducts } from '../hooks/useProducts';
-import { useQuery } from '@tanstack/react-query';
-import { productsService } from '../api/productsService';
+import { useProductUploadUrls } from '../hooks/useProductUploadUrls';
 
 interface CardView {
   name: string;
@@ -19,14 +19,9 @@ interface CardView {
   price?: string | undefined;
   sub?: string | undefined;
   low?: boolean | undefined;
-  imageUrl?: string | undefined;
 }
 
-function cardFor(
-  product: ProductWithUnitsResponse,
-  imageUrl: string | undefined,
-  currency: string,
-): CardView {
+function cardFor(product: ProductWithUnitsResponse, currency: string): CardView {
   const baseUnit = product.units.find((unit) => unit.unitRole === 'BASE');
   const price = baseUnit?.price;
   const symbol = baseUnit?.name;
@@ -42,7 +37,6 @@ function cardFor(
     price: formatMoney(price, currency, symbol),
     sub: `${product.currentSealedStock}${symbol ? ` ${symbol}` : ''}`,
     low,
-    imageUrl,
   };
 }
 
@@ -50,30 +44,24 @@ export function ProductsPage() {
   const { currentBusiness } = useBusinessContext();
   const businessId = currentBusiness?.id;
   const currency = currentBusiness?.currencyCode ?? 'ETB';
+  const queryClient = useQueryClient();
 
   const { data, isLoading, isError, isRefetching, refetch } = useProducts(businessId ?? '');
-  const { data: uploadUrls = [] } = useQuery({
-    queryKey: ['products-uploads', businessId],
-    queryFn: () => productsService.getProductUploadUrls(businessId ?? ''),
-    enabled: Boolean(businessId),
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const imageUrlByUploadId = useMemo(() => {
-    const urls = new Map<string, string>();
-    for (const entry of uploadUrls) {
-      if (entry.url) urls.set(entry.uploadId, entry.url);
-    }
-    return urls;
-  }, [uploadUrls]);
+  const { data: uploadUrls } = useProductUploadUrls(businessId);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const handleCreated = useCallback((product: CreateProductResponse) => {
-    setDialogOpen(false);
-    setSuccessMessage(`${product.name} added to products.`);
-  }, []);
+  const handleCreated = useCallback(
+    (product: CreateProductResponse) => {
+      setDialogOpen(false);
+      setSuccessMessage(`${product.name} added to products.`);
+      // A brand new upload has no entry in the signed list yet, so refetch it rather
+      // than leaving the new card on its placeholder until the query goes stale.
+      void queryClient.invalidateQueries({ queryKey: ['products-uploads', businessId] });
+    },
+    [businessId, queryClient],
+  );
 
   const products = data ?? [];
 
@@ -127,11 +115,10 @@ export function ProductsPage() {
           {products.map((product) => (
             <ProductCard
               key={product.id}
-              {...cardFor(
-                product,
-                product.uploadId ? imageUrlByUploadId.get(product.uploadId) : undefined,
-                currency,
-              )}
+              businessId={businessId}
+              uploadId={product.uploadId ?? undefined}
+              uploadUrls={uploadUrls}
+              {...cardFor(product, currency)}
             />
           ))}
         </div>
