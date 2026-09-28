@@ -43,7 +43,7 @@ describe('validateProductInput', () => {
     expect(next).toHaveBeenCalledTimes(1);
     expect(req.validBody).toEqual({
       name: 'Shirt',
-      baseUnit: { unitId: 'kg-1', price: '120.50' },
+      baseUnit: { unitId: 'kg-1', price: 120.5 },
     });
   });
 
