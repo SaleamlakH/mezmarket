@@ -78,7 +78,7 @@ describe('products.controller', () => {
       const res = mockRes();
 
       await controller.createProduct(
-        mockReq({ validBody: { name: 'Sugar', baseUnit: { unitId: 'kg-1', price: '50' } } }),
+        mockReq({ validBody: { name: 'Sugar', baseUnit: { unitId: 'kg-1', price: 50 } } }),
         res,
       );
 
@@ -88,7 +88,7 @@ describe('products.controller', () => {
 
     it('passes the ids and validated body to the service', async () => {
       const controller = createProductsController(service);
-      const validBody = { name: 'Sugar', baseUnit: { unitId: 'kg-1', price: '50' } };
+      const validBody = { name: 'Sugar', baseUnit: { unitId: 'kg-1', price: 50 } };
       vi.mocked(service.createProduct).mockResolvedValue({ as: 'product' } as never);
 
       await controller.createProduct(mockReq({ validBody }), mockRes());
@@ -104,7 +104,7 @@ describe('products.controller', () => {
 
       await expect(
         controller.createProduct(
-          mockReq({ validBody: { name: 'Sugar', baseUnit: { unitId: 'kg-1', price: '50' } } }),
+          mockReq({ validBody: { name: 'Sugar', baseUnit: { unitId: 'kg-1', price: 50 } } }),
           mockRes(),
         ),
       ).rejects.toThrow(new AppError(ERROR_CODES.BAD_REQUEST, 'Bad request', 400));

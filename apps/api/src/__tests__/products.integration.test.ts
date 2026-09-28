@@ -278,7 +278,7 @@ describe('products.integration', () => {
       };
       const validatedBody = {
         name: 'Shirt',
-        baseUnit: { unitId: 'kg-1', price: '120.50' },
+        baseUnit: { unitId: 'kg-1', price: 120.5 },
         mou: { unitId: 'pc-1', conversionRate: 10, price: 10 },
       };
       const mouWire = {
@@ -335,7 +335,7 @@ describe('products.integration', () => {
       };
       const validatedBody = {
         name: 'Shirt',
-        baseUnit: { unitId: 'kg-1', price: '120.50' },
+        baseUnit: { unitId: 'kg-1', price: 120.5 },
         uploadId: 'u-1',
       };
       productsRepository.createForBusiness.mockResolvedValue({
