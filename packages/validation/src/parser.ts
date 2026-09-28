@@ -1,5 +1,11 @@
 import type { ZodType } from 'zod';
-import type { CreateBusinessInput } from '@mez/types';
+import type {
+  BatchFormValues,
+  BatchLineFormValues,
+  CreateBusinessInput,
+  UpdateBatchFormValues,
+  UpdateBatchLineFormValues,
+} from '@mez/types';
 import type { FieldErrors, ValidationResult } from './types.js';
 import {
   loginSchema,
@@ -7,6 +13,12 @@ import {
   type LoginFormValues,
   type SignupFormValues,
 } from './schema/auth.schema.js';
+import {
+  createBatchLineSchema,
+  createBatchSchema,
+  updateBatchLineSchema,
+  updateBatchSchema,
+} from './schema/batch.schema.js';
 import { createBusinessSchema, type CreateBusinessFormValues } from './schema/business.schema.js';
 import { updateOwnerSchema, type UpdateOwnerFormValues } from './schema/owner.schema.js';
 
@@ -43,4 +55,20 @@ export function validateCreateBusiness(values: CreateBusinessFormValues) {
 
 export function validateUpdateOwnerValues(values: UpdateOwnerFormValues) {
   return validateInput(updateOwnerSchema, values);
+}
+
+export function validateCreateBatch(values: BatchFormValues) {
+  return validateInput(createBatchSchema, values);
+}
+
+export function validateUpdateBatch(values: UpdateBatchFormValues) {
+  return validateInput(updateBatchSchema, values);
+}
+
+export function validateBatchLine(values: BatchLineFormValues) {
+  return validateInput(createBatchLineSchema, values);
+}
+
+export function validateUpdateBatchLine(values: UpdateBatchLineFormValues) {
+  return validateInput(updateBatchLineSchema, values);
 }
