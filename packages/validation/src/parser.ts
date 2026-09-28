@@ -10,7 +10,13 @@ import {
 import { createBusinessSchema, type CreateBusinessFormValues } from './schema/business.schema.js';
 import { updateOwnerSchema, type UpdateOwnerFormValues } from './schema/owner.schema.js';
 
-function validateInput<T>(schema: ZodType<T>, input: unknown): ValidationResult<T> {
+/**
+ * Parses `input` against `schema` and flattens any failure into one
+ * message per field path: `address.city` for a nested field,
+ * `lines.0.purchaseQuantity` for a field inside a list, and `_root` for a
+ * problem with the value as a whole. The first message for a path wins.
+ */
+export function validateInput<T>(schema: ZodType<T>, input: unknown): ValidationResult<T> {
   const result = schema.safeParse(input);
   if (result.success) return { data: result.data, errors: null };
 
