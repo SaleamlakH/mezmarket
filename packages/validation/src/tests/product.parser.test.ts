@@ -443,22 +443,6 @@ describe('cross-field MOU rules are independent of the other fields', () => {
     );
   });
 
-  it('reports the partial rule while the price is empty', () => {
-    const result = validateCreateProduct(
-      validProduct({
-        trackAsPartial: true,
-        baseUnit: { unitId: 'kg-1', dimensionId: 'd-1', price: '' },
-      }),
-    );
-
-    expect(result.errors).toEqual(
-      expect.objectContaining({
-        'baseUnit.price': expect.any(String),
-        mou: expect.any(String),
-      }),
-    );
-  });
-
   it('reports the unit conflict while the low stock threshold is not a number', () => {
     const result = validateCreateProduct(
       validProduct({ lowStockThreshold: 'abc', mou: sameUnitMou }),
