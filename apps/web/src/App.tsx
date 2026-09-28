@@ -27,7 +27,13 @@ import { CreateBusinessPage } from './features/business/pages/CreateBusinessPage
 import { OwnerProfilePage } from './features/owner-profile/pages/OwnerProfilePage';
 import { ownerApi } from './features/owner-profile/api/ownerApi';
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60,
+    },
+  },
+});
 
 const router = createBrowserRouter([
   {

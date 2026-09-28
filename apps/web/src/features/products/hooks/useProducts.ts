@@ -7,6 +7,5 @@ export function useProducts(businessId: string) {
     queryFn: () => productsService.listProducts(businessId),
     enabled: Boolean(businessId),
     staleTime: 5 * 60 * 1000,
-    gcTime: 30 * 60 * 1000,
   });
 }
