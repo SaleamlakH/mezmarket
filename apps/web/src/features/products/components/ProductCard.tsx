@@ -1,15 +1,32 @@
 import { Image } from 'lucide-react';
+import type { DownloadUrlsResponse } from '@mez/types';
+import { useProductImage } from '../hooks/useProductImage';
 
 export interface ProductCardProps {
   name: string;
+  businessId?: string | undefined;
+  uploadId?: string | undefined;
+  uploadUrls?: DownloadUrlsResponse | undefined;
   meta?: string | undefined;
   price?: string | undefined;
   sub?: string | undefined;
   low?: boolean | undefined;
-  imageUrl?: string | undefined;
 }
 
-export function ProductCard({ name, meta, price, sub, low, imageUrl }: ProductCardProps) {
+export function ProductCard({
+  name,
+  businessId,
+  uploadId,
+  uploadUrls,
+  meta,
+  price,
+  sub,
+  low,
+}: ProductCardProps) {
+  // The card owns its image request, so it fills in as soon as this one download
+  // lands and the placeholder above covers the gap until then.
+  const imageUrl = useProductImage(businessId, uploadId, uploadUrls);
+
   return (
     <div className="flex cursor-pointer flex-col gap-2 rounded-2xl border border-(--border) bg-(--field) px-2 pt-2 pb-4 transition-[border-color,background-color] duration-150 hover:border-(--border-strong) hover:bg-(--surface-primary)">
       <span className="flex aspect-4/3 w-full items-center justify-center overflow-hidden rounded-[10px] border border-(--border) bg-(--surface-secondary) text-(--text-muted)">
