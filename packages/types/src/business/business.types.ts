@@ -1,12 +1,8 @@
+import type { RequireAllKeys } from '../shared/require-all-keys.js';
+
 export type TaxDisplayMode = 'EXCLUSIVE' | 'INCLUSIVE';
 
 export type BusinessMemberRole = 'OWNER' | 'MANAGER' | 'CASHIER' | 'SERVER';
-
-/**
- * Constrains `T` so every key of `Source` must be present, forcing derived
- * response types to mirror the source type's keys.
- */
-type RequireAllKeys<Source, T extends Record<keyof Source, unknown>> = T;
 
 /**
  * Domain shape of a Business as stored in the database.
@@ -83,6 +79,12 @@ export type BusinessMemberResponse = RequireAllKeys<
     updatedAt: string;
   }
 >;
+
+/**
+ * Trimmed member projection embedded in other response payloads, so a
+ * response can name its actor without shipping the whole member record.
+ */
+export type BusinessMemberSummaryResponse = Pick<BusinessMemberResponse, 'id' | 'name' | 'role'>;
 
 export type CreateBusinessInput = Pick<Business, 'name' | 'currencyCode'> & {
   defaultTaxRate?: number;
