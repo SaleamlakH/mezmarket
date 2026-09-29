@@ -35,7 +35,7 @@ describe('validateProductInput', () => {
   it('passes through and stores the validated product on req.validBody', () => {
     const { run, req, next } = call({
       name: 'Shirt',
-      baseUnit: { unitId: 'kg-1', dimensionId: 'd-1', price: '120.50' },
+      baseUnit: { unitId: 'kg-1', price: '120.50' },
     });
 
     run();
@@ -50,7 +50,7 @@ describe('validateProductInput', () => {
   it('rejects an invalid body with field details', () => {
     const { run, next } = call({
       name: '',
-      baseUnit: { unitId: 'kg-1', dimensionId: 'd-1', price: '120.50' },
+      baseUnit: { unitId: 'kg-1', price: '120.50' },
     });
 
     expect(run).toThrow(

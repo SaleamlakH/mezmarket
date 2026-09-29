@@ -9,10 +9,10 @@ import {
 } from './schema/auth.schema.js';
 import { createBusinessSchema, type CreateBusinessFormValues } from './schema/business.schema.js';
 import { updateOwnerSchema, type UpdateOwnerFormValues } from './schema/owner.schema.js';
-import { createProductSchema, type CreateProductFormValues } from './schema/product.schema.js';
+import { createProductSchema } from './schema/product.schema.js';
 import { createUploadSchema, type CreateUploadClientInput } from './schema/upload.schema.js';
 
-function validateInput<T>(schema: ZodType<T>, input: unknown): ValidationResult<T> {
+export function validateInput<T>(schema: ZodType<T>, input: unknown): ValidationResult<T> {
   const result = schema.safeParse(input);
   if (result.success) return { data: result.data, errors: null };
 
@@ -41,7 +41,7 @@ export function validateUpdateOwnerValues(values: UpdateOwnerFormValues) {
   return validateInput(updateOwnerSchema, values);
 }
 
-export function validateCreateProduct(values: CreateProductFormValues) {
+export function validateCreateProduct(values: unknown) {
   return validateInput(createProductSchema, values) as ValidationResult<CreateProductInput>;
 }
 

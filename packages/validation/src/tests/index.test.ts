@@ -17,6 +17,8 @@ import {
   type UpdateOwnerFormValues,
   validateCreateProduct,
   type CreateProductFormValues,
+  createProductSchema,
+  createProductFormSchema,
   validateCreateUpload,
   type CreateUploadClientInput,
   type ValidationResult,
@@ -61,6 +63,11 @@ describe('index', () => {
 
   it('exports CreateProductFormValues', () => {
     expectTypeOf<CreateProductFormValues>().toBeObject();
+  });
+
+  it('exports createProductFormSchema and createProductSchema', () => {
+    expect(createProductFormSchema).toBeDefined();
+    expect(createProductSchema).toBeDefined();
   });
 
   it('derives CreateProductFormValues unit inputs from @mez/types', () => {

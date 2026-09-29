@@ -273,8 +273,8 @@ describe('products.integration', () => {
       authorize('b-1', 'br-1');
       const body = {
         name: 'Shirt',
-        baseUnit: { unitId: 'kg-1', dimensionId: 'd-1', price: '120.50' },
-        mou: { unitId: 'pc-1', dimensionId: 'd-2', conversionRate: 10, price: 10 },
+        baseUnit: { unitId: 'kg-1', price: '120.50' },
+        mou: { unitId: 'pc-1', conversionRate: 10, price: 10 },
       };
       const validatedBody = {
         name: 'Shirt',
@@ -330,7 +330,7 @@ describe('products.integration', () => {
       authorize('b-1', 'br-1');
       const body = {
         name: 'Shirt',
-        baseUnit: { unitId: 'kg-1', dimensionId: 'd-1', price: '120.50' },
+        baseUnit: { unitId: 'kg-1', price: '120.50' },
         uploadId: 'u-1',
       };
       const validatedBody = {
@@ -389,7 +389,7 @@ describe('products.integration', () => {
       const res = await request(app)
         .post('/api/businesses/b-1/products')
         .set('Authorization', 'Bearer token')
-        .send({ name: 'Shirt', baseUnit: { unitId: 'missing', dimensionId: 'd-1', price: '10' } });
+        .send({ name: 'Shirt', baseUnit: { unitId: 'missing', price: '10' } });
 
       expect(res.status).toBe(400);
       expect(res.body).toEqual({
