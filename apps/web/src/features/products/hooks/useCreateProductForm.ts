@@ -10,7 +10,7 @@ import type {
   ProductWithUnitsResponse,
 } from '@mez/types';
 import {
-  createProductSchema,
+  createProductFormSchema,
   validateCreateUpload,
   type CreateProductFormValues,
   type UploadMimeType,
@@ -96,7 +96,7 @@ export function useCreateProductForm({
   }, [previewUrl]);
 
   const form = useForm<CreateProductFormValues, unknown, CreateProductInput>({
-    resolver: zodResolver(createProductSchema) as Resolver<
+    resolver: zodResolver(createProductFormSchema) as Resolver<
       CreateProductFormValues,
       unknown,
       CreateProductInput

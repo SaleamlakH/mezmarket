@@ -24,16 +24,14 @@ export type CreateProductFormValues = Partial<
   };
 
 /**
- * Zod 4 reports a type mismatch as a fatal `invalid_type` issue, and a single
- * fatal issue aborts the whole product object which causes cross-field MOU rules
- * chained after that object silently skipped until the rest of the form happened
- * to be valid: an empty sell price.
- *
- * The helpers below normalise their input first so a field can only fail with a
- * non-fatal issue (`too_small`, `too_big` or `custom`). That keeps the MOU rules
- * reporting alongside the field errors instead of being swallowed. A genuine
- * type violation such as `name: 123` still aborts, because coercing it would
- * mean accepting malformed input.
+ * On Zod 4: a type mismatch is a fatal `invalid_type` issue, and one fatal issue aborts
+ * the whole product object, which makes cross-field MOU rules chained after that object
+ * silently skipped until the rest of the form happened to be valid — an empty sell
+ * price. The text helpers below normalise their input first so a field can only fail
+ * with a non-fatal issue (`too_small`, `too_big` or `custom`). That keeps the MOU rules
+ * reporting alongside the field errors instead of being swallowed. A genuine type
+ * violation such as `name: 123` still aborts, because coercing it would mean accepting
+ * malformed input.
  */
 const nullishToEmptyString = (val: unknown) => (val === undefined || val === null ? '' : val);
 
@@ -100,6 +98,7 @@ const dropUnselectedMou = (val: unknown) => {
   }
   return val;
 };
+
 const dimensionIdSchema = z.preprocess(
   nullishToEmptyString,
   z.string({ error: 'Dimension is required' }).trim().min(1, 'Dimension is required'),
@@ -109,7 +108,6 @@ const baseUnitSchema = z
   .object(
     {
       unitId: unitIdSchema,
-      dimensionId: dimensionIdSchema,
       price: requiredNumber('Enter a valid price', 'Price must be greater than 0'),
     },
     { error: 'Base unit is required' },
@@ -119,7 +117,6 @@ const baseUnitSchema = z
 const mouSchema = z
   .object({
     unitId: unitIdSchema,
-    dimensionId: dimensionIdSchema,
     conversionRate: requiredNumber(
       'Conversion rate is required',
       'Conversion rate must be greater than 0',
@@ -128,7 +125,7 @@ const mouSchema = z
   })
   .strict();
 
-export const createProductSchema = z
+const productBaseSchema = z
   .object({
     name: z.preprocess(
       nullishToEmptyString,
@@ -154,7 +151,45 @@ export const createProductSchema = z
     mou: z.preprocess(dropUnselectedMou, mouSchema.optional()),
     uploadId: optionalText(z.string().trim().min(1, 'Upload is required').optional()),
   })
-  .strict()
+  .strict();
+
+type ProductPayload = z.output<typeof productBaseSchema>;
+
+type ProductPayloadSource = Omit<ProductPayload, 'baseUnit' | 'mou'> & {
+  baseUnit: ProductPayload['baseUnit'];
+  mou?: ProductPayload['mou'] | undefined;
+};
+
+const toPayload = (data: ProductPayloadSource): ProductPayload => ({
+  ...data,
+  baseUnit: {
+    unitId: data.baseUnit.unitId,
+    price: data.baseUnit.price,
+  },
+  mou: data.mou
+    ? {
+        unitId: data.mou.unitId,
+        conversionRate: data.mou.conversionRate,
+        ...(data.mou.price !== undefined && { price: data.mou.price }),
+      }
+    : undefined,
+});
+
+export const createProductSchema = productBaseSchema
+  .refine((data) => !data.mou || data.mou.unitId !== data.baseUnit.unitId, {
+    message: 'MOU must be different from the base unit',
+    path: ['mou', 'unitId'],
+  })
+  .transform(toPayload);
+
+export const createProductFormSchema = productBaseSchema
+  .extend({
+    baseUnit: baseUnitSchema.extend({ dimensionId: dimensionIdSchema }),
+    mou: z.preprocess(
+      dropUnselectedMou,
+      mouSchema.extend({ dimensionId: dimensionIdSchema }).optional(),
+    ),
+  })
   .refine((data) => !data.mou || data.mou.dimensionId !== data.baseUnit.dimensionId, {
     message: 'MOU must be in a different dimension from the base unit',
     path: ['mou', 'dimensionId'],
@@ -163,17 +198,4 @@ export const createProductSchema = z
     message: 'MOU must be different from the base unit',
     path: ['mou', 'unitId'],
   })
-  .transform((data) => ({
-    ...data,
-    baseUnit: {
-      unitId: data.baseUnit.unitId,
-      price: data.baseUnit.price,
-    },
-    mou: data.mou
-      ? {
-          unitId: data.mou.unitId,
-          conversionRate: data.mou.conversionRate,
-          ...(data.mou.price !== undefined && { price: data.mou.price }),
-        }
-      : undefined,
-  }));
+  .transform(toPayload);

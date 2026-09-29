@@ -17,7 +17,7 @@ import {
 import { createProductSchema, type CreateProductFormValues } from './schema/product.schema.js';
 import { createUploadSchema, type CreateUploadClientInput } from './schema/upload.schema.js';
 
-function validateInput<T>(schema: ZodType<T>, input: unknown): ValidationResult<T> {
+export function validateInput<T>(schema: ZodType<T>, input: unknown): ValidationResult<T> {
   const result = schema.safeParse(input);
   if (result.success) return { data: result.data, errors: null };
 
