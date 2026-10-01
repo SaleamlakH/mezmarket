@@ -3,6 +3,7 @@ import type {
   BusinessMemberRole,
   BusinessRepository,
   CreateBusinessInput,
+  UpdateBusinessInput,
 } from './business.types.js';
 
 const BusinessMemberRole = {
@@ -77,6 +78,19 @@ export function createBusinessRepository(prisma: PrismaClient): BusinessReposito
       });
 
       return branch?.id ?? null;
+    }, 
+    
+    async getForOwner(businessId: string, ownerId: string) {
+      return prisma.business.findFirst({
+        where: { id: businessId, ownerId },
+      });
+    },
+
+    async updateForOwner(businessId: string, input: UpdateBusinessInput) {
+      return prisma.business.update({
+        where: { id: businessId },
+        data: input,
+      });
     },
   };
 }

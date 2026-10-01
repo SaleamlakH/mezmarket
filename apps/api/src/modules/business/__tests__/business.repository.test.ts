@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createBusinessRepository } from '../business.repository.js';
-import type { BusinessRepository } from '../business.types.js';
-import type { PrismaClient } from '../../../../generated/prisma/client.js';
+import type { BusinessRepository, UpdateBusinessInput } from '../business.types.js';
+import { TaxDisplayMode, type PrismaClient } from '../../../../generated/prisma/client.js';
 
 type MockTx = {
   business: {
@@ -21,7 +21,7 @@ function createPrismaStub() {
     branch: { create: vi.fn() },
     businessMember: { create: vi.fn() },
   };
-  const business = { findMany: vi.fn(), findFirst: vi.fn() };
+  const business = { findMany: vi.fn(), findFirst: vi.fn(), update: vi.fn() };
   const branch = { findFirst: vi.fn() };
   const $transaction = vi.fn((cb: (tx: MockTx) => unknown) => cb(tx));
 
@@ -196,6 +196,41 @@ describe('business.repository', () => {
       business.findFirst.mockResolvedValue(null);
 
       const result = await repo.getBusinessId('owner-1', 'b-1');
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('getForOwner', () => {
+    it('calls findFirst with the business id and owner id', async () => {
+      const { prisma, business } = createPrismaStub();
+      const repo = createBusinessRepository(prisma);
+
+      await repo.getForOwner('b-1', 'owner-1');
+
+      expect(business.findFirst).toHaveBeenCalledWith({
+        where: { id: 'b-1', ownerId: 'owner-1' },
+      });
+    });
+
+    it('returns the resolved business', async () => {
+      const { prisma, business } = createPrismaStub();
+      const repo = createBusinessRepository(prisma);
+
+      const record = { id: 'b-1', name: 'Shop' };
+      business.findFirst.mockResolvedValue(record);
+
+      const result = await repo.getForOwner('b-1', 'owner-1');
+
+      expect(result).toEqual(record);
+    });
+
+    it('returns null when no owned business matches the id', async () => {
+      const { prisma, business } = createPrismaStub();
+      const repo = createBusinessRepository(prisma);
+
+      business.findFirst.mockResolvedValue(null);
+
+      const result = await repo.getForOwner('b-1', 'owner-1');
 
       expect(result).toBeNull();
     });
@@ -225,6 +260,50 @@ describe('business.repository', () => {
       const result = await repo.getBranchId('b-1');
 
       expect(result).toBeNull();
+    });
+  });
+
+  describe('updateForOwner', () => {
+    const businessUpdateInput = {
+      name: 'Shop v2',
+      currencyCode: 'USD',
+      defaultTaxRate: 15,
+      taxDisplayMode: TaxDisplayMode.INCLUSIVE,
+      allowNegativeStock: false,
+      lowStockDefaultThreshold: 10,
+    };
+
+    function updateInput(overrides: Partial<UpdateBusinessInput> = {}): UpdateBusinessInput {
+      return {
+        ...businessUpdateInput,
+        ...overrides,
+      };
+    }
+
+    it('updates the business with all editable fields', async () => {
+      const { prisma, business } = createPrismaStub();
+      const repo = createBusinessRepository(prisma);
+
+      business.update.mockResolvedValue({ id: 'b-1' });
+
+      await repo.updateForOwner('b-1', updateInput());
+
+      expect(business.update).toHaveBeenCalledWith({
+        where: { id: 'b-1' },
+        data: businessUpdateInput,
+      });
+    });
+
+    it('returns the updated business', async () => {
+      const { prisma, business } = createPrismaStub();
+      const repo = createBusinessRepository(prisma);
+
+      const updated = { id: 'b-1', name: 'Shop v2' };
+      business.update.mockResolvedValue(updated);
+
+      const result = await repo.updateForOwner('b-1', updateInput());
+
+      expect(result).toEqual(updated);
     });
   });
 });

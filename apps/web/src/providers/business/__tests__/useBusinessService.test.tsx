@@ -27,6 +27,8 @@ function makeService(overrides?: Partial<BusinessService>): BusinessService {
   return {
     listBusinesses: vi.fn(),
     createBusiness: vi.fn(),
+    getBusiness: vi.fn(),
+    updateBusiness: vi.fn(),
     ...overrides,
   };
 }

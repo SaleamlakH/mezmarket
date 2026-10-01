@@ -1,46 +1,126 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { NextFunction, Request, Response } from 'express';
-import { validateBusinessInput, createAuthorizeBusiness } from '../business.middleware.js';
+import {
+  validateBusinessInput,
+  validateBusinessUpdateInput,
+  createAuthorizeBusiness,
+} from '../business.middleware.js';
 import { AppError, ERROR_CODES } from '../../../shared/errors/app-error.js';
 import type { BusinessService } from '../business.types.js';
+import type { UpdateBusinessInput } from '@mez/types';
 
-function call(body: unknown) {
+type Middleware = (req: Request, res: Response, next: NextFunction) => void;
+
+function call(middleware: Middleware, body: unknown) {
   const req = { body } as unknown as Request;
-  const res = { locals: {} } as unknown as Response;
+  const res = {} as unknown as Response;
   const next = vi.fn() as NextFunction;
-  return { run: () => validateBusinessInput(req, res, next), res, next };
+  return { run: () => middleware(req, res, next), req, next };
 }
 
 describe('business.middleware', () => {
-  it('passes through and stores the validated body', () => {
-    const { run, res, next } = call({ name: 'My Shop', currencyCode: 'USD' });
+  describe('validateBusinessInput', () => {
+    it('passes through and stores the validated body', () => {
+      const { run, req, next } = call(validateBusinessInput, {
+        name: 'My Shop',
+        currencyCode: 'USD',
+      });
 
-    run();
+      run();
 
-    expect(next).toHaveBeenCalledTimes(1);
-    expect(res.locals.validated).toEqual({ name: 'My Shop', currencyCode: 'USD' });
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(req.validBody).toEqual({ name: 'My Shop', currencyCode: 'USD' });
+    });
+
+    it('stores an uppercase currencyCode on the validated body', () => {
+      const { run, req, next } = call(validateBusinessInput, {
+        name: 'My Shop',
+        currencyCode: 'usd',
+      });
+
+      run();
+
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(req.validBody).toEqual({ name: 'My Shop', currencyCode: 'USD' });
+    });
+
+    it('rejects an invalid body with field details', () => {
+      const { run, req, next } = call(validateBusinessInput, {
+        name: '',
+        currencyCode: 'USDX',
+      });
+
+      expect(run).toThrow(
+        new AppError(ERROR_CODES.BAD_REQUEST, 'Invalid request', 400, {
+          name: 'Business name is required',
+          currencyCode: 'Enter a valid 3-letter ISO currency code',
+        }),
+      );
+      expect(next).not.toHaveBeenCalled();
+      expect(req.validBody).toBeUndefined();
+    });
   });
 
-  it('stores an uppercase currencyCode on the validated body', () => {
-    const { run, res, next } = call({ name: 'My Shop', currencyCode: 'usd' });
+  describe('validateBusinessUpdateInput', () => {
+    const input: UpdateBusinessInput = {
+      name: 'Shop v2',
+      currencyCode: 'usd',
+      defaultTaxRate: 15,
+      taxDisplayMode: 'INCLUSIVE',
+      allowNegativeStock: false,
+      lowStockDefaultThreshold: 10,
+    };
 
-    run();
+    it('passes through and stores the validated update body', () => {
+      const { run, req, next } = call(validateBusinessUpdateInput, input);
 
-    expect(next).toHaveBeenCalledTimes(1);
-    expect(res.locals.validated).toEqual({ name: 'My Shop', currencyCode: 'USD' });
-  });
+      run();
 
-  it('rejects an invalid body with field details', () => {
-    const { run, res, next } = call({ name: '', currencyCode: 'USDX' });
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(req.validBody).toEqual({ ...input, currencyCode: 'USD' });
+    });
 
-    expect(run).toThrow(
-      new AppError(ERROR_CODES.BAD_REQUEST, 'Invalid request', 400, {
-        name: 'Business name is required',
-        currencyCode: 'Enter a valid 3-letter ISO currency code',
-      }),
-    );
-    expect(next).not.toHaveBeenCalled();
-    expect(res.locals.validated).toBeUndefined();
+    it('passes through when only the required fields are sent', () => {
+      const { run, req, next } = call(validateBusinessUpdateInput, {
+        name: 'Shop',
+        currencyCode: 'USD',
+      });
+
+      run();
+
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(req.validBody).toEqual({ name: 'Shop', currencyCode: 'USD' });
+    });
+
+    it('rejects an invalid body with field details', () => {
+      const { run, req, next } = call(validateBusinessUpdateInput, {
+        name: '',
+        currencyCode: 'USDX',
+      });
+
+      expect(run).toThrow(
+        new AppError(ERROR_CODES.BAD_REQUEST, 'Invalid request', 400, {
+          name: expect.any(String),
+          currencyCode: expect.any(String),
+        }),
+      );
+      expect(next).not.toHaveBeenCalled();
+      expect(req.validBody).toBeUndefined();
+    });
+
+    it('rejects a non-boolean allowNegativeStock', () => {
+      const { run } = call(validateBusinessUpdateInput, {
+        name: 'Shop',
+        currencyCode: 'USD',
+        allowNegativeStock: 'yes',
+      });
+
+      expect(run).toThrow(
+        new AppError(ERROR_CODES.BAD_REQUEST, 'Invalid request', 400, {
+          allowNegativeStock: expect.any(String),
+        }),
+      );
+    });
   });
 });
 
@@ -50,6 +130,8 @@ describe('createAuthorizeBusiness', () => {
       getBusinesses: vi.fn(),
       createBusiness: vi.fn(),
       resolveScope: vi.fn(),
+      getBusiness: vi.fn(),
+      updateBusiness: vi.fn(),
     };
   }
 

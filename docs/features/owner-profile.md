@@ -105,6 +105,7 @@ Updates stay partial: only the provided fields are persisted and unchanged field
 
 - [auth.md](auth.md) — how the acting owner is resolved.
 - [error-handling.md](error-handling.md) — the structured error envelope.
-- [business.md](business.md) — the related on-boarding flow.
+- [business.md](business.md) — the shop's own settings, including the
+  business creation that on-boards an owner.
 - [../architecture.md](../architecture.md) — overall system design.
 - [../schema.md](../schema.md) — the `Owner` entity.

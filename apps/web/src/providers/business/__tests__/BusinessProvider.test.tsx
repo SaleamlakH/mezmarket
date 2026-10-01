@@ -27,6 +27,8 @@ describe('BusinessProvider', () => {
   const mockBusinessService = {
     listBusinesses: vi.fn(),
     createBusiness: vi.fn(),
+    getBusiness: vi.fn(),
+    updateBusiness: vi.fn(),
   };
 
   const wrapper = ({ children }: { children: ReactNode }) => (

@@ -14,6 +14,8 @@ const { verifyJwt, authRepository, businessRepository } = vi.hoisted(() => ({
     createForOwner: vi.fn(),
     getBusinessId: vi.fn(),
     getBranchId: vi.fn(),
+    getForOwner: vi.fn(),
+    updateForOwner: vi.fn(),
   } satisfies BusinessRepository,
 }));
 
@@ -119,5 +121,100 @@ describe('business.integration', () => {
       },
     });
     expect(businessRepository.createForOwner).not.toHaveBeenCalled();
+  });
+
+  describe('/businesses/:businessId', () => {
+    it('rejects GET /api/businesses/:businessId without a token', async () => {
+      const res = await request(app).get('/api/businesses/b-1');
+
+      expect(res.status).toBe(401);
+      expect(res.body).toMatchObject({ error: { code: 'UNAUTHORIZED' } });
+      expect(businessRepository.getForOwner).not.toHaveBeenCalled();
+    });
+
+    it('fetches a single owned business when authenticated', async () => {
+      await authenticate('owner-1');
+      businessRepository.getForOwner.mockResolvedValue({ id: 'b-1', name: 'Shop' } as never);
+
+      const res = await request(app)
+        .get('/api/businesses/b-1')
+        .set('Authorization', 'Bearer token');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        business: { id: 'b-1', name: 'Shop', defaultTaxRate: null, lowStockDefaultThreshold: null },
+      });
+      expect(businessRepository.getForOwner).toHaveBeenCalledWith('b-1', 'owner-1');
+    });
+
+    it('returns 404 when the business does not belong to the owner', async () => {
+      await authenticate('owner-1');
+      businessRepository.getForOwner.mockResolvedValue(null);
+
+      const res = await request(app)
+        .get('/api/businesses/b-1')
+        .set('Authorization', 'Bearer token');
+
+      expect(res.status).toBe(404);
+      expect(res.body).toMatchObject({
+        error: { code: 'NOT_FOUND', message: expect.any(String) },
+      });
+    });
+
+    it('rejects PUT /api/businesses/:businessId without a token', async () => {
+      const res = await request(app)
+        .put('/api/businesses/b-1')
+        .send({ name: 'Shop v2', currencyCode: 'USD' });
+
+      expect(res.status).toBe(401);
+      expect(res.body).toMatchObject({ error: { code: 'UNAUTHORIZED' } });
+      expect(businessRepository.getForOwner).not.toHaveBeenCalled();
+    });
+
+    it('updates an owned business when authenticated', async () => {
+      await authenticate('owner-1');
+      businessRepository.getForOwner.mockResolvedValue({ id: 'b-1' } as never);
+      businessRepository.updateForOwner.mockResolvedValue({ id: 'b-1', name: 'Shop v2' } as never);
+
+      const input = {
+        name: 'Shop v2',
+        currencyCode: 'USD',
+        defaultTaxRate: 15,
+        taxDisplayMode: 'INCLUSIVE',
+        allowNegativeStock: false,
+        lowStockDefaultThreshold: 10,
+      };
+
+      const res = await request(app)
+        .put('/api/businesses/b-1')
+        .set('Authorization', 'Bearer token')
+        .send(input);
+
+      expect(res.status).toBe(200);
+      expect(res.body.business).toMatchObject({
+        id: 'b-1',
+        name: 'Shop v2',
+        defaultTaxRate: null,
+        lowStockDefaultThreshold: null,
+      });
+      expect(businessRepository.getForOwner).toHaveBeenCalledWith('b-1', 'owner-1');
+      expect(businessRepository.updateForOwner).toHaveBeenCalledWith('b-1', input);
+    });
+
+    it('returns 404 when PUT for a business not owned', async () => {
+      await authenticate('owner-1');
+      businessRepository.getForOwner.mockResolvedValue(null);
+
+      const res = await request(app)
+        .put('/api/businesses/b-1')
+        .set('Authorization', 'Bearer token')
+        .send({ name: 'Shop v2', currencyCode: 'USD' });
+
+      expect(res.status).toBe(404);
+      expect(res.body).toMatchObject({
+        error: { code: 'NOT_FOUND', message: expect.any(String) },
+      });
+      expect(businessRepository.updateForOwner).not.toHaveBeenCalled();
+    });
   });
 });

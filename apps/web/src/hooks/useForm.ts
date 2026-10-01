@@ -34,7 +34,7 @@ export function useForm<TValues, TData = TValues>({
   }, []);
 
   const handleChange = useCallback(
-    (field: keyof TData, value: string) => {
+    (field: keyof TData, value: string | boolean) => {
       if (status === 'submitting') return;
 
       const nextValues = { ...values, [field]: value };
