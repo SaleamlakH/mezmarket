@@ -17,12 +17,12 @@ new AppError(code, message, statusCode, details?)
 
 The `ERROR_CODES` constant and `ErrorCode` union expose four codes:
 
-| Code             | HTTP Status | Typical use                                      |
-| ---------------- | ----------- | ------------------------------------------------ |
-| `UNAUTHORIZED`   | 401         | Missing / invalid token, missing `ownerId`       |
-| `BAD_REQUEST`    | 400         | Validation failures (with field-level `details`) |
-| `NOT_FOUND`      | 404         | Reserved for future use                          |
-| `INTERNAL_ERROR` | 500         | Unexpected failures                              |
+| Code             | HTTP Status | Typical use                                        |
+| ---------------- | ----------- | -------------------------------------------------- |
+| `UNAUTHORIZED`   | 401         | Missing / invalid token, missing `ownerId`         |
+| `BAD_REQUEST`    | 400         | Validation failures (with field-level `details`)   |
+| `NOT_FOUND`      | 404         | A requested resource is absent or not the caller's |
+| `INTERNAL_ERROR` | 500         | Unexpected failures                                |
 
 An `isAppError(value)` type guard is exported for use in the global handler
 and anywhere an unknown error needs narrowing.
