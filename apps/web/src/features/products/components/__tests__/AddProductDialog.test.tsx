@@ -127,6 +127,13 @@ describe('AddProductDialog', () => {
     vi.clearAllMocks();
     vi.mocked(unitsService.listUnits).mockResolvedValue(units as never);
     vi.mocked(productsService.createProduct).mockResolvedValue(created as never);
+    // Authorization is requested as soon as a photo is chosen, so the mock has
+    // to answer before the file input's change handler settles.
+    vi.mocked(productsService.createProductUpload).mockResolvedValue({
+      upload: { id: 'up-1' },
+      uploadUrl: 'https://bucket.example/up-1',
+    } as never);
+    vi.mocked(productsService.putFile).mockResolvedValue(undefined as never);
   });
 
   /**
