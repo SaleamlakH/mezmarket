@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm, type Resolver, type UseFormReturn } from 'react-hook-form';
 import type { BaseSyntheticEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -51,6 +51,17 @@ function validateProductImage(file: File | null): { file: File | null; error: st
   return { file, error: null };
 }
 
+/**
+ * The upload authorization for the currently held image, once the backend has
+ * answered. Resolved as `null` when the request failed, since a rejected image
+ * is dropped from the form rather than blocking the submission.
+ */
+interface PreparedUpload {
+  uploadId: string;
+  uploadUrl: string;
+  file: File;
+}
+
 export interface UseCreateProductFormOptions {
   businessId: string;
   onCreated: (product: CreateProductResponse) => void;
@@ -84,6 +95,14 @@ export function useCreateProductForm({
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
+
+  /**
+   * The in-flight upload authorization for the current selection, kept so the
+   * submission can wait on it instead of racing it, and the counter that
+   * decides which selection is still the current one.
+   */
+  const [pendingUpload, setPendingUpload] = useState<Promise<PreparedUpload | null> | null>(null);
+  const selectionRef = useRef(0);
 
   // Every preview url is minted in `pickImage` and revoked as soon as it is
   // superseded, so this only has to reclaim the one still held on unmount.
@@ -124,21 +143,18 @@ export function useCreateProductForm({
 
   const handleSubmit = form.handleSubmit(async (data) => {
     try {
-      let uploadId: string | undefined;
-      if (file) {
-        const { upload, uploadUrl } = await service.createProductUpload(businessId, {
-          record: 'PRODUCT',
-          mimeType: file.type as UploadMimeType,
-          sizeBytes: file.size,
-        });
+      // Authorization is requested when the file is picked, so by submission
+      // time it is either settled or still in flight. Waiting on it keeps the
+      // bytes and the reference from splitting across two uploads.
+      const prepared = pendingUpload ? await pendingUpload : null;
 
-        uploadId = upload.id;
-        void service.putFile(uploadUrl, file).catch(() => {});
+      if (prepared) {
+        void service.putFile(prepared.uploadUrl, prepared.file).catch(() => {});
       }
 
       const created = await service.createProduct(businessId, {
         ...data,
-        ...(uploadId ? { uploadId } : undefined),
+        ...(prepared ? { uploadId: prepared.uploadId } : undefined),
       });
 
       queryClient.setQueryData<ProductWithUnitsResponse[]>(['products', businessId], (old) => [
@@ -160,12 +176,38 @@ export function useCreateProductForm({
     setFile(validated);
     setImageError(error);
 
-    if (validated) {
-      const url = URL.createObjectURL(validated);
-      setPreviewUrl(url);
-    } else {
+    if (!validated) {
       setPreviewUrl(null);
+      setPendingUpload(null);
+      selectionRef.current += 1;
+      return;
     }
+
+    setPreviewUrl(URL.createObjectURL(validated));
+
+    // Authorization is requested the moment an acceptable file is chosen, per
+    // docs/file-transfer-architecture.md. The counter retires the response of
+    // any selection that has since been replaced or cleared.
+    const selection = (selectionRef.current += 1);
+    const request: Promise<PreparedUpload | null> = service
+      .createProductUpload(businessId, {
+        record: 'PRODUCT',
+        mimeType: validated.type as UploadMimeType,
+        sizeBytes: validated.size,
+      })
+      .then(({ upload, uploadUrl }) => ({ uploadId: upload.id, uploadUrl, file: validated }))
+      .catch((error: unknown) => {
+        // A superseded selection no longer owns the form, so its failure is
+        // dropped along with its response.
+        if (selection !== selectionRef.current) return null;
+
+        setFile(null);
+        setPreviewUrl(null);
+        setImageError(error instanceof Error ? error.message : 'The image could not be prepared');
+        return null;
+      });
+
+    setPendingUpload(request);
   };
 
   return {

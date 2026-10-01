@@ -382,22 +382,48 @@ describe('useCreateProductForm', () => {
     expect(Object.hasOwn(createProductPayload(), 'uploadId')).toBe(false);
   });
 
-  it('uploads a picked image and attaches its uploadId', async () => {
+  it('requests upload authorization as soon as an acceptable image is picked', async () => {
     const { result } = renderForm(onCreated);
 
     const photo = new File(['x'], 'photo.jpg', { type: 'image/jpeg' });
-    act(() => result.current.pickImage(photo));
+    await act(async () => {
+      result.current.pickImage(photo);
+    });
+
     expect(result.current.file).toBe(photo);
     expect(result.current.imageError).toBeNull();
-
-    fillBaseUnit(result.current);
-    await submit(result.current);
-
     expect(productsService.createProductUpload).toHaveBeenCalledWith('b-1', {
       record: 'PRODUCT',
       mimeType: 'image/jpeg',
       sizeBytes: photo.size,
     });
+    // The bytes are only sent at submission, once a product references them.
+    expect(productsService.putFile).not.toHaveBeenCalled();
+    expect(productsService.createProduct).not.toHaveBeenCalled();
+  });
+
+  it('never requests authorization for a file that fails validation', async () => {
+    const { result } = renderForm(onCreated);
+
+    await act(async () => {
+      result.current.pickImage(new File(['x'], 'doc.txt', { type: 'text/plain' }));
+    });
+
+    expect(productsService.createProductUpload).not.toHaveBeenCalled();
+  });
+
+  it('uploads the picked image and attaches its uploadId at submission', async () => {
+    const { result } = renderForm(onCreated);
+
+    const photo = new File(['x'], 'photo.jpg', { type: 'image/jpeg' });
+    await act(async () => {
+      result.current.pickImage(photo);
+    });
+
+    fillBaseUnit(result.current);
+    await submit(result.current);
+
+    expect(productsService.createProductUpload).toHaveBeenCalledTimes(1);
     expect(productsService.putFile).toHaveBeenCalledWith('https://bucket.example/up-1', photo);
     expect(productsService.createProduct).toHaveBeenCalledWith(
       'b-1',
@@ -406,13 +432,159 @@ describe('useCreateProductForm', () => {
     expect(createProductPayload().uploadId).toBe('up-1');
   });
 
+  it('waits for an authorization request that is still in flight at submission', async () => {
+    let release!: (value: { upload: { id: string }; uploadUrl: string }) => void;
+    vi.mocked(productsService.createProductUpload).mockReturnValue(
+      new Promise((resolve) => {
+        release = resolve;
+      }) as never,
+    );
+
+    const { result } = renderForm(onCreated);
+
+    const photo = new File(['x'], 'photo.jpg', { type: 'image/jpeg' });
+    await act(async () => {
+      result.current.pickImage(photo);
+    });
+
+    fillBaseUnit(result.current);
+
+    let submitting!: Promise<unknown>;
+    act(() => {
+      submitting = result.current.handleSubmit();
+    });
+
+    // The product cannot be created yet, because the upload id it needs is
+    // still on its way.
+    expect(productsService.createProduct).not.toHaveBeenCalled();
+
+    await act(async () => {
+      release({ upload: { id: 'up-1' }, uploadUrl: 'https://bucket.example/up-1' });
+      await submitting;
+    });
+
+    expect(productsService.createProduct).toHaveBeenCalledWith(
+      'b-1',
+      expect.objectContaining({ uploadId: 'up-1' }),
+    );
+    expect(productsService.putFile).toHaveBeenCalledWith('https://bucket.example/up-1', photo);
+  });
+
+  it('drops the image and reports a message when authorization fails', async () => {
+    vi.mocked(productsService.createProductUpload).mockRejectedValue(
+      new Error('The image could not be prepared'),
+    );
+
+    const { result } = renderForm(onCreated);
+
+    await act(async () => {
+      result.current.pickImage(new File(['x'], 'photo.jpg', { type: 'image/jpeg' }));
+    });
+
+    expect(result.current.file).toBeNull();
+    expect(result.current.previewUrl).toBeNull();
+    expect(result.current.imageError).toBe('The image could not be prepared');
+    expect(productsService.putFile).not.toHaveBeenCalled();
+  });
+
+  it('creates the product without an image when authorization fails', async () => {
+    vi.mocked(productsService.createProductUpload).mockRejectedValue(new Error('nope'));
+
+    const { result } = renderForm(onCreated);
+
+    await act(async () => {
+      result.current.pickImage(new File(['x'], 'photo.jpg', { type: 'image/jpeg' }));
+    });
+
+    fillBaseUnit(result.current);
+    await submit(result.current);
+
+    expect(productsService.createProduct).toHaveBeenCalledTimes(1);
+    expect(Object.hasOwn(createProductPayload(), 'uploadId')).toBe(false);
+    expect(onCreated).toHaveBeenCalledWith(created);
+  });
+
+  it('ignores the response of a selection that has been superseded', async () => {
+    const first = new File(['x'], 'first.jpg', { type: 'image/jpeg' });
+    const second = new File(['x'], 'second.jpg', { type: 'image/jpeg' });
+
+    let releaseFirst!: (value: { upload: { id: string }; uploadUrl: string }) => void;
+    vi.mocked(productsService.createProductUpload)
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          releaseFirst = resolve;
+        }) as never,
+      )
+      .mockResolvedValue({
+        upload: { id: 'up-2' },
+        uploadUrl: 'https://bucket.example/up-2',
+      } as never);
+
+    const { result } = renderForm(onCreated);
+
+    await act(async () => {
+      result.current.pickImage(first);
+    });
+    await act(async () => {
+      result.current.pickImage(second);
+    });
+
+    await act(async () => {
+      releaseFirst({ upload: { id: 'up-1' }, uploadUrl: 'https://bucket.example/up-1' });
+    });
+
+    fillBaseUnit(result.current);
+    await submit(result.current);
+
+    expect(productsService.putFile).toHaveBeenCalledWith('https://bucket.example/up-2', second);
+    expect(createProductPayload().uploadId).toBe('up-2');
+  });
+
+  it('ignores a superseded selection that fails after being replaced', async () => {
+    let rejectFirst!: (reason: Error) => void;
+    vi.mocked(productsService.createProductUpload)
+      .mockReturnValueOnce(
+        new Promise((_, reject) => {
+          rejectFirst = reject;
+        }) as never,
+      )
+      .mockResolvedValue({
+        upload: { id: 'up-2' },
+        uploadUrl: 'https://bucket.example/up-2',
+      } as never);
+
+    const { result } = renderForm(onCreated);
+
+    await act(async () => {
+      result.current.pickImage(new File(['x'], 'first.jpg', { type: 'image/jpeg' }));
+    });
+    const second = new File(['x'], 'second.jpg', { type: 'image/jpeg' });
+    await act(async () => {
+      result.current.pickImage(second);
+    });
+
+    await act(async () => {
+      rejectFirst(new Error('too late'));
+    });
+
+    expect(result.current.file).toBe(second);
+    expect(result.current.imageError).toBeNull();
+
+    fillBaseUnit(result.current);
+    await submit(result.current);
+
+    expect(createProductPayload().uploadId).toBe('up-2');
+  });
+
   it('does not block product creation when the direct file transfer fails', async () => {
     vi.mocked(productsService.putFile).mockRejectedValue(new Error('upload exploded'));
 
     const { result } = renderForm(onCreated);
 
     const photo = new File(['x'], 'photo.jpg', { type: 'image/jpeg' });
-    act(() => result.current.pickImage(photo));
+    await act(async () => {
+      result.current.pickImage(photo);
+    });
 
     fillBaseUnit(result.current);
     await submit(result.current);
