@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createProductsRepository } from '../products.repository.js';
 import type { ProductRepository, CreateProductInput } from '../products.types.js';
 import { AttachmentRecordType } from '../../../../generated/prisma/client.js';
-import type { PrismaClient } from '../../../../generated/prisma/client.js';
+import { Prisma, type PrismaClient } from '../../../../generated/prisma/client.js';
 import { AppError, ERROR_CODES } from '../../../shared/errors/app-error.js';
 
 type MockTx = {
@@ -51,9 +51,13 @@ function registerSuccess(tx: MockTx) {
     return Promise.resolve(null);
   });
   tx.product.create.mockResolvedValue({ id: 'p-1' });
-  tx.productUnit.create.mockImplementation(({ data }: { data: { unitRole?: string } }) =>
-    Promise.resolve({ id: data.unitRole === 'MOU' ? 'pu-2' : 'pu-1' }),
-  );
+  // Distinct ids per row, so a test can tell which unit came back.
+  let created = 0;
+  tx.productUnit.create.mockImplementation(({ data }: { data: { unitRole?: string } }) => {
+    created += 1;
+    const id = data.unitRole === 'BASE' ? 'pu-1' : `pu-${created}`;
+    return Promise.resolve({ id });
+  });
 }
 
 function input(overrides: Partial<CreateProductInput> = {}): CreateProductInput {
@@ -75,6 +79,7 @@ function input(overrides: Partial<CreateProductInput> = {}): CreateProductInput 
     }),
     ...(overrides.baseUnit !== undefined && { baseUnit: overrides.baseUnit }),
     ...(overrides.mou !== undefined && { mou: overrides.mou }),
+    ...(overrides.customUnits !== undefined && { customUnits: overrides.customUnits }),
     ...(overrides.uploadId !== undefined && { uploadId: overrides.uploadId }),
   };
 }
@@ -355,6 +360,317 @@ describe('products.repository', () => {
         ),
       );
       expect(tx.productUnit.create).not.toHaveBeenCalled();
+    });
+
+    it('creates a custom unit as the owner named it, with no standard unit behind it', async () => {
+      const { prisma, tx } = createPrismaStub();
+      const repo = createProductsRepository(prisma);
+      registerSuccess(tx);
+
+      await repo.createForBusiness(
+        'b-1',
+        'br-1',
+        input({
+          customUnits: [
+            {
+              name: 'Shot',
+              dependsOn: 'BASE',
+              conversionRate: 0.125,
+              purchaseCapable: true,
+              sellCapable: true,
+              price: 45,
+            },
+          ],
+        }),
+      );
+
+      expect(tx.productUnit.create).toHaveBeenCalledWith({
+        data: {
+          productId: 'p-1',
+          unitRole: 'CUSTOM',
+          standardUnitId: null,
+          name: 'Shot',
+          dependsOn: 'BASE',
+          conversionRate: 0.125,
+          price: 45,
+          purchaseCapable: true,
+          sellCapable: true,
+        },
+      });
+    });
+
+    it('leaves the price off a custom unit that is only bought', async () => {
+      const { prisma, tx } = createPrismaStub();
+      const repo = createProductsRepository(prisma);
+      registerSuccess(tx);
+
+      await repo.createForBusiness(
+        'b-1',
+        'br-1',
+        input({
+          customUnits: [
+            {
+              name: 'Box',
+              dependsOn: 'BASE',
+              conversionRate: 12,
+              purchaseCapable: true,
+              sellCapable: false,
+            },
+          ],
+        }),
+      );
+
+      const customCall = tx.productUnit.create.mock.calls.at(-1)?.[0];
+      expect(customCall?.data).toMatchObject({
+        unitRole: 'CUSTOM',
+        name: 'Box',
+        purchaseCapable: true,
+        sellCapable: false,
+      });
+      expect(customCall?.data).not.toHaveProperty('price');
+    });
+
+    it('bases a custom unit on the content unit', async () => {
+      const { prisma, tx } = createPrismaStub();
+      const repo = createProductsRepository(prisma);
+      registerSuccess(tx);
+
+      await repo.createForBusiness(
+        'b-1',
+        'br-1',
+        input({
+          mou: { unitId: 'pc-1', conversionRate: 10 },
+          customUnits: [
+            {
+              name: 'Label',
+              dependsOn: 'MOU',
+              conversionRate: 3,
+              purchaseCapable: true,
+              sellCapable: true,
+              price: 5,
+            },
+          ],
+        }),
+      );
+
+      expect(tx.productUnit.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ unitRole: 'CUSTOM', dependsOn: 'MOU', name: 'Label' }),
+      });
+    });
+
+    it("returns the custom units alongside the product's own", async () => {
+      const { prisma, tx } = createPrismaStub();
+      const repo = createProductsRepository(prisma);
+      registerSuccess(tx);
+
+      const result = await repo.createForBusiness(
+        'b-1',
+        'br-1',
+        input({
+          mou: { unitId: 'pc-1', conversionRate: 10 },
+          customUnits: [
+            {
+              name: 'Shot',
+              dependsOn: 'BASE',
+              conversionRate: 0.125,
+              purchaseCapable: true,
+              sellCapable: true,
+              price: 45,
+            },
+            {
+              name: 'Box',
+              dependsOn: 'BASE',
+              conversionRate: 12,
+              purchaseCapable: true,
+              sellCapable: false,
+            },
+          ],
+        }),
+      );
+
+      expect(result.units).toHaveLength(4);
+    });
+
+    it('creates no unit rows beyond the base one when no custom units are given', async () => {
+      const { prisma, tx } = createPrismaStub();
+      const repo = createProductsRepository(prisma);
+      registerSuccess(tx);
+
+      await repo.createForBusiness('b-1', 'br-1', input());
+
+      expect(tx.productUnit.create).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      ['base', 'kg'],
+      ['content', 'pc'],
+    ])('refuses a custom unit named after the %s unit', async (_label, symbol) => {
+      const { prisma, tx } = createPrismaStub();
+      const repo = createProductsRepository(prisma);
+      registerSuccess(tx);
+
+      await expect(
+        repo.createForBusiness(
+          'b-1',
+          'br-1',
+          input({
+            mou: { unitId: 'pc-1', conversionRate: 10 },
+            customUnits: [
+              {
+                name: symbol.toUpperCase(),
+                dependsOn: 'BASE',
+                conversionRate: 1,
+                purchaseCapable: true,
+                sellCapable: true,
+                price: 5,
+              },
+            ],
+          }),
+        ),
+      ).rejects.toEqual(
+        new AppError(
+          ERROR_CODES.BAD_REQUEST,
+          `This product already has a unit named "${symbol.toUpperCase()}"`,
+          400,
+          {
+            'customUnits.0.name': `This product already has a unit named "${symbol.toUpperCase()}"`,
+          },
+        ),
+      );
+      expect(tx.productUnit.create).not.toHaveBeenCalled();
+    });
+
+    it('refuses two custom units sharing a name, however they are cased', async () => {
+      const { prisma, tx } = createPrismaStub();
+      const repo = createProductsRepository(prisma);
+      registerSuccess(tx);
+
+      await expect(
+        repo.createForBusiness(
+          'b-1',
+          'br-1',
+          input({
+            customUnits: [
+              {
+                name: 'Shot',
+                dependsOn: 'BASE',
+                conversionRate: 1,
+                purchaseCapable: true,
+                sellCapable: true,
+                price: 5,
+              },
+              {
+                name: 'shot',
+                dependsOn: 'BASE',
+                conversionRate: 1,
+                purchaseCapable: true,
+                sellCapable: true,
+                price: 5,
+              },
+            ],
+          }),
+        ),
+      ).rejects.toEqual(
+        new AppError(ERROR_CODES.BAD_REQUEST, 'This product already has a unit named "shot"', 400, {
+          'customUnits.1.name': 'This product already has a unit named "shot"',
+        }),
+      );
+      expect(tx.productUnit.create).not.toHaveBeenCalled();
+    });
+
+    it('reports the unit whose name is taken, not the first one', async () => {
+      const { prisma, tx } = createPrismaStub();
+      const repo = createProductsRepository(prisma);
+      registerSuccess(tx);
+
+      await expect(
+        repo.createForBusiness(
+          'b-1',
+          'br-1',
+          input({
+            customUnits: [
+              {
+                name: 'Shot',
+                dependsOn: 'BASE',
+                conversionRate: 1,
+                purchaseCapable: true,
+                sellCapable: true,
+                price: 5,
+              },
+              {
+                name: 'Slice',
+                dependsOn: 'BASE',
+                conversionRate: 1,
+                purchaseCapable: true,
+                sellCapable: true,
+                price: 5,
+              },
+              {
+                name: ' slice ',
+                dependsOn: 'BASE',
+                conversionRate: 1,
+                purchaseCapable: true,
+                sellCapable: true,
+                price: 5,
+              },
+            ],
+          }),
+        ),
+      ).rejects.toEqual(
+        expect.objectContaining({ details: { 'customUnits.2.name': expect.any(String) } }),
+      );
+    });
+
+    /**
+     * The one clash the pre-check cannot see: two requests arriving together, or a
+     * row added in between. It is reported without a field, because by then there is
+     * no telling which unit it was, and blaming the first one would send an owner
+     * looking at a row that is fine.
+     */
+    it('reports a name clash raised by the database without blaming a unit', async () => {
+      const { prisma, tx } = createPrismaStub();
+      const repo = createProductsRepository(prisma);
+      registerSuccess(tx);
+      const duplicate = new Prisma.PrismaClientKnownRequestError('duplicate key', {
+        code: 'P2002',
+        clientVersion: 'test',
+      });
+      tx.productUnit.create.mockRejectedValue(duplicate);
+
+      await expect(
+        repo.createForBusiness(
+          'b-1',
+          'br-1',
+          input({
+            customUnits: [
+              {
+                name: 'Shot',
+                dependsOn: 'BASE',
+                conversionRate: 1,
+                purchaseCapable: true,
+                sellCapable: true,
+                price: 5,
+              },
+            ],
+          }),
+        ),
+      ).rejects.toEqual(
+        new AppError(
+          ERROR_CODES.BAD_REQUEST,
+          'This product already has a unit with that name',
+          400,
+        ),
+      );
+    });
+
+    it('leaves an unrelated failure alone', async () => {
+      const { prisma, tx } = createPrismaStub();
+      const repo = createProductsRepository(prisma);
+      registerSuccess(tx);
+      const boom = new Error('connection reset');
+      tx.productUnit.create.mockRejectedValue(boom);
+
+      await expect(repo.createForBusiness('b-1', 'br-1', input())).rejects.toBe(boom);
     });
 
     it('does not create an attachment when no uploadId is provided', async () => {
