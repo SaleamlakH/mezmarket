@@ -11,6 +11,8 @@ export { SearchInput } from './SearchInput';
 export type { SearchInputProps } from './SearchInput';
 export { Stepper } from './Stepper';
 export type { StepperProps } from './Stepper';
+export { Disclosure } from './Disclosure';
+export type { DisclosureProps } from './Disclosure';
 export { StatusToggle } from './StatusToggle';
 export type { StatusToggleProps, StatusOption } from './StatusToggle';
 export { Switch } from './Switch';
