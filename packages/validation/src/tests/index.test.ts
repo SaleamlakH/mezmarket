@@ -1,10 +1,5 @@
 import { describe, it, expect, expectTypeOf } from 'vitest';
-import type {
-  CreateBaseUnitInput,
-  CreateBusinessInput,
-  CreateMouInput,
-  CreateUploadInput,
-} from '@mez/types';
+import type { CreateBusinessInput, CreateUploadInput } from '@mez/types';
 import {
   type FieldErrors,
   validateLoginValues,
@@ -17,6 +12,7 @@ import {
   type UpdateOwnerFormValues,
   validateCreateProduct,
   type CreateProductFormValues,
+  type CreateCustomUnitFormValues,
   createProductSchema,
   createProductFormSchema,
   validateCreateUpload,
@@ -70,12 +66,14 @@ describe('index', () => {
     expect(createProductSchema).toBeDefined();
   });
 
-  it('derives CreateProductFormValues unit inputs from @mez/types', () => {
-    expectTypeOf<CreateProductFormValues['baseUnit']['unitId']>().toEqualTypeOf<
-      CreateBaseUnitInput['unitId']
-    >();
-    expectTypeOf<NonNullable<CreateProductFormValues['mou']>['unitId']>().toEqualTypeOf<
-      CreateMouInput['unitId']
+  it('holds the form rate and price as text, and the input as numbers', () => {
+    expectTypeOf<CreateCustomUnitFormValues['conversionRate']>().toEqualTypeOf<string>();
+    expectTypeOf<CreateCustomUnitFormValues['price']>().toEqualTypeOf<string>();
+  });
+
+  it('carries the custom units as a field on the create-product shape', () => {
+    expectTypeOf<CreateProductFormValues['customUnits']>().toEqualTypeOf<
+      CreateCustomUnitFormValues[]
     >();
   });
 
