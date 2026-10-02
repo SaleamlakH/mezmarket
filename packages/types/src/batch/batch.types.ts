@@ -70,7 +70,7 @@ export type StockBatchResponse = RequireAllKeys<
  * only `productId`, so the product name is denormalized into the payload
  * for display.
  */
-export type StockBatchLineDetail = StockBatchLineResponse & {
+export type StockBatchLineDetailResponse = StockBatchLineResponse & {
   productName: string;
   productBrand: string | null;
 };
@@ -80,9 +80,42 @@ export type StockBatchLineDetail = StockBatchLineResponse & {
  * endpoints so a freshly written batch reads back the same way.
  */
 export type StockBatchDetailResponse = StockBatchResponse & {
-  lines: StockBatchLineDetail[];
+  lines: StockBatchLineDetailResponse[];
   receivedBy: BusinessMemberSummaryResponse | null;
 };
+
+/**
+ * Response aliases for create and update operations.
+ */
+export type CreateBatchResponse = StockBatchDetailResponse;
+export type UpdateBatchResponse = StockBatchDetailResponse;
+
+/**
+ * A batch line joined with product labels, using domain Date types.
+ */
+export type StockBatchLineDetailResult = StockBatchLine & {
+  productName: string;
+  productBrand: string | null;
+};
+
+/**
+ * Domain result shape returned by fetch, create, and update operations.
+ * Dates are retained as `Date` instances (not serialized to strings).
+ */
+export type StockBatchDetailResult = StockBatch & {
+  lines: StockBatchLineDetailResult[];
+  receivedBy: BusinessMemberSummaryResponse | null;
+};
+
+/**
+ * API result type for creating a stock batch (domain shape).
+ */
+export type CreateBatchResult = StockBatchDetailResult;
+
+/**
+ * API result type for updating a stock batch (domain shape).
+ */
+export type UpdateBatchResult = StockBatchDetailResult;
 
 /**
  * A batch line as submitted. `productUnitId` identifies the purchasable
