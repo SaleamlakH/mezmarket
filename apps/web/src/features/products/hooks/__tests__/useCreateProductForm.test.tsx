@@ -164,7 +164,9 @@ describe('useCreateProductForm', () => {
     expect(result.current.getValues()).toEqual({
       name: '',
       baseUnit: { unitId: '', dimensionId: '', price: '' },
+      customUnits: [],
     });
+    expect(result.current.customUnits.fields).toEqual([]);
     expect(result.current.formState.errors).toEqual({});
     expect(result.current.file).toBeNull();
     expect(result.current.imageError).toBeNull();

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useForm, type Resolver, type UseFormReturn } from 'react-hook-form';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useFieldArray, useForm, type Resolver, type UseFormReturn } from 'react-hook-form';
 import type { BaseSyntheticEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -12,25 +12,54 @@ import type {
 import {
   createProductFormSchema,
   validateCreateUpload,
+  type CreateCustomUnitFormValues,
   type CreateProductFormValues,
   type UploadMimeType,
 } from '@mez/validation';
+import { ApiError } from '@/lib/apiClient';
 import {
   productsService as defaultProductsService,
   type ProductsService,
 } from '../api/productsService';
 import { unitsService as defaultUnitsService, type UnitsService } from '../api/unitsService';
 
+/**
+ * What an owner is given before they have typed anything: a unit is sellable and
+ * buyable unless they say otherwise, and it starts based on the base unit because
+ * that is the one every product is guaranteed to have.
+ */
+/**
+ * A fresh unit, offered with both uses already on: a new unit is almost always
+ * meant to be traded in, and having to ask twice to get a unit you can sell is
+ * friction for no gain.
+ *
+ * A new object each time rather than one shared literal, because the field array
+ * gives every unit it is handed an identity, and two rows built from the same
+ * object would be two rows the array cannot tell apart.
+ */
+function blankUnit(): CreateCustomUnitFormValues {
+  return {
+    name: '',
+    dependsOn: 'BASE',
+    conversionRate: '',
+    price: '',
+    purchaseCapable: true,
+    sellCapable: true,
+  };
+}
+
 function buildUnitIndex(dimensions: DimensionResponse[]) {
   const dimensionByUnitId = new Map<string, string>();
   const unitNames = new Map<string, string>();
+  const unitSymbols = new Map<string, string>();
   for (const dimension of dimensions) {
     for (const unit of dimension.units) {
       dimensionByUnitId.set(unit.id, dimension.id);
       unitNames.set(unit.id, unit.name);
+      unitSymbols.set(unit.id, unit.symbol);
     }
   }
-  return { dimensionByUnitId, unitNames };
+  return { dimensionByUnitId, unitNames, unitSymbols };
 }
 
 function validateProductImage(file: File | null): { file: File | null; error: string | null } {
@@ -82,7 +111,14 @@ export interface UseCreateProductFormReturn extends Omit<
   unitsLoading: boolean;
   dimensionByUnitId: Map<string, string>;
   unitName: (id?: string) => string;
+  unitSymbol: (id?: string) => string;
   formError?: string | undefined;
+  /** The owner's own units for this product: one card each, added and removed here. */
+  customUnits: {
+    fields: ReadonlyArray<{ id: string }>;
+    addUnit: () => void;
+    removeUnit: (index: number) => void;
+  };
 }
 
 export function useCreateProductForm({
@@ -125,8 +161,29 @@ export function useCreateProductForm({
     defaultValues: {
       name: '',
       baseUnit: { unitId: '', dimensionId: '', price: '' },
+      customUnits: [],
     },
   });
+
+  const {
+    fields: unitFields,
+    append,
+    remove,
+  } = useFieldArray({
+    control: form.control,
+    name: 'customUnits',
+  });
+
+  const addUnit = useCallback(() => {
+    append(blankUnit());
+  }, [append]);
+
+  const removeUnit = useCallback(
+    (index: number) => {
+      remove(index);
+    },
+    [remove],
+  );
 
   const unitsQuery = useQuery({
     queryKey: ['units'],
@@ -137,9 +194,17 @@ export function useCreateProductForm({
   const dimensions = useMemo(() => unitsQuery.data?.dimensions ?? [], [unitsQuery.data]);
   const unitsLoading = unitsQuery.isLoading;
 
-  const { dimensionByUnitId, unitNames } = useMemo(() => buildUnitIndex(dimensions), [dimensions]);
+  const { dimensionByUnitId, unitNames, unitSymbols } = useMemo(
+    () => buildUnitIndex(dimensions),
+    [dimensions],
+  );
 
   const unitName = (id?: string) => (id ? (unitNames.get(id) ?? '') : '');
+
+  // A product's unit rows are named after the standard unit's symbol rather than its
+  // name, so the step that offers those rows to be based on one has to speak in
+  // symbols to match what will be stored.
+  const unitSymbol = (id?: string) => (id ? (unitSymbols.get(id) ?? '') : '');
 
   const handleSubmit = form.handleSubmit(async (data) => {
     try {
@@ -164,6 +229,22 @@ export function useCreateProductForm({
       void queryClient.invalidateQueries({ queryKey: ['products', businessId] });
       onCreated(created);
     } catch (error) {
+      // A rejection the server can name a field for — a unit name already taken on
+      // this product — belongs on that field rather than only at the top of the form.
+      // Its keys are the same dotted paths the form itself uses, so they can be put
+      // straight back on the fields they describe.
+      if (error instanceof ApiError && error.details) {
+        for (const [field, message] of Object.entries(error.details)) {
+          form.setError(
+            field as keyof CreateProductFormValues & `customUnits.${number}.${string}`,
+            {
+              type: 'server',
+              message,
+            },
+          );
+        }
+      }
+
       form.setError('root', {
         type: 'server',
         message: error instanceof Error ? error.message : 'Something went wrong',
@@ -221,6 +302,12 @@ export function useCreateProductForm({
     unitsLoading,
     dimensionByUnitId,
     unitName,
+    unitSymbol,
     formError: form.formState.errors.root?.message,
+    customUnits: {
+      fields: unitFields,
+      addUnit,
+      removeUnit,
+    },
   };
 }

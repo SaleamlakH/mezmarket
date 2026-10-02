@@ -1,12 +1,14 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Controller } from 'react-hook-form';
-import { ChevronDown, Image } from 'lucide-react';
+import { ChevronLeft, Image } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { Dialog } from '@/components/Dialog';
+import { Disclosure } from '@/components/Disclosure';
 import { Field } from '@/components/Field';
 import { Input } from '@/components/Input';
 import { Select } from '@/components/Select';
 import { Switch } from '@/components/Switch';
+import { CustomUnitsStep } from '@/features/products/components/CustomUnitsStep';
 import { useCreateProductForm } from '@/features/products/hooks/useCreateProductForm';
 import { UPLOAD_MIME_TYPES } from '@mez/validation';
 import type { CreateProductResponse } from '@mez/types';
@@ -24,8 +26,19 @@ interface ProductFormProps {
   onClose: () => void;
 }
 
+/**
+ * The product itself comes first and the owner's own units second, because a unit is
+ * only meaningful once it is known what the product is measured in — a `shot` is
+ * 25 of whatever the content unit turned out to be.
+ */
+const STEPS = [
+  { caption: 'Product', button: 'Next' },
+  { caption: 'Custom units', button: 'Create product' },
+] as const;
+
 function ProductForm({ businessId, onCreated, onClose }: ProductFormProps) {
   const [mouOpen, setMouOpen] = useState(false);
+  const [step, setStep] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {
@@ -43,11 +56,18 @@ function ProductForm({ businessId, onCreated, onClose }: ProductFormProps) {
     dimensions,
     dimensionByUnitId,
     unitName,
+    unitSymbol,
     formError,
+    customUnits,
   } = useCreateProductForm({ businessId, onCreated });
 
   const baseUnitName = unitName(watch('baseUnit.unitId')) || 'unit';
   const contentUnitName = unitName(watch('mou.unitId')) || 'content unit';
+
+  // A product's own rows are labelled by the standard unit's symbol, which is what
+  // the catalog stores, so the custom units step has to offer those same labels.
+  const baseUnitSymbol = unitSymbol(watch('baseUnit.unitId'));
+  const contentUnitSymbol = unitSymbol(watch('mou.unitId'));
 
   const unitGroups = useMemo(
     () =>
@@ -68,9 +88,26 @@ function ProductForm({ businessId, onCreated, onClose }: ProductFormProps) {
   const mouErrors =
     mouUnitError ?? errors.mou?.conversionRate?.message ?? errors.mou?.price?.message;
 
+  /**
+   * The two steps are one form and one submission, so moving forward is only a
+   * matter of the step being sound — and the fields are checked by name, which is
+   * what keeps a custom unit's problem from holding up the product that was fine.
+   */
+  const goNext = async () => {
+    const valid = await trigger(['name', 'brand', 'baseUnit', 'mou', 'lowStockThreshold']);
+
+    if (valid) setStep(1);
+  };
+
   return (
     <form
-      onSubmit={handleSubmit}
+      /*
+       * Gated on the step rather than left to the button under the cursor, because a
+       * form this size invites Enter — from a field the owner believes is finished,
+       * out of habit from every other form — and a browser will submit that without
+       * consulting any button at all. On the first step, submitting means moving on.
+       */
+      onSubmit={step === 0 ? goNext : handleSubmit}
       noValidate
       className="flex flex-col gap-3.5 md:flex-row md:flex-wrap md:items-start md:gap-x-6 md:gap-y-4"
     >
@@ -83,162 +120,134 @@ function ProductForm({ businessId, onCreated, onClose }: ProductFormProps) {
         </div>
       )}
 
-      <div className="relative md:flex md:flex-[0_0_16rem] md:flex-col md:self-start">
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          aria-label={file ? 'Change photo' : 'Add photo'}
-          className={`relative flex w-full flex-col items-center justify-center gap-1.5 overflow-hidden rounded-[13px] border-[1.5px] bg-(--field) text-(--text-muted) transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-(--accent) focus-visible:outline-offset-2 ${
-            file
-              ? 'aspect-4/3 cursor-default border-solid hover:border-(--border) md:aspect-square'
-              : 'min-h-23 cursor-pointer border-dashed hover:border-(--accent) hover:text-(--accent) md:aspect-square'
-          }`}
-        >
-          {previewUrl ? (
-            <img
-              src={previewUrl}
-              alt="Preview of the selected product image"
-              className="absolute inset-0 h-full w-full object-contain p-3.5"
-            />
-          ) : (
-            <>
-              <Image size={22} aria-hidden />
-              <span className="text-[13px] font-semibold text-(--text)">Add photo</span>
-              <span className="text-[11px] text-(--text-muted)">(optional)</span>
-            </>
-          )}
-        </button>
-        <input
-          ref={fileInputRef}
-          id="product-image"
-          name="image"
-          type="file"
-          accept={UPLOAD_MIME_TYPES.join()}
-          className="sr-only"
-          onChange={(event) => {
-            pickImage(event.target.files?.[0] ?? null);
-            event.currentTarget.value = '';
-          }}
-        />
-        {file && (
-          <button
-            type="button"
-            onClick={() => pickImage(null)}
-            className="absolute top-2 right-2 z-10 cursor-pointer rounded-full border border-(--border) bg-(--surface-primary) px-2.5 py-1 text-[11px] font-semibold text-(--text-muted) transition-colors hover:border-(--danger) hover:text-(--danger) focus-visible:outline-2 focus-visible:outline-(--accent) focus-visible:outline-offset-2 md:top-auto md:right-2.5 md:bottom-2.5"
-          >
-            Remove
-          </button>
-        )}
-        {imageError && (
-          <p className="text-[11px] font-semibold text-(--danger)" role="alert">
-            {imageError}
-          </p>
-        )}
-      </div>
-
-      <div className="flex min-w-0 flex-col gap-3.5 md:flex-[1_1_0]">
-        <Field id="product-name" label="Name" error={errors.name?.message}>
-          <Input
-            id="product-name"
-            placeholder="e.g. Honey 750 ml"
-            autoComplete="off"
-            maxLength={100}
-            {...register('name')}
-          />
-        </Field>
-
-        <Field id="product-brand" label="Brand" optional error={errors.brand?.message}>
-          <Input
-            id="product-brand"
-            placeholder="e.g. Rosita"
-            autoComplete="off"
-            maxLength={50}
-            {...register('brand')}
-          />
-        </Field>
-
-        <div className="grid grid-cols-2 gap-3">
-          <Field id="product-base-unit" label="Base unit" error={errors.baseUnit?.unitId?.message}>
-            <Controller
-              name="baseUnit.unitId"
-              control={control}
-              render={({ field }) => (
-                <Select
-                  id="product-base-unit"
-                  placeholder="Choose a unit"
-                  value={field.value ?? ''}
-                  error={Boolean(errors.baseUnit?.unitId?.message)}
-                  groups={unitGroups}
-                  onBlur={field.onBlur}
-                  onChange={(event) => {
-                    const unitId = event.currentTarget.value;
-                    field.onChange(unitId);
-                    setValue('baseUnit.dimensionId', dimensionByUnitId.get(unitId) ?? '');
-                    // The MOU conflict rules depend on the base unit, so they have
-                    // to be re-checked whenever it changes.
-                    trigger('mou');
-                  }}
-                />
-              )}
-            />
-          </Field>
-
-          <Field id="product-base-price" label="Sell price" error={errors.baseUnit?.price?.message}>
-            <Input
-              id="product-base-price"
-              type="text"
-              inputMode="decimal"
-              autoComplete="off"
-              placeholder="0"
-              {...register('baseUnit.price')}
-            />
-          </Field>
-        </div>
-
-        <div
-          className={`flex flex-col rounded-[13px] border bg-(--surface-secondary) transition-colors ${
-            mouOpen ? 'border-(--accent)' : 'border-(--border) hover:border-(--border-strong)'
-          }`}
-        >
-          <button
-            type="button"
-            onClick={() => setMouOpen((prev) => !prev)}
-            aria-expanded={mouOpen}
-            aria-controls="product-mou-fields"
-            className={`flex w-full cursor-pointer items-start justify-between gap-3 rounded-t-[13px] px-3.5 py-3 text-left transition-colors hover:bg-(--surface-primary) focus-visible:outline-2 focus-visible:outline-(--accent) focus-visible:outline-offset-2 ${
-              !mouOpen && !mouErrors ? 'rounded-b-[13px]' : ''
-            }`}
-          >
-            <span className="min-w-0">
-              <span className="block text-[13px] font-semibold text-(--text)">
-                Content unit (MOU)
-              </span>
-              <span className="mt-0.5 block text-[11px] text-(--text-muted)">
-                The measurable amount contained in one base unit, e.g. 1 pc = 350 ml.
-              </span>
-            </span>
-            <ChevronDown
-              size={18}
-              aria-hidden
-              className={`mt-0.5 shrink-0 text-(--text-muted) transition-transform duration-150 ${
-                mouOpen ? 'rotate-180' : ''
+      {step === 0 && (
+        <>
+          <div className="relative md:flex md:flex-[0_0_16rem] md:flex-col md:self-start">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              aria-label={file ? 'Change photo' : 'Add photo'}
+              className={`relative flex w-full flex-col items-center justify-center gap-1.5 overflow-hidden rounded-[13px] border-[1.5px] bg-(--field) text-(--text-muted) transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-(--accent) focus-visible:outline-offset-2 ${
+                file
+                  ? 'aspect-4/3 cursor-default border-solid hover:border-(--border) md:aspect-square'
+                  : 'min-h-23 cursor-pointer border-dashed hover:border-(--accent) hover:text-(--accent) md:aspect-square'
               }`}
-            />
-          </button>
-
-          {!mouOpen && mouErrors && (
-            <p
-              role="alert"
-              className="m-0 border-t border-(--border) px-3.5 pb-3 text-[11px] font-semibold text-(--danger)"
             >
-              {mouErrors}
-            </p>
-          )}
+              {previewUrl ? (
+                <img
+                  src={previewUrl}
+                  alt="Preview of the selected product image"
+                  className="absolute inset-0 h-full w-full object-contain p-3.5"
+                />
+              ) : (
+                <>
+                  <Image size={22} aria-hidden />
+                  <span className="text-[13px] font-semibold text-(--text)">Add photo</span>
+                  <span className="text-[11px] text-(--text-muted)">(optional)</span>
+                </>
+              )}
+            </button>
+            <input
+              ref={fileInputRef}
+              id="product-image"
+              name="image"
+              type="file"
+              accept={UPLOAD_MIME_TYPES.join()}
+              className="sr-only"
+              onChange={(event) => {
+                pickImage(event.target.files?.[0] ?? null);
+                event.currentTarget.value = '';
+              }}
+            />
+            {file && (
+              <button
+                type="button"
+                onClick={() => pickImage(null)}
+                className="absolute top-2 right-2 z-10 cursor-pointer rounded-full border border-(--border) bg-(--surface-primary) px-2.5 py-1 text-[11px] font-semibold text-(--text-muted) transition-colors hover:border-(--danger) hover:text-(--danger) focus-visible:outline-2 focus-visible:outline-(--accent) focus-visible:outline-offset-2 md:top-auto md:right-2.5 md:bottom-2.5"
+              >
+                Remove
+              </button>
+            )}
+            {imageError && (
+              <p className="text-[11px] font-semibold text-(--danger)" role="alert">
+                {imageError}
+              </p>
+            )}
+          </div>
 
-          {mouOpen && (
-            <div
-              id="product-mou-fields"
-              className="flex flex-col gap-3 rounded-b-[13px] border-t border-(--border) bg-(--surface-primary) px-3.5 py-3"
+          <div className="flex min-w-0 flex-col gap-3.5 md:flex-[1_1_0]">
+            <Field id="product-name" label="Name" error={errors.name?.message}>
+              <Input
+                id="product-name"
+                placeholder="e.g. Honey 750 ml"
+                autoComplete="off"
+                maxLength={100}
+                {...register('name')}
+              />
+            </Field>
+
+            <Field id="product-brand" label="Brand" optional error={errors.brand?.message}>
+              <Input
+                id="product-brand"
+                placeholder="e.g. Rosita"
+                autoComplete="off"
+                maxLength={50}
+                {...register('brand')}
+              />
+            </Field>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field
+                id="product-base-unit"
+                label="Base unit"
+                error={errors.baseUnit?.unitId?.message}
+              >
+                <Controller
+                  name="baseUnit.unitId"
+                  control={control}
+                  render={({ field }) => (
+                    <Select
+                      id="product-base-unit"
+                      placeholder="Choose a unit"
+                      value={field.value ?? ''}
+                      error={Boolean(errors.baseUnit?.unitId?.message)}
+                      groups={unitGroups}
+                      onBlur={field.onBlur}
+                      onChange={(event) => {
+                        const unitId = event.currentTarget.value;
+                        field.onChange(unitId);
+                        setValue('baseUnit.dimensionId', dimensionByUnitId.get(unitId) ?? '');
+                        // The MOU conflict rules depend on the base unit, so they have
+                        // to be re-checked whenever it changes.
+                        trigger('mou');
+                      }}
+                    />
+                  )}
+                />
+              </Field>
+
+              <Field
+                id="product-base-price"
+                label="Sell price"
+                error={errors.baseUnit?.price?.message}
+              >
+                <Input
+                  id="product-base-price"
+                  type="text"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  placeholder="0"
+                  {...register('baseUnit.price')}
+                />
+              </Field>
+            </div>
+
+            <Disclosure
+              open={mouOpen}
+              onOpenChange={setMouOpen}
+              title="Content unit (MOU)"
+              description="The measurable amount contained in one base unit, e.g. 1 pc = 350 ml."
+              error={mouErrors}
             >
               <Field
                 id="product-mou-unit"
@@ -304,55 +313,108 @@ function ProductForm({ businessId, onCreated, onClose }: ProductFormProps) {
                   />
                 </Field>
               </div>
-            </div>
-          )}
-        </div>
+            </Disclosure>
 
-        <Field
-          id="product-low-stock"
-          label="Low stock at"
-          optional
-          hint="Get flagged when stock drops this low."
-          error={errors.lowStockThreshold?.message}
-        >
-          <Input
-            id="product-low-stock"
-            type="text"
-            inputMode="decimal"
-            autoComplete="off"
-            placeholder="0"
-            {...register('lowStockThreshold')}
-          />
-        </Field>
+            <Field
+              id="product-low-stock"
+              label="Low stock at"
+              optional
+              hint="Get flagged when stock drops this low."
+              error={errors.lowStockThreshold?.message}
+            >
+              <Input
+                id="product-low-stock"
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                placeholder="0"
+                {...register('lowStockThreshold')}
+              />
+            </Field>
 
-        <div className="flex flex-col gap-2 pt-1">
-          <span className="inline-flex items-center gap-2.5">
-            <Controller
-              name="trackAsPartial"
-              control={control}
-              render={({ field }) => (
-                <Switch
-                  checked={Boolean(field.value)}
-                  onChange={(next) => field.onChange(next)}
-                  label="Track as partial"
+            <div className="flex flex-col gap-2 pt-1">
+              <span className="inline-flex items-center gap-2.5">
+                <Controller
+                  name="trackAsPartial"
+                  control={control}
+                  render={({ field }) => (
+                    <Switch
+                      checked={Boolean(field.value)}
+                      onChange={(next) => field.onChange(next)}
+                      label="Track as partial"
+                    />
+                  )}
                 />
-              )}
-            />
-            <span className="text-[13px] font-semibold text-(--text)">Track as partial</span>
-          </span>
-          <p className="m-0 text-[11px] text-(--text-muted)">
-            Opened by the unit and sold in parts (shot, slice).
-          </p>
-        </div>
-      </div>
+                <span className="text-[13px] font-semibold text-(--text)">Track as partial</span>
+              </span>
+              <p className="m-0 text-[11px] text-(--text-muted)">
+                Opened by the unit and sold in parts (shot, slice).
+              </p>
+            </div>
+          </div>
+        </>
+      )}
+
+      {step === 1 && (
+        <CustomUnitsStep
+          control={control}
+          register={register}
+          fields={customUnits.fields}
+          errors={errors.customUnits}
+          baseUnitSymbol={baseUnitSymbol}
+          contentUnitSymbol={contentUnitSymbol}
+          triggerUnit={(index) => void trigger(`customUnits.${index}`)}
+          onRemove={customUnits.removeUnit}
+          onAdd={customUnits.addUnit}
+        />
+      )}
 
       <div className="flex flex-col gap-2.5 pt-1.5 md:flex-[1_1_100%]">
-        <Button type="submit" isLoading={isSubmitting} className="w-full">
-          Add product
-        </Button>
-        <Button type="button" variant="secondary" onClick={onClose} className="w-full">
-          Cancel
-        </Button>
+        <p className="m-0 text-[11px] text-(--text-muted)">
+          Step {step + 1} of {STEPS.length} · {STEPS[step]?.caption}
+        </p>
+
+        {/*
+          Keyed per step, and not for clarity: without a key React reuses the one
+          `<button>` node across the change and rewrites its `type` in place. A
+          browser runs a click's default action after every listener has run, by
+          which point the button just pressed to move on has become the button that
+          submits — so pressing Next would arrive on step 2 having already created
+          the product. A key forces a fresh node, and the node the browser is about
+          to activate is left detached from the form.
+        */}
+        {step === 0 ? (
+          <>
+            <Button key="next" type="button" onClick={goNext} className="w-full">
+              {STEPS[0].button}
+            </Button>
+            <Button
+              key="cancel"
+              type="button"
+              variant="secondary"
+              onClick={onClose}
+              className="w-full"
+            >
+              Cancel
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button key="create" type="submit" isLoading={isSubmitting} className="w-full">
+              {STEPS[1].button}
+            </Button>
+            <Button
+              key="back"
+              type="button"
+              variant="secondary"
+              onClick={() => setStep(0)}
+              className="w-full"
+            >
+              <ChevronLeft size={16} aria-hidden />
+              Back
+            </Button>
+          </>
+        )}
       </div>
     </form>
   );
