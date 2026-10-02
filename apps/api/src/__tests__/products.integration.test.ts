@@ -359,6 +359,182 @@ describe('products.integration', () => {
       );
     });
 
+    it('creates a product together with its own units', async () => {
+      await authenticate('owner-1');
+      authorize('b-1', 'br-1');
+      const body = {
+        name: 'Shirt',
+        baseUnit: { unitId: 'kg-1', price: '120.50' },
+        customUnits: [
+          { name: 'Shot', dependsOn: 'BASE', conversionRate: '0.125', price: '45' },
+          {
+            name: 'Box',
+            dependsOn: 'BASE',
+            conversionRate: '12',
+            purchaseCapable: true,
+            sellCapable: false,
+          },
+        ],
+      };
+      const validatedBody = {
+        name: 'Shirt',
+        baseUnit: { unitId: 'kg-1', price: 120.5 },
+        customUnits: [
+          {
+            name: 'Shot',
+            dependsOn: 'BASE',
+            conversionRate: 0.125,
+            purchaseCapable: true,
+            sellCapable: true,
+            price: 45,
+          },
+          {
+            name: 'Box',
+            dependsOn: 'BASE',
+            conversionRate: 12,
+            purchaseCapable: true,
+            sellCapable: false,
+          },
+        ],
+      };
+      const shotWire = {
+        id: 'pu-3',
+        productId: 'p-1',
+        unitRole: 'CUSTOM',
+        standardUnitId: null,
+        name: 'Shot',
+        dependsOn: 'BASE',
+        conversionRate: 0.125,
+        price: 45,
+        purchaseCapable: true,
+        sellCapable: true,
+        createdAt: ISO,
+        updatedAt: ISO,
+      };
+      const boxWire = {
+        ...shotWire,
+        id: 'pu-4',
+        name: 'Box',
+        conversionRate: 12,
+        price: null,
+        sellCapable: false,
+      };
+      productsRepository.createForBusiness.mockResolvedValue({
+        ...productRecord(),
+        units: [
+          productUnit(),
+          productUnit({
+            id: 'pu-3',
+            unitRole: 'CUSTOM',
+            standardUnitId: null,
+            name: 'Shot',
+            dependsOn: 'BASE',
+            conversionRate: { toNumber: () => 0.125 },
+            price: { toNumber: () => 45 },
+          }),
+          productUnit({
+            id: 'pu-4',
+            unitRole: 'CUSTOM',
+            standardUnitId: null,
+            name: 'Box',
+            dependsOn: 'BASE',
+            conversionRate: { toNumber: () => 12 },
+            price: null,
+            sellCapable: false,
+          }),
+        ],
+      });
+
+      const res = await request(app)
+        .post('/api/businesses/b-1/products')
+        .set('Authorization', 'Bearer token')
+        .send(body);
+
+      expect(res.status).toBe(201);
+      expect(res.body).toEqual({ ...WIRE_PRODUCT, units: [BASE_UNIT_WIRE, shotWire, boxWire] });
+      expect(productsRepository.createForBusiness).toHaveBeenCalledWith(
+        'b-1',
+        'br-1',
+        validatedBody,
+      );
+    });
+
+    it('refuses a unit named after one the product already has', async () => {
+      await authenticate('owner-1');
+      authorize('b-1', 'br-1');
+      productsRepository.createForBusiness.mockRejectedValue(
+        new AppError(ERROR_CODES.BAD_REQUEST, 'This product already has a unit named "kg"', 400, {
+          'customUnits.0.name': 'This product already has a unit named "kg"',
+        }),
+      );
+
+      const res = await request(app)
+        .post('/api/businesses/b-1/products')
+        .set('Authorization', 'Bearer token')
+        .send({
+          name: 'Shirt',
+          baseUnit: { unitId: 'kg-1', price: '120.50' },
+          customUnits: [{ name: 'kg', dependsOn: 'BASE', conversionRate: '1', price: '45' }],
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({
+        error: {
+          code: ERROR_CODES.BAD_REQUEST,
+          message: 'This product already has a unit named "kg"',
+          details: { 'customUnits.0.name': 'This product already has a unit named "kg"' },
+        },
+      });
+    });
+
+    it('rejects a sellable unit with no price before reaching the repository', async () => {
+      await authenticate('owner-1');
+      authorize('b-1', 'br-1');
+
+      const res = await request(app)
+        .post('/api/businesses/b-1/products')
+        .set('Authorization', 'Bearer token')
+        .send({
+          name: 'Shirt',
+          baseUnit: { unitId: 'kg-1', price: '120.50' },
+          customUnits: [{ name: 'Shot', dependsOn: 'BASE', conversionRate: '0.125' }],
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({
+        error: {
+          code: ERROR_CODES.BAD_REQUEST,
+          message: 'Invalid request',
+          details: { 'customUnits.0.price': expect.any(String) },
+        },
+      });
+      expect(productsRepository.createForBusiness).not.toHaveBeenCalled();
+    });
+
+    it('rejects a unit based on a content unit the product does not have', async () => {
+      await authenticate('owner-1');
+      authorize('b-1', 'br-1');
+
+      const res = await request(app)
+        .post('/api/businesses/b-1/products')
+        .set('Authorization', 'Bearer token')
+        .send({
+          name: 'Shirt',
+          baseUnit: { unitId: 'kg-1', price: '120.50' },
+          customUnits: [{ name: 'Label', dependsOn: 'MOU', conversionRate: '3', price: '5' }],
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({
+        error: {
+          code: ERROR_CODES.BAD_REQUEST,
+          message: 'Invalid request',
+          details: { 'customUnits.0.dependsOn': expect.any(String) },
+        },
+      });
+      expect(productsRepository.createForBusiness).not.toHaveBeenCalled();
+    });
+
     it('returns BAD_REQUEST with field details when the payload is invalid', async () => {
       await authenticate('owner-1');
       authorize('b-1', 'br-1');
