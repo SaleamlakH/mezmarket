@@ -7,7 +7,16 @@ import { createBusinessRepository } from './modules/business/business.repository
 import { createBusinessService } from './modules/business/business.service.js';
 import { createBusinessController } from './modules/business/business.controller.js';
 import { createBusinessRouter } from './modules/business/business.routes.js';
-import { validateBusinessInput } from './modules/business/business.middleware.js';
+import {
+  validateBusinessInput,
+  createAuthorizeBusiness,
+  requireBusinessRole,
+} from './modules/business/business.middleware.js';
+import { createBatchRepository } from './modules/batches/batches.repository.js';
+import { createBatchService } from './modules/batches/batches.service.js';
+import { createBatchController } from './modules/batches/batches.controller.js';
+import { createBatchRouter } from './modules/batches/batches.routes.js';
+import { validateBatchCreateInput } from './modules/batches/batches.middleware.js';
 import { createOwnerRepository } from './modules/owner/owner.repository.js';
 import { createOwnerService } from './modules/owner/owner.service.js';
 import { createOwnerController } from './modules/owner/owner.controller.js';
@@ -22,6 +31,16 @@ const businessRepository = createBusinessRepository(prisma);
 const businessService = createBusinessService(businessRepository);
 const businessController = createBusinessController(businessService);
 export const businessRoutes = createBusinessRouter(businessController, validateBusinessInput);
+
+const batchRepository = createBatchRepository(prisma);
+const batchService = createBatchService(batchRepository);
+const batchController = createBatchController(batchService);
+export const batchRoutes = createBatchRouter(
+  batchController,
+  createAuthorizeBusiness(businessService),
+  requireBusinessRole(['OWNER', 'MANAGER']),
+  validateBatchCreateInput,
+);
 
 const ownerRepository = createOwnerRepository(prisma);
 const ownerService = createOwnerService(ownerRepository);
