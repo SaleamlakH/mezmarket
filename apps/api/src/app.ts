@@ -1,7 +1,14 @@
 import 'dotenv/config';
 import express, { type Express, type Request, type Response } from 'express';
 import cors from 'cors';
-import { auth, businessRoutes, ownerRoutes, productsRoutes, unitsRoutes } from './composition.js';
+import {
+  auth,
+  businessRoutes,
+  ownerRoutes,
+  productsRoutes,
+  unitsRoutes,
+  batchRoutes,
+} from './composition.js';
 import { errorHandler } from './shared/errors/error-handler.js';
 
 const app: Express = express();
@@ -25,6 +32,8 @@ app.use('/api', unitsRoutes);
 
 // protect all api endpoints
 app.use('/api', auth);
+app.use('/api', businessRoutes);
+app.use('/api', batchRoutes);
 
 app.use('/api', businessRoutes);
 app.use('/api', ownerRoutes);
