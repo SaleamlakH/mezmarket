@@ -23,11 +23,12 @@ function createPrismaStub() {
   };
   const business = { findMany: vi.fn(), findFirst: vi.fn() };
   const branch = { findFirst: vi.fn() };
+  const businessMember = { findFirst: vi.fn() };
   const $transaction = vi.fn((cb: (tx: MockTx) => unknown) => cb(tx));
 
-  const prisma = { business, branch, $transaction } as unknown as PrismaClient;
+  const prisma = { business, branch, businessMember, $transaction } as unknown as PrismaClient;
 
-  return { prisma, tx, business, branch, $transaction };
+  return { prisma, tx, business, branch, businessMember, $transaction };
 }
 
 function registerSuccess(tx: MockTx) {
@@ -49,6 +50,40 @@ describe('business.repository', () => {
     expect(typeof repo.createForOwner).toBe('function');
     expect(typeof repo.getBusinessId).toBe('function');
     expect(typeof repo.getBranchId).toBe('function');
+    expect(typeof repo.getActor).toBe('function');
+  });
+
+  describe('getActor', () => {
+    it('looks the member up by business and owner, taking only active ones', async () => {
+      const { prisma, businessMember } = createPrismaStub();
+      const repo = createBusinessRepository(prisma);
+
+      await repo.getActor('b-1', 'owner-1');
+
+      expect(businessMember.findFirst).toHaveBeenCalledWith({
+        where: { businessId: 'b-1', ownerId: 'owner-1', active: true },
+        select: { id: true, role: true },
+      });
+    });
+
+    it('returns null when no active member resolves', async () => {
+      const { prisma, businessMember } = createPrismaStub();
+      const repo = createBusinessRepository(prisma);
+      businessMember.findFirst.mockResolvedValue(null);
+
+      await expect(repo.getActor('b-1', 'owner-1')).resolves.toBeNull();
+    });
+
+    it('returns the member id and role as stored', async () => {
+      const { prisma, businessMember } = createPrismaStub();
+      const repo = createBusinessRepository(prisma);
+      businessMember.findFirst.mockResolvedValue({ id: 'm-1', role: 'MANAGER' });
+
+      await expect(repo.getActor('b-1', 'owner-1')).resolves.toEqual({
+        id: 'm-1',
+        role: 'MANAGER',
+      });
+    });
   });
 
   describe('listForOwner', () => {

@@ -22,6 +22,13 @@ export interface CreateBusinessRecord {
 export type BusinessScope = {
   businessId: string;
   branchId: string;
+  memberId: string;
+  role: BusinessMemberRole;
+};
+
+export type BusinessActor = {
+  id: string;
+  role: BusinessMemberRole;
 };
 
 export type BusinessRepository = {
@@ -29,6 +36,7 @@ export type BusinessRepository = {
   createForOwner(ownerId: string, input: CreateBusinessInput): Promise<CreateBusinessRecord>;
   getBusinessId(ownerId: string, businessId: string): Promise<string | null>;
   getBranchId(businessId: string): Promise<string | null>;
+  getActor(businessId: string, ownerId: string): Promise<BusinessActor | null>;
 };
 
 export type BusinessService = {

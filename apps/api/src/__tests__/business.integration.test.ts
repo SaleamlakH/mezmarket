@@ -14,6 +14,7 @@ const { verifyJwt, authRepository, businessRepository } = vi.hoisted(() => ({
     createForOwner: vi.fn(),
     getBusinessId: vi.fn(),
     getBranchId: vi.fn(),
+    getActor: vi.fn(),
   } satisfies BusinessRepository,
 }));
 

@@ -13,6 +13,8 @@ declare namespace Express {
       ownerId: string;
       businessId?: string;
       branchId?: string;
+      memberId?: string;
+      role?: import('@mez/types').BusinessMemberRole;
     };
     validBody: unknown;
   }
