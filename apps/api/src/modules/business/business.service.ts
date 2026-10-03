@@ -46,16 +46,22 @@ export function createBusinessService(repository: BusinessRepository): BusinessS
     },
 
     async resolveScope(ownerId: string, businessId: string): Promise<BusinessScope> {
-      const [resolvedBusinessId, branchId] = await Promise.all([
+      const [resolvedBusinessId, branchId, actor] = await Promise.all([
         repository.getBusinessId(ownerId, businessId),
         repository.getBranchId(businessId),
+        repository.getActor(businessId, ownerId),
       ]);
 
-      if (!resolvedBusinessId || !branchId) {
+      if (!resolvedBusinessId || !branchId || !actor) {
         throw new AppError(ERROR_CODES.NOT_FOUND, 'Business not found', 404);
       }
 
-      return { businessId: resolvedBusinessId, branchId };
+      return {
+        businessId: resolvedBusinessId,
+        branchId,
+        memberId: actor.id,
+        role: actor.role,
+      };
     },
 
     async getBusiness(businessId: string, ownerId: string | undefined): Promise<Business> {

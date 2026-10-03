@@ -16,6 +16,7 @@ function mockRepository(): BusinessRepository {
     getBranchId: vi.fn(),
     getForOwner: vi.fn(),
     updateForOwner: vi.fn(),
+    getActor: vi.fn(),
   };
 }
 
@@ -183,20 +184,39 @@ describe('business.service', () => {
   });
 
   describe('resolveScope', () => {
-    it('returns business id and branch id when both are resolved', async () => {
+    it('returns the scope and the acting member when all three resolve', async () => {
       vi.mocked(repo.getBusinessId).mockResolvedValue('b-1');
       vi.mocked(repo.getBranchId).mockResolvedValue('br-1');
+      vi.mocked(repo.getActor).mockResolvedValue({ id: 'm-1', role: 'OWNER' });
 
       const result = await service.resolveScope('owner-1', 'b-1');
 
       expect(repo.getBusinessId).toHaveBeenCalledWith('owner-1', 'b-1');
       expect(repo.getBranchId).toHaveBeenCalledWith('b-1');
-      expect(result).toEqual({ businessId: 'b-1', branchId: 'br-1' });
+      expect(repo.getActor).toHaveBeenCalledWith('b-1', 'owner-1');
+      expect(result).toEqual({
+        businessId: 'b-1',
+        branchId: 'br-1',
+        memberId: 'm-1',
+        role: 'OWNER',
+      });
+    });
+
+    it('carries the role the member holds rather than assuming one', async () => {
+      vi.mocked(repo.getBusinessId).mockResolvedValue('b-1');
+      vi.mocked(repo.getBranchId).mockResolvedValue('br-1');
+      vi.mocked(repo.getActor).mockResolvedValue({ id: 'm-2', role: 'MANAGER' });
+
+      await expect(service.resolveScope('owner-1', 'b-1')).resolves.toMatchObject({
+        memberId: 'm-2',
+        role: 'MANAGER',
+      });
     });
 
     it('throws NOT_FOUND when the business is not owned', async () => {
       vi.mocked(repo.getBusinessId).mockResolvedValue(null);
       vi.mocked(repo.getBranchId).mockResolvedValue('br-1');
+      vi.mocked(repo.getActor).mockResolvedValue({ id: 'm-1', role: 'OWNER' });
 
       await expect(service.resolveScope('owner-1', 'missing')).rejects.toEqual(
         new AppError(ERROR_CODES.NOT_FOUND, 'Business not found', 404),
@@ -207,6 +227,17 @@ describe('business.service', () => {
     it('throws NOT_FOUND when the business has no branch', async () => {
       vi.mocked(repo.getBusinessId).mockResolvedValue('b-1');
       vi.mocked(repo.getBranchId).mockResolvedValue(null);
+      vi.mocked(repo.getActor).mockResolvedValue({ id: 'm-1', role: 'OWNER' });
+
+      await expect(service.resolveScope('owner-1', 'b-1')).rejects.toEqual(
+        new AppError(ERROR_CODES.NOT_FOUND, 'Business not found', 404),
+      );
+    });
+
+    it('throws NOT_FOUND when the owner has no active member row in the business', async () => {
+      vi.mocked(repo.getBusinessId).mockResolvedValue('b-1');
+      vi.mocked(repo.getBranchId).mockResolvedValue('br-1');
+      vi.mocked(repo.getActor).mockResolvedValue(null);
 
       await expect(service.resolveScope('owner-1', 'b-1')).rejects.toEqual(
         new AppError(ERROR_CODES.NOT_FOUND, 'Business not found', 404),

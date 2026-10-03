@@ -1,5 +1,6 @@
 import type { PrismaClient } from '../../../generated/prisma/client.js';
 import type {
+  BusinessActor,
   BusinessMemberRole,
   BusinessRepository,
   CreateBusinessInput,
@@ -91,6 +92,20 @@ export function createBusinessRepository(prisma: PrismaClient): BusinessReposito
         where: { id: businessId },
         data: input,
       });
+    },
+
+    /**
+     * The member an owner acts as within one business. A deactivated member
+     * row stays behind for the audit trail, so an inactive one resolves to
+     * nothing rather than to a member who can no longer act.
+     */
+    async getActor(businessId: string, ownerId: string): Promise<BusinessActor | null> {
+      const member = await prisma.businessMember.findFirst({
+        where: { businessId, ownerId, active: true },
+        select: { id: true, role: true },
+      });
+
+      return member ?? null;
     },
   };
 }
