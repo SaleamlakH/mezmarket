@@ -17,6 +17,10 @@ import { createBatchService } from './modules/batches/batches.service.js';
 import { createBatchController } from './modules/batches/batches.controller.js';
 import { createBatchRouter } from './modules/batches/batches.routes.js';
 import { validateBatchCreateInput } from './modules/batches/batches.middleware.js';
+import { createProductRepository } from './modules/products/products.repository.js';
+import { createProductService } from './modules/products/products.service.js';
+import { createProductController } from './modules/products/products.controller.js';
+import { createProductRouter } from './modules/products/products.routes.js';
 import { createOwnerRepository } from './modules/owner/owner.repository.js';
 import { createOwnerService } from './modules/owner/owner.service.js';
 import { createOwnerController } from './modules/owner/owner.controller.js';
@@ -40,6 +44,14 @@ export const batchRoutes = createBatchRouter(
   createAuthorizeBusiness(businessService),
   requireBusinessRole(['OWNER', 'MANAGER']),
   validateBatchCreateInput,
+);
+
+const productRepository = createProductRepository(prisma);
+const productService = createProductService(productRepository);
+const productController = createProductController(productService);
+export const productRoutes = createProductRouter(
+  productController,
+  createAuthorizeBusiness(businessService),
 );
 
 const ownerRepository = createOwnerRepository(prisma);

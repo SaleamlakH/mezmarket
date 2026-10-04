@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import express, { type Express, type Request, type Response } from 'express';
 import cors from 'cors';
-import { auth, batchRoutes, businessRoutes, ownerRoutes } from './composition.js';
+import { auth, batchRoutes, businessRoutes, ownerRoutes, productRoutes } from './composition.js';
 import { errorHandler } from './shared/errors/error-handler.js';
 
 const app: Express = express();
@@ -24,6 +24,7 @@ app.get('/health', (req: Request, res: Response) => {
 app.use('/api', auth);
 app.use('/api', businessRoutes);
 app.use('/api', batchRoutes);
+app.use('/api', productRoutes);
 
 app.use('/api', ownerRoutes);
 
