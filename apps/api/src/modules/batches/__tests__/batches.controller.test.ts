@@ -32,6 +32,7 @@ function mockService(): BatchService {
   return {
     createBatch: vi.fn(),
     listBatches: vi.fn(),
+    listProductInventorySummaries: vi.fn(),
   };
 }
 
@@ -121,6 +122,47 @@ describe('batches.controller', () => {
       const { req, res } = call(AUTH);
 
       await expect(controller.listBatches(req, res)).rejects.toThrow('db down');
+      expect(res.json).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('listProductInventorySummaries', () => {
+    it('answers 200 with the summaries the service listed', async () => {
+      vi.mocked(service.listProductInventorySummaries).mockResolvedValue([]);
+      const { req, res } = call(AUTH);
+
+      await controller.listProductInventorySummaries(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith([]);
+    });
+
+    it('summarises the resolved business and branch', async () => {
+      vi.mocked(service.listProductInventorySummaries).mockResolvedValue([]);
+      const { req, res } = call(AUTH);
+
+      await controller.listProductInventorySummaries(req, res);
+
+      expect(service.listProductInventorySummaries).toHaveBeenCalledWith({
+        businessId: 'b-1',
+        branchId: 'br-1',
+      });
+    });
+
+    it('needs no request body, so it does not read one', async () => {
+      vi.mocked(service.listProductInventorySummaries).mockResolvedValue([]);
+      const { req, res } = call(AUTH);
+
+      await controller.listProductInventorySummaries(req, res);
+
+      expect(service.listProductInventorySummaries).toHaveBeenCalledWith(expect.anything());
+    });
+
+    it('lets a rejected service call propagate to the error handler', async () => {
+      vi.mocked(service.listProductInventorySummaries).mockRejectedValue(new Error('db down'));
+      const { req, res } = call(AUTH);
+
+      await expect(controller.listProductInventorySummaries(req, res)).rejects.toThrow('db down');
       expect(res.json).not.toHaveBeenCalled();
     });
   });

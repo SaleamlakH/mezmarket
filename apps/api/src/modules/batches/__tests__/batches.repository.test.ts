@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createBatchRepository } from '../batches.repository.js';
 import type { BatchRepository, CreateBatchCommand } from '../batches.types.js';
+import { AttachmentRecordType } from '../../../../generated/prisma/client.js';
 import type { PrismaClient } from '../../../../generated/prisma/client.js';
 
 type MockTx = {
@@ -22,11 +23,17 @@ function createPrismaStub() {
   };
   const product = { findMany: vi.fn() };
   const stockBatch = { findMany: vi.fn() };
+  const attachment = { findMany: vi.fn().mockResolvedValue([]) };
   const $transaction = vi.fn((cb: (tx: MockTx) => unknown) => cb(tx));
 
-  const prisma = { product, stockBatch, $transaction } as unknown as PrismaClient;
+  const prisma = {
+    product,
+    stockBatch,
+    attachment,
+    $transaction,
+  } as unknown as PrismaClient;
 
-  return { prisma, tx, product, stockBatch, $transaction };
+  return { prisma, tx, product, stockBatch, attachment, $transaction };
 }
 
 function command(overrides: Partial<CreateBatchCommand> = {}): CreateBatchCommand {
@@ -123,6 +130,8 @@ describe('batches.repository', () => {
     expect(typeof repo.getProductUnitContext).toBe('function');
     expect(typeof repo.createBatchAndAdjustStock).toBe('function');
     expect(typeof repo.listBatches).toBe('function');
+    expect(typeof repo.listProductsWithStockLines).toBe('function');
+    expect(typeof repo.listProductAttachments).toBe('function');
   });
 
   describe('getProductUnitContext', () => {
@@ -355,6 +364,102 @@ describe('batches.repository', () => {
       for (const batch of result) {
         expect(batch.receivedByMember).toEqual({ id: 'm-1', name: 'me', role: 'OWNER' });
       }
+    });
+  });
+
+  describe('listProductsWithStockLines', () => {
+    const INVENTORY_INCLUDE = {
+      productUnits: { where: { unitRole: 'BASE' }, take: 1 },
+      stockBatchLines: { where: { quantityRemaining: { gt: 0 } } },
+    };
+
+    it('reads the active products of the branch with both summary relations', async () => {
+      const { prisma, product } = createPrismaStub();
+      const repo = createBatchRepository(prisma);
+      product.findMany.mockResolvedValue([]);
+
+      await repo.listProductsWithStockLines('b-1', 'br-1');
+
+      expect(product.findMany).toHaveBeenCalledWith({
+        where: { businessId: 'b-1', branchId: 'br-1', active: true },
+        include: INVENTORY_INCLUDE,
+        orderBy: { name: 'asc' },
+      });
+    });
+
+    it('fetches the product whole rather than field by field', async () => {
+      const { prisma, product } = createPrismaStub();
+      const repo = createBatchRepository(prisma);
+      product.findMany.mockResolvedValue([]);
+
+      await repo.listProductsWithStockLines('b-1', 'br-1');
+
+      const query = product.findMany.mock.calls[0]?.[0] as Record<string, unknown>;
+
+      expect(query).not.toHaveProperty('select');
+    });
+
+    it('asks only for the Base Unit and only for lines still holding stock', async () => {
+      const { prisma, product } = createPrismaStub();
+      const repo = createBatchRepository(prisma);
+      product.findMany.mockResolvedValue([]);
+
+      await repo.listProductsWithStockLines('b-1', 'br-1');
+
+      expect(product.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: {
+            productUnits: { where: { unitRole: 'BASE' }, take: 1 },
+            stockBatchLines: { where: { quantityRemaining: { gt: 0 } } },
+          },
+        }),
+      );
+    });
+
+    it('returns the product rows the query answered with, without touching attachments', async () => {
+      const { prisma, product, attachment } = createPrismaStub();
+      const repo = createBatchRepository(prisma);
+      const rows = [
+        { id: 'p-1', name: 'A', productUnits: [], stockBatchLines: [] },
+        { id: 'p-2', name: 'B', productUnits: [], stockBatchLines: [] },
+      ];
+      product.findMany.mockResolvedValue(rows as never);
+
+      const result = await repo.listProductsWithStockLines('b-1', 'br-1');
+
+      expect(result).toEqual(rows);
+      expect(attachment.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('listProductAttachments', () => {
+    it('reads the live product attachments for the named products', async () => {
+      const { prisma, attachment } = createPrismaStub();
+      const repo = createBatchRepository(prisma);
+
+      await repo.listProductAttachments(['p-1', 'p-2']);
+
+      expect(attachment.findMany).toHaveBeenCalledWith({
+        where: {
+          recordType: AttachmentRecordType.PRODUCT,
+          recordId: { in: ['p-1', 'p-2'] },
+          deletedAt: null,
+        },
+      });
+    });
+
+    it('returns the attachment rows the query answered with', async () => {
+      const { prisma, attachment } = createPrismaStub();
+      const repo = createBatchRepository(prisma);
+      const rows = [
+        { id: 'a-1', recordId: 'p-1', uploadId: 'u-1' },
+        { id: 'a-2', recordId: 'p-2', uploadId: null },
+      ];
+      attachment.findMany.mockResolvedValue(rows as never);
+
+      const result = await repo.listProductAttachments(['p-1', 'p-2']);
+
+      expect(result).toEqual(rows);
     });
   });
 });

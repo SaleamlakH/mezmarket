@@ -1,14 +1,13 @@
+import { AttachmentRecordType } from '../../../generated/prisma/client.js';
 import type { PrismaClient } from '../../../generated/prisma/client.js';
 import type { BatchRepository } from './batches.types.js';
 
-/** The standard unit a line's snapshot names, by label and by id. */
 const standardUnitSelect = {
   id: true,
   name: true,
   symbol: true,
 };
 
-/** Everything the unit math walks, and nothing a purchase never needs. */
 const productUnitSelect = {
   id: true,
   productId: true,
@@ -37,11 +36,7 @@ export function createBatchRepository(prisma: PrismaClient): BatchRepository {
       });
     },
 
-    /**
-     * Writing a batch and moving the stock it adds is one act: a batch whose
-     * lines are written but whose products were never incremented — or the
-     * other way round — would be a stock figure nobody can explain.
-     */
+    /** Writing the batch and moving the stock it adds is one transaction. */
     async createBatchAndAdjustStock(command) {
       return prisma.$transaction(async (tx) => {
         const batch = await tx.stockBatch.create({
@@ -49,8 +44,7 @@ export function createBatchRepository(prisma: PrismaClient): BatchRepository {
             businessId: command.businessId,
             branchId: command.branchId,
             batchDate: command.header.batchDate,
-            // Recording a batch is confirming it: a recorded purchase is not
-            // later revised, only superseded by an adjustment.
+            // A recorded purchase is confirmed; it is superseded, never revised.
             confirmedAt: new Date(),
             receivedByMemberId: command.memberId,
             ...(command.header.supplierName !== undefined && {
@@ -63,8 +57,6 @@ export function createBatchRepository(prisma: PrismaClient): BatchRepository {
           include: { receivedByMember: true },
         });
 
-        // The lines and the stock movement touch different tables and neither
-        // reads the other, so they are written together rather than in turn.
         const [lines] = await Promise.all([createLines(), incrementStock()]);
 
         return { ...batch, lines };
@@ -73,7 +65,7 @@ export function createBatchRepository(prisma: PrismaClient): BatchRepository {
           return tx.stockBatchLine.createManyAndReturn({
             data: command.lines.map((line) => {
               const { stockIncrement, ...lineData } = line;
-              void stockIncrement; // Worked out by the service, not a column on the line.
+              void stockIncrement; // Service-only, not a column on the line.
               return { stockBatchId: batch.id, ...lineData };
             }),
 
@@ -95,7 +87,7 @@ export function createBatchRepository(prisma: PrismaClient): BatchRepository {
     },
 
     async listBatches(businessId, branchId) {
-      const batches = await prisma.stockBatch.findMany({
+      return await prisma.stockBatch.findMany({
         where: { businessId, branchId },
         include: {
           lines: {
@@ -109,8 +101,29 @@ export function createBatchRepository(prisma: PrismaClient): BatchRepository {
         },
         orderBy: { batchDate: 'desc' },
       });
+    },
 
-      return batches;
+    /** Active products, with their Base Unit and the lines still holding stock. */
+    async listProductsWithStockLines(businessId, branchId) {
+      return prisma.product.findMany({
+        where: { businessId, branchId, active: true },
+        include: {
+          productUnits: { where: { unitRole: 'BASE' }, take: 1 },
+          stockBatchLines: { where: { quantityRemaining: { gt: 0 } } },
+        },
+        orderBy: { name: 'asc' },
+      });
+    },
+
+    /** The live product attachments, for the service to join uploadIds onto. */
+    listProductAttachments(productIds) {
+      return prisma.attachment.findMany({
+        where: {
+          recordType: AttachmentRecordType.PRODUCT,
+          recordId: { in: productIds },
+          deletedAt: null,
+        },
+      });
     },
   };
 }

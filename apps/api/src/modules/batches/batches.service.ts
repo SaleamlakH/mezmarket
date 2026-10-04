@@ -1,25 +1,27 @@
 import type {
   BatchActor,
-  BatchListResult,
   BatchRepository,
   BatchScope,
   BatchService,
   CreateBatchCommand,
   CreateBatchInput,
   CreateBatchLineInput,
-  CreateBatchResult,
   ProductContext,
+  ProductInventorySummary,
+  ProductWithStockLinesRecord,
   ProductUnitContext,
   ResolvedBatchLine,
   StockBatchRecord,
   StockIncrement,
+  StockStatus,
 } from './batches.types.js';
 import { AppError, ERROR_CODES } from '../../shared/errors/app-error.js';
 import type { UnitDependsOn } from '../../../generated/prisma/enums.js';
+import type { StockBatchLine as StockBatchLineRecord } from '../../../generated/prisma/client.js';
 
 export function createBatchService(repository: BatchRepository): BatchService {
   return {
-    async createBatch(actor: BatchActor, input: CreateBatchInput): Promise<CreateBatchResult> {
+    async createBatch(actor: BatchActor, input: CreateBatchInput) {
       const productIds = [...new Set(input.lines.map((line) => line.productId))];
       const products = await repository.getProductUnitContext(actor.businessId, productIds);
       const lines = snapshotBatchLines(products, actor.businessId, input.lines);
@@ -41,19 +43,32 @@ export function createBatchService(repository: BatchRepository): BatchService {
       return toBatchDetail(createBatchResult);
     },
 
-    async listBatches({ businessId, branchId }: BatchScope): Promise<BatchListResult> {
+    async listBatches({ businessId, branchId }: BatchScope) {
       const records = await repository.listBatches(businessId, branchId);
       return records.map(toBatchDetail);
+    },
+
+    async listProductInventorySummaries({ businessId, branchId }: BatchScope) {
+      const records = await repository.listProductsWithStockLines(businessId, branchId);
+
+      if (records.length === 0) return [];
+
+      const attachments = await repository.listProductAttachments(
+        records.map((record) => record.id),
+      );
+
+      const uploadIds = new Map(
+        attachments
+          .filter((attachment) => attachment.uploadId != null)
+          .map((attachment) => [attachment.recordId, attachment.uploadId]),
+      );
+
+      return records.map((record) => toProductInventorySummary(record, uploadIds));
     },
   };
 }
 
-/**
- * Reads the catalog of the products a batch names and checks every line
- * against it, so a line can never write stock for a product the business does
- * not have, bought in a unit that product does not have, or bought in a unit
- * that cannot be purchased.
- */
+/** Checks every line against the product catalog before it writes any stock. */
 function snapshotBatchLines(
   products: ProductContext[],
   businessId: string,
@@ -113,11 +128,9 @@ function requirePurchasableUnit(line: CreateBatchLineInput, product: ProductCont
 }
 
 /**
- * The standard unit a purchase is snapshotted in, and the quantity expressed in
- * it. BASE, MOU and STANDARD rows each carry the standard unit they are sold in,
- * so a purchase in one of them snapshots as itself — the quantity never moves.
- * A CUSTOM row carries no standard unit of its own, so it is resolved through
- * the role it depends on.
+ * The standard unit a purchase is snapshotted in, and the quantity in it. Rows
+ * carrying their own standard unit snapshotted as themselves; a CUSTOM row is
+ * resolved through the role it depends on.
  */
 function resolveToStandard(
   purchaseQuantity: number,
@@ -132,9 +145,8 @@ function resolveToStandard(
     };
   }
 
-  // A CUSTOM row is the only one allowed to carry no standard unit of its own.
-  // Any other role missing one is a broken catalog, never something to walk
-  // through a dependency, so it must not be allowed to resolve to something else.
+  // Only a CUSTOM row may lack a standard unit; any other role missing one is a
+  // broken catalog and must not be resolved to something else.
   if (unit.unitRole !== 'CUSTOM') {
     throw new AppError(
       ERROR_CODES.INTERNAL_ERROR,
@@ -198,18 +210,16 @@ function convertToStandardQuantity(
     );
   }
 
-  // An MOU's rate is its Pack Relation (1 BU = X MOU), so its hop divides. A
-  // STANDARD or CUSTOM rate is how many dependsOn units one of it holds
-  // (1 L = 1000 ml, 1 shot = 25 ml), so the same column's hop multiplies.
+  // An MOU rate is a pack relation (1 BU = X MOU) so it divides; a STANDARD or
+  // CUSTOM rate is how many dependsOn units one of it holds, so it multiplies.
   const convertedQuantity =
     unit.unitRole === 'MOU'
       ? quantity / unit.conversionRate.toNumber()
       : quantity * unit.conversionRate.toNumber();
 
-  // direct converstion to the unit they depend on
   if (unit.dependsOn === targetRole) return convertedQuantity;
 
-  // depends on mou, but conversion target is base
+  // Depends on an MOU but the target is BASE, so one more hop.
   if (unit.dependsOn === 'MOU') {
     const mou = productUnits.find((target) => target.unitRole === unit.dependsOn);
 
@@ -242,12 +252,7 @@ function sumStockByProduct(lines: ResolvedBatchLine[]): StockIncrement[] {
   return [...totals].map(([productId, amount]) => ({ productId, amount }));
 }
 
-/**
- * The stored record as a read hands it back: stored decimals narrowed to the
- * numbers the columns keep, the product label each line belongs to flattened
- * onto the line itself, and the receiver under the name the response contract
- * gives it rather than the relation's.
- */
+/** Stored decimals narrowed to numbers, and the product label flattened onto each line. */
 function toBatchDetail(record: StockBatchRecord) {
   const { lines, receivedByMember, ...batch } = record;
 
@@ -273,4 +278,86 @@ function toBatchDetail(record: StockBatchRecord) {
     ),
     receivedBy: receivedByMember,
   };
+}
+
+function toProductInventorySummary(
+  record: ProductWithStockLinesRecord,
+  uploadIds: Map<string, string>,
+): ProductInventorySummary {
+  const baseUnit = record.productUnits[0];
+
+  // Without a Base Unit there is no unit to express the stock in.
+  if (!baseUnit) {
+    throw new AppError(ERROR_CODES.INTERNAL_ERROR, `Product ${record.name} has no base unit`, 500);
+  }
+
+  const currentSealedStock = record.currentSealedStock.toNumber();
+  const lowStockThreshold = record.lowStockThreshold?.toNumber() ?? null;
+  const totals = sumInventoryTotals(record);
+
+  return {
+    id: record.id,
+    name: record.name,
+    brand: record.brand,
+    currentSealedStock,
+    lowStockThreshold,
+    active: record.active,
+    baseUnitLabel: baseUnit.name,
+    uploadId: uploadIds.get(record.id) ?? null,
+    totalCost: totals.totalCost,
+    earliestExpiry: totals.earliestExpiry,
+    expiryCount: totals.expiringBatchIds.size,
+    numberOfBatches: totals.batchIds.size,
+    stockStatus: stockStatusOf(currentSealedStock, lowStockThreshold),
+  };
+}
+
+/** A product with no threshold set has no level to be low against. */
+function stockStatusOf(currentSealedStock: number, lowStockThreshold: number | null): StockStatus {
+  if (currentSealedStock <= 0) return 'OUT_OF_STOCK';
+  if (lowStockThreshold !== null && currentSealedStock < lowStockThreshold) return 'LOW_STOCK';
+  return 'IN_STOCK';
+}
+
+type InventoryTotals = {
+  totalCost: number;
+  earliestExpiry: Date | null;
+  expiringBatchIds: Set<string>;
+  batchIds: Set<string>;
+};
+
+function sumInventoryTotals(record: ProductWithStockLinesRecord): InventoryTotals {
+  const totals: InventoryTotals = {
+    totalCost: 0,
+    earliestExpiry: null,
+    expiringBatchIds: new Set(),
+    batchIds: new Set(),
+  };
+
+  for (const line of record.stockBatchLines) {
+    totals.totalCost += remainingCostOf(line);
+    totals.batchIds.add(line.stockBatchId); // if only has remaining > 0, needs correction
+
+    if (line.expiryDate === null) continue;
+
+    totals.expiringBatchIds.add(line.stockBatchId);
+    if (totals.earliestExpiry === null || line.expiryDate < totals.earliestExpiry) {
+      totals.earliestExpiry = line.expiryDate;
+    }
+  }
+
+  return totals;
+}
+
+/**
+ * What a line cost when bought, scaled by the fraction of it still unsold. The
+ * fraction is taken against `standardQuantity` because remaining quantity is
+ * tracked in standard units; a zero standard quantity contributes no cost.
+ */
+function remainingCostOf(line: StockBatchLineRecord): number {
+  const standardQuantity = line.standardQuantity.toNumber();
+  if (standardQuantity === 0) return 0;
+
+  const bought = line.purchaseQuantity.toNumber() * line.purchaseUnitCost.toNumber();
+  return bought * (line.quantityRemaining.toNumber() / standardQuantity);
 }
