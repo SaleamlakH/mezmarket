@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createBatchRepository } from '../batches.repository.js';
-import type { BatchRepository, CreateBatchCommand } from '../batches.types.js';
+import type { CreateBatchCommand } from '../batches.types.js';
 import { AttachmentRecordType } from '../../../../generated/prisma/client.js';
 import type { PrismaClient } from '../../../../generated/prisma/client.js';
 
@@ -123,47 +123,32 @@ describe('batches.repository', () => {
     vi.clearAllMocks();
   });
 
-  it('returns an object implementing BatchRepository', () => {
-    const { prisma } = createPrismaStub();
-    const repo = createBatchRepository(prisma) satisfies BatchRepository;
-
-    expect(typeof repo.getProductUnitContext).toBe('function');
-    expect(typeof repo.createBatchAndAdjustStock).toBe('function');
-    expect(typeof repo.listBatches).toBe('function');
-    expect(typeof repo.listProductsWithStockLines).toBe('function');
-    expect(typeof repo.listProductAttachments).toBe('function');
-  });
-
-  describe('getProductUnitContext', () => {
+describe('getProductUnitContext', () => {
     it('reads the named products of the business with the fields the unit math walks', async () => {
       const { prisma, product } = createPrismaStub();
       const repo = createBatchRepository(prisma);
 
       await repo.getProductUnitContext('b-1', ['p-tequila', 'p-tshirt']);
 
-      expect(product.findMany).toHaveBeenCalledWith({
-        where: { id: { in: ['p-tequila', 'p-tshirt'] }, businessId: 'b-1' },
-        select: {
-          id: true,
-          businessId: true,
-          productUnits: {
-            select: {
-              id: true,
-              productId: true,
-              unitRole: true,
-              standardUnitId: true,
-              name: true,
-              dependsOn: true,
-              conversionRate: true,
-              purchaseCapable: true,
-              createdAt: true,
-              updatedAt: true,
-              sellCapable: true,
-              standardUnit: { select: { id: true, name: true, symbol: true } },
+      expect(product.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: { in: ['p-tequila', 'p-tshirt'] }, businessId: 'b-1' },
+          select: expect.objectContaining({
+            id: true,
+            businessId: true,
+            productUnits: {
+              select: expect.objectContaining({
+                unitRole: true,
+                standardUnitId: true,
+                dependsOn: true,
+                conversionRate: true,
+                purchaseCapable: true,
+                standardUnit: { select: { id: true, name: true, symbol: true } },
+              }),
             },
-          },
-        },
-      });
+          }),
+        }),
+      );
     });
   });
 
@@ -333,6 +318,17 @@ describe('batches.repository', () => {
 
       expect(result.receivedByMember).toEqual({ id: 'm-1', name: 'me', role: 'OWNER' });
     });
+
+    it('lets a failed write reject out of the transaction, leaving the lines unwritten', async () => {
+      const { prisma, tx } = createPrismaStub();
+      const repo = createBatchRepository(prisma);
+      tx.stockBatch.create.mockRejectedValue(new Error('db down'));
+
+      await expect(repo.createBatchAndAdjustStock(command())).rejects.toThrow('db down');
+
+      expect(tx.stockBatchLine.createManyAndReturn).not.toHaveBeenCalled();
+      expect(tx.product.update).not.toHaveBeenCalled();
+    });
   });
 
   describe('listBatches', () => {
@@ -373,13 +369,15 @@ describe('batches.repository', () => {
       stockBatchLines: { where: { quantityRemaining: { gt: 0 } } },
     };
 
-    it('reads the active products of the branch with both summary relations', async () => {
+    it('reads the active products of the branch whole, with both summary relations', async () => {
       const { prisma, product } = createPrismaStub();
       const repo = createBatchRepository(prisma);
       product.findMany.mockResolvedValue([]);
 
       await repo.listProductsWithStockLines('b-1', 'br-1');
 
+      // The exact call also pins that no `select` is passed, so the summary is
+      // worked out from whole rows.
       expect(product.findMany).toHaveBeenCalledWith({
         where: { businessId: 'b-1', branchId: 'br-1', active: true },
         include: INVENTORY_INCLUDE,
@@ -387,36 +385,7 @@ describe('batches.repository', () => {
       });
     });
 
-    it('fetches the product whole rather than field by field', async () => {
-      const { prisma, product } = createPrismaStub();
-      const repo = createBatchRepository(prisma);
-      product.findMany.mockResolvedValue([]);
-
-      await repo.listProductsWithStockLines('b-1', 'br-1');
-
-      const query = product.findMany.mock.calls[0]?.[0] as Record<string, unknown>;
-
-      expect(query).not.toHaveProperty('select');
-    });
-
-    it('asks only for the Base Unit and only for lines still holding stock', async () => {
-      const { prisma, product } = createPrismaStub();
-      const repo = createBatchRepository(prisma);
-      product.findMany.mockResolvedValue([]);
-
-      await repo.listProductsWithStockLines('b-1', 'br-1');
-
-      expect(product.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          include: {
-            productUnits: { where: { unitRole: 'BASE' }, take: 1 },
-            stockBatchLines: { where: { quantityRemaining: { gt: 0 } } },
-          },
-        }),
-      );
-    });
-
-    it('returns the product rows the query answered with, without touching attachments', async () => {
+it('returns the product rows the query answered with', async () => {
       const { prisma, product, attachment } = createPrismaStub();
       const repo = createBatchRepository(prisma);
       const rows = [

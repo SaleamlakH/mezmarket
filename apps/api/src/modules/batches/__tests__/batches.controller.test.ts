@@ -67,7 +67,7 @@ describe('batches.controller', () => {
       expect(res.json).toHaveBeenCalledWith(CREATED);
     });
 
-    it('hands the service the scope the authorize middleware resolved', async () => {
+    it('hands the service the resolved scope and the body the validation middleware stored', async () => {
       vi.mocked(service.createBatch).mockResolvedValue(CREATED as never);
       const { req, res } = call(AUTH, input());
 
@@ -77,15 +77,6 @@ describe('batches.controller', () => {
         { businessId: 'b-1', branchId: 'br-1', memberId: 'm-1' },
         input(),
       );
-    });
-
-    it('takes the body the validation middleware stored on the request', async () => {
-      vi.mocked(service.createBatch).mockResolvedValue(CREATED as never);
-      const { req, res } = call(AUTH, input());
-
-      await controller.createBatch(req, res);
-
-      expect(service.createBatch).toHaveBeenCalledWith(expect.anything(), input());
     });
 
     it('lets a rejected service call propagate to the error handler', async () => {
@@ -147,15 +138,6 @@ describe('batches.controller', () => {
         businessId: 'b-1',
         branchId: 'br-1',
       });
-    });
-
-    it('needs no request body, so it does not read one', async () => {
-      vi.mocked(service.listProductInventorySummaries).mockResolvedValue([]);
-      const { req, res } = call(AUTH);
-
-      await controller.listProductInventorySummaries(req, res);
-
-      expect(service.listProductInventorySummaries).toHaveBeenCalledWith(expect.anything());
     });
 
     it('lets a rejected service call propagate to the error handler', async () => {
