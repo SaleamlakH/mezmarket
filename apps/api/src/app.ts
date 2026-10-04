@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express, { type Express, type Request, type Response } from 'express';
 import cors from 'cors';
+import { errorHandler } from './shared/errors/error-handler.js';
 import {
   auth,
   businessRoutes,
@@ -9,7 +10,6 @@ import {
   unitsRoutes,
   batchRoutes,
 } from './composition.js';
-import { errorHandler } from './shared/errors/error-handler.js';
 
 const app: Express = express();
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+﻿import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createProductsRepository } from '../products.repository.js';
 import type { ProductRepository, CreateProductInput } from '../products.types.js';
 import { AttachmentRecordType } from '../../../../generated/prisma/client.js';
@@ -93,24 +93,24 @@ describe('products.repository', () => {
     const { prisma } = createPrismaStub();
     const repo = createProductsRepository(prisma) satisfies ProductRepository;
 
-    expect(typeof repo.list).toBe('function');
-    expect(typeof repo.getById).toBe('function');
+    expect(typeof repo.listForBusiness).toBe('function');
+    expect(typeof repo.getByIdWithUnits).toBe('function');
     expect(typeof repo.createForBusiness).toBe('function');
     expect(typeof repo.listAttachmentsForProducts).toBe('function');
     expect(typeof repo.getProductAttachment).toBe('function');
   });
 
-  describe('list', () => {
-    it('calls findMany with business + branch filter, active only, and included units', async () => {
+  describe('listForBusiness', () => {
+    it('calls findMany with the business + branch filter and only the base unit', async () => {
       const { prisma, product } = createPrismaStub();
       const repo = createProductsRepository(prisma);
 
-      await repo.list('b-1', 'br-1');
+      await repo.listForBusiness('b-1', 'br-1');
 
       expect(product.findMany).toHaveBeenCalledWith({
-        where: { businessId: 'b-1', branchId: 'br-1', active: true },
-        orderBy: { createdAt: 'desc' },
-        include: { productUnits: { orderBy: [{ unitRole: 'asc' }, { createdAt: 'asc' }] } },
+        where: { businessId: 'b-1', branchId: 'br-1' },
+        orderBy: { name: 'asc' },
+        include: { productUnits: { where: { unitRole: 'BASE' }, take: 1 } },
       });
     });
 
@@ -124,22 +124,22 @@ describe('products.repository', () => {
       ];
       product.findMany.mockResolvedValue(records);
 
-      const result = await repo.list('b-1', 'br-1');
+      const result = await repo.listForBusiness('b-1', 'br-1');
 
       expect(result).toEqual(records);
     });
   });
 
-  describe('getById', () => {
+  describe('getByIdWithUnits', () => {
     it('calls findFirst with id, business filter and included units', async () => {
       const { prisma, product } = createPrismaStub();
       const repo = createProductsRepository(prisma);
 
-      await repo.getById('p-1', 'b-1');
+      await repo.getByIdWithUnits('p-1', 'b-1');
 
       expect(product.findFirst).toHaveBeenCalledWith({
         where: { id: 'p-1', businessId: 'b-1' },
-        include: { productUnits: { orderBy: [{ unitRole: 'asc' }, { createdAt: 'asc' }] } },
+        include: { productUnits: true },
       });
     });
 
@@ -150,7 +150,7 @@ describe('products.repository', () => {
       const record = { id: 'p-1', productUnits: [] };
       product.findFirst.mockResolvedValue(record);
 
-      const result = await repo.getById('p-1', 'b-1');
+      const result = await repo.getByIdWithUnits('p-1', 'b-1');
 
       expect(result).toEqual(record);
     });
@@ -160,7 +160,7 @@ describe('products.repository', () => {
       const repo = createProductsRepository(prisma);
       product.findFirst.mockResolvedValue(null);
 
-      await expect(repo.getById('missing', 'b-1')).resolves.toBeNull();
+      await expect(repo.getByIdWithUnits('missing', 'b-1')).resolves.toBeNull();
     });
   });
 

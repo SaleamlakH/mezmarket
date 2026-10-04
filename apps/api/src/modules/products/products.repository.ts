@@ -35,22 +35,20 @@ const sameName = (name: string) => name.trim().toLowerCase();
 
 export function createProductsRepository(prisma: PrismaClient): ProductRepository {
   return {
-    async list(businessId: string, branchId: string) {
-      return prisma.product.findMany({
-        where: { businessId, branchId, active: true },
-        orderBy: { createdAt: 'desc' },
+    async listForBusiness(businessId, branchId) {
+      return await prisma.product.findMany({
+        where: { businessId, branchId },
         include: {
-          productUnits: { orderBy: [{ unitRole: 'asc' }, { createdAt: 'asc' }] },
+          productUnits: { where: { unitRole: 'BASE' }, take: 1 },
         },
+        orderBy: { name: 'asc' },
       });
     },
 
-    async getById(id: string, businessId: string) {
-      return prisma.product.findFirst({
+    async getByIdWithUnits(id, businessId) {
+      return await prisma.product.findFirst({
         where: { id, businessId },
-        include: {
-          productUnits: { orderBy: [{ unitRole: 'asc' }, { createdAt: 'asc' }] },
-        },
+        include: { productUnits: true },
       });
     },
 
@@ -69,6 +67,7 @@ export function createProductsRepository(prisma: PrismaClient): ProductRepositor
         where: { recordType: AttachmentRecordType.PRODUCT, recordId: productId, deletedAt: null },
       });
     },
+
     async createForBusiness(
       businessId: string,
       branchId: string,

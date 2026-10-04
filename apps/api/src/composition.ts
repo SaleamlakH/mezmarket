@@ -97,7 +97,6 @@ export const batchRoutes = createBatchRouter(
   requireBusinessRole(['OWNER', 'MANAGER']),
   validateBatchCreateInput,
 );
-
 const ownerRepository = createOwnerRepository(prisma);
 const ownerService = createOwnerService(ownerRepository);
 const ownerController = createOwnerController(ownerService);

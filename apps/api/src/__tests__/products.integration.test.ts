@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+﻿import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import type { AuthRepository } from '../modules/auth/auth.types.js';
 import type { BusinessRepository } from '../modules/business/business.types.js';
@@ -30,12 +30,13 @@ const {
       createForOwner: vi.fn(),
       getBusinessId: vi.fn(),
       getBranchId: vi.fn(),
+      getActor: vi.fn(),
       getForOwner: vi.fn(),
       updateForOwner: vi.fn(),
     } satisfies BusinessRepository,
     productsRepository: {
-      list: vi.fn(),
-      getById: vi.fn(),
+      listForBusiness: vi.fn(),
+      getByIdWithUnits: vi.fn(),
       createForBusiness: vi.fn(),
       listAttachmentsForProducts: vi.fn(),
       getProductAttachment: vi.fn(),
@@ -144,15 +145,23 @@ async function authenticate(ownerId = 'owner-1') {
   });
 }
 
-function authorize(businessId: string | null, branchId: string | null) {
+function authorize(
+  businessId: string | null,
+  branchId: string | null,
+  role: 'OWNER' | 'MANAGER' | 'CASHIER' | 'SERVER' = 'OWNER',
+) {
   businessRepository.getBusinessId.mockResolvedValue(businessId);
   businessRepository.getBranchId.mockResolvedValue(branchId);
+  businessRepository.getActor.mockResolvedValue({ id: 'm-1', role });
 }
 
 describe('products.integration', () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    productsRepository.list.mockResolvedValue([]);
+    productsRepository.listForBusiness.mockResolvedValue([]);
+    productsRepository.getByIdWithUnits.mockResolvedValue(
+      productRecord({ productUnits: [productUnit()] }),
+    );
     productsRepository.listAttachmentsForProducts.mockResolvedValue([]);
     productsRepository.getProductAttachment.mockResolvedValue(null);
     uploadsRepository.getManyByIds.mockResolvedValue([]);
@@ -166,7 +175,7 @@ describe('products.integration', () => {
       expect(res.body).toEqual({
         error: { code: ERROR_CODES.UNAUTHORIZED, message: expect.any(String) },
       });
-      expect(productsRepository.list).not.toHaveBeenCalled();
+      expect(productsRepository.listForBusiness).not.toHaveBeenCalled();
       expect(businessRepository.getBusinessId).not.toHaveBeenCalled();
     });
 
@@ -189,7 +198,7 @@ describe('products.integration', () => {
       expect(res.body).toEqual({
         error: { code: ERROR_CODES.UNAUTHORIZED, message: expect.any(String) },
       });
-      expect(productsRepository.getById).not.toHaveBeenCalled();
+      expect(productsRepository.getByIdWithUnits).not.toHaveBeenCalled();
     });
   });
 
@@ -206,7 +215,7 @@ describe('products.integration', () => {
       expect(res.body).toEqual({
         error: { code: ERROR_CODES.NOT_FOUND, message: expect.any(String) },
       });
-      expect(productsRepository.list).not.toHaveBeenCalled();
+      expect(productsRepository.listForBusiness).not.toHaveBeenCalled();
     });
 
     it('returns NOT_FOUND when the business has no branch', async () => {
@@ -225,37 +234,47 @@ describe('products.integration', () => {
   });
 
   describe('GET /api/businesses/:businessId/products', () => {
-    it('lists the products for the resolved scope', async () => {
+    it('answers with a bare list of narrowed product summaries', async () => {
       await authenticate('owner-1');
       authorize('b-1', 'br-1');
-      productsRepository.list.mockResolvedValue([productRecord()]);
+      productsRepository.listForBusiness.mockResolvedValue([
+        productRecord({ productUnits: [productUnit()] }),
+      ]);
 
       const res = await request(app)
         .get('/api/businesses/b-1/products')
         .set('Authorization', 'Bearer token');
 
       expect(res.status).toBe(200);
-      expect(res.body).toEqual([{ ...WIRE_PRODUCT, units: [] }]);
-      expect(productsRepository.list).toHaveBeenCalledWith('b-1', 'br-1');
+      expect(res.body).toEqual([
+        {
+          id: 'p-1',
+          name: 'Shirt',
+          brand: null,
+          currentSealedStock: 10,
+          lowStockThreshold: null,
+          active: true,
+          baseUnitLabel: 'kg',
+          uploadId: null,
+        },
+      ]);
     });
 
-    it('includes the units of each product', async () => {
+    it('reads the products of the resolved business and branch', async () => {
       await authenticate('owner-1');
       authorize('b-1', 'br-1');
-      productsRepository.list.mockResolvedValue([productRecord({ productUnits: [productUnit()] })]);
 
-      const res = await request(app)
-        .get('/api/businesses/b-1/products')
-        .set('Authorization', 'Bearer token');
+      await request(app).get('/api/businesses/b-1/products').set('Authorization', 'Bearer token');
 
-      expect(res.status).toBe(200);
-      expect(res.body).toEqual([{ ...WIRE_PRODUCT, units: [BASE_UNIT_WIRE] }]);
+      expect(productsRepository.listForBusiness).toHaveBeenCalledWith('b-1', 'br-1');
     });
 
-    it('exposes the uploadId of the live attachment', async () => {
+    it('exposes the uploadId of the live attachment in each summary', async () => {
       await authenticate('owner-1');
       authorize('b-1', 'br-1');
-      productsRepository.list.mockResolvedValue([productRecord()]);
+      productsRepository.listForBusiness.mockResolvedValue([
+        productRecord({ productUnits: [productUnit()] }),
+      ]);
       productsRepository.listAttachmentsForProducts.mockResolvedValue([
         { recordId: 'p-1', uploadId: 'u-1' },
       ]);
@@ -266,6 +285,33 @@ describe('products.integration', () => {
 
       expect(res.status).toBe(200);
       expect(res.body[0].uploadId).toBe('u-1');
+    });
+
+    it.each(['OWNER', 'MANAGER', 'CASHIER', 'SERVER'] as const)(
+      'lets a %s read the catalog',
+      async (role) => {
+        await authenticate('owner-1');
+        authorize('b-1', 'br-1', role);
+
+        const res = await request(app)
+          .get('/api/businesses/b-1/products')
+          .set('Authorization', 'Bearer token');
+
+        expect(res.status).toBe(200);
+      },
+    );
+
+    it('answers 500 when a product is missing its base unit', async () => {
+      await authenticate('owner-1');
+      authorize('b-1', 'br-1');
+      productsRepository.listForBusiness.mockResolvedValue([productRecord({ productUnits: [] })]);
+
+      const res = await request(app)
+        .get('/api/businesses/b-1/products')
+        .set('Authorization', 'Bearer token');
+
+      expect(res.status).toBe(500);
+      expect(res.body).toMatchObject({ error: { code: ERROR_CODES.INTERNAL_ERROR } });
     });
   });
 
@@ -580,7 +626,7 @@ describe('products.integration', () => {
     it('returns the product for the resolved scope', async () => {
       await authenticate('owner-1');
       authorize('b-1', 'br-1');
-      productsRepository.getById.mockResolvedValue(productRecord());
+      productsRepository.getByIdWithUnits.mockResolvedValue(productRecord());
 
       const res = await request(app)
         .get('/api/businesses/b-1/products/p-1')
@@ -588,13 +634,13 @@ describe('products.integration', () => {
 
       expect(res.status).toBe(200);
       expect(res.body).toEqual({ ...WIRE_PRODUCT, units: [] });
-      expect(productsRepository.getById).toHaveBeenCalledWith('p-1', 'b-1');
+      expect(productsRepository.getByIdWithUnits).toHaveBeenCalledWith('p-1', 'b-1');
     });
 
     it('returns NOT_FOUND when the product is missing', async () => {
       await authenticate('owner-1');
       authorize('b-1', 'br-1');
-      productsRepository.getById.mockResolvedValue(null);
+      productsRepository.getByIdWithUnits.mockResolvedValue(null);
 
       const res = await request(app)
         .get('/api/businesses/b-1/products/missing')
@@ -688,7 +734,7 @@ describe('products.integration', () => {
         expect(res.body).toEqual({
           error: { code: ERROR_CODES.UNAUTHORIZED, message: expect.any(String) },
         });
-        expect(productsRepository.getById).not.toHaveBeenCalled();
+        expect(productsRepository.getByIdWithUnits).not.toHaveBeenCalled();
         expect(uploadsRepository.getById).not.toHaveBeenCalled();
       });
 
@@ -704,14 +750,14 @@ describe('products.integration', () => {
         expect(res.body).toEqual({
           error: { code: ERROR_CODES.NOT_FOUND, message: expect.any(String) },
         });
-        expect(productsRepository.getById).not.toHaveBeenCalled();
+        expect(productsRepository.getByIdWithUnits).not.toHaveBeenCalled();
         expect(uploadsRepository.getById).not.toHaveBeenCalled();
       });
 
       it('returns a presigned download url for the product upload', async () => {
         await authenticate('owner-1');
         authorize('b-1', 'br-1');
-        productsRepository.getById.mockResolvedValue(productRecord());
+        productsRepository.getByIdWithUnits.mockResolvedValue(productRecord());
         productsRepository.getProductAttachment.mockResolvedValue({
           recordId: 'p-1',
           uploadId: 'u-1',
@@ -725,7 +771,7 @@ describe('products.integration', () => {
 
         expect(res.status).toBe(200);
         expect(res.body).toEqual({ url: 'https://file/signed-download' });
-        expect(productsRepository.getById).toHaveBeenCalledWith('p-1', 'b-1');
+        expect(productsRepository.getByIdWithUnits).toHaveBeenCalledWith('p-1', 'b-1');
         expect(productsRepository.getProductAttachment).toHaveBeenCalledWith('p-1');
         expect(uploadsRepository.getById).toHaveBeenCalledWith('u-1');
         expect(storage.createDownloadUrl).toHaveBeenCalledWith('uploads/product/u-1.jpg');
@@ -734,7 +780,7 @@ describe('products.integration', () => {
       it('reconciles a pending upload to ACTIVE when the object exists', async () => {
         await authenticate('owner-1');
         authorize('b-1', 'br-1');
-        productsRepository.getById.mockResolvedValue(productRecord());
+        productsRepository.getByIdWithUnits.mockResolvedValue(productRecord());
         productsRepository.getProductAttachment.mockResolvedValue({
           recordId: 'p-1',
           uploadId: 'u-1',
@@ -755,7 +801,7 @@ describe('products.integration', () => {
       it('rejects fetching a download url when the product has no live attachment', async () => {
         await authenticate('owner-1');
         authorize('b-1', 'br-1');
-        productsRepository.getById.mockResolvedValue(productRecord());
+        productsRepository.getByIdWithUnits.mockResolvedValue(productRecord());
         productsRepository.getProductAttachment.mockResolvedValue(null);
 
         const res = await request(app)
@@ -809,7 +855,10 @@ describe('products.integration', () => {
       it('returns a matched download url for each product upload id', async () => {
         await authenticate('owner-1');
         authorize('b-1', 'br-1');
-        productsRepository.list.mockResolvedValue([productRecord(), productRecord({ id: 'p-2' })]);
+        productsRepository.listForBusiness.mockResolvedValue([
+          productRecord(),
+          productRecord({ id: 'p-2' }),
+        ]);
         productsRepository.listAttachmentsForProducts.mockResolvedValue([
           { recordId: 'p-1', uploadId: 'u-1' },
           { recordId: 'p-2', uploadId: 'u-2' },
@@ -830,7 +879,7 @@ describe('products.integration', () => {
           { uploadId: 'u-1', url: 'https://file/uploads/product/u-1.jpg' },
           { uploadId: 'u-2', url: 'https://file/uploads/product/u-2.jpg' },
         ]);
-        expect(productsRepository.list).toHaveBeenCalledWith('b-1', 'br-1');
+        expect(productsRepository.listForBusiness).toHaveBeenCalledWith('b-1', 'br-1');
         expect(productsRepository.listAttachmentsForProducts).toHaveBeenCalledWith(['p-1', 'p-2']);
         expect(uploadsRepository.getManyByIds).toHaveBeenCalledWith(['u-1', 'u-2']);
       });
@@ -848,6 +897,143 @@ describe('products.integration', () => {
         expect(productsRepository.listAttachmentsForProducts).not.toHaveBeenCalled();
         expect(uploadsRepository.getManyByIds).not.toHaveBeenCalled();
       });
+    });
+  });
+
+  describe('GET /api/businesses/:businessId/products/:productId/units', () => {
+    it('rejects fetching units without a token', async () => {
+      const res = await request(app).get('/api/businesses/b-1/products/p-1/units');
+
+      expect(res.status).toBe(401);
+      expect(productsRepository.getByIdWithUnits).not.toHaveBeenCalled();
+    });
+
+    it('answers with every unit in hierarchy order, narrowed to numbers', async () => {
+      await authenticate('owner-1');
+      authorize('b-1', 'br-1');
+      productsRepository.getByIdWithUnits.mockResolvedValue(
+        productRecord({
+          productUnits: [
+            productUnit({
+              id: 'pu-zip',
+              name: 'Ziplock',
+              unitRole: 'CUSTOM',
+              dependsOn: 'BASE',
+              conversionRate: { toNumber: () => 1 },
+              price: null,
+              purchaseCapable: false,
+              sellCapable: true,
+            }),
+            productUnit({ id: 'pu-bottle', name: 'Bottle' }),
+            productUnit({
+              id: 'pu-bag',
+              name: 'Bag',
+              unitRole: 'CUSTOM',
+              dependsOn: 'BASE',
+              conversionRate: { toNumber: () => 1 },
+              price: null,
+              purchaseCapable: false,
+              sellCapable: true,
+            }),
+            productUnit({
+              id: 'pu-box',
+              name: 'Box',
+              unitRole: 'MOU',
+              dependsOn: 'BASE',
+              conversionRate: { toNumber: () => 6 },
+              price: { toNumber: () => 5 },
+              purchaseCapable: false,
+              sellCapable: true,
+            }),
+          ],
+        }),
+      );
+
+      const res = await request(app)
+        .get('/api/businesses/b-1/products/p-1/units')
+        .set('Authorization', 'Bearer token');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual([
+        {
+          id: 'pu-bottle',
+          productId: 'p-1',
+          name: 'Bottle',
+          unitRole: 'BASE',
+          dependsOn: null,
+          conversionRate: null,
+          purchaseCapable: true,
+          sellCapable: true,
+        },
+        {
+          id: 'pu-box',
+          productId: 'p-1',
+          name: 'Box',
+          unitRole: 'MOU',
+          dependsOn: 'BASE',
+          conversionRate: 6,
+          purchaseCapable: false,
+          sellCapable: true,
+        },
+        {
+          id: 'pu-bag',
+          productId: 'p-1',
+          name: 'Bag',
+          unitRole: 'CUSTOM',
+          dependsOn: 'BASE',
+          conversionRate: 1,
+          purchaseCapable: false,
+          sellCapable: true,
+        },
+        {
+          id: 'pu-zip',
+          productId: 'p-1',
+          name: 'Ziplock',
+          unitRole: 'CUSTOM',
+          dependsOn: 'BASE',
+          conversionRate: 1,
+          purchaseCapable: false,
+          sellCapable: true,
+        },
+      ]);
+    });
+
+    it('reads the product inside the caller business', async () => {
+      await authenticate('owner-1');
+      authorize('b-1', 'br-1');
+
+      await request(app)
+        .get('/api/businesses/b-1/products/p-1/units')
+        .set('Authorization', 'Bearer token');
+
+      expect(productsRepository.getByIdWithUnits).toHaveBeenCalledWith('p-1', 'b-1');
+    });
+
+    it.each(['OWNER', 'MANAGER', 'CASHIER', 'SERVER'] as const)(
+      'lets a %s read the units',
+      async (role) => {
+        await authenticate('owner-1');
+        authorize('b-1', 'br-1', role);
+
+        const res = await request(app)
+          .get('/api/businesses/b-1/products/p-1/units')
+          .set('Authorization', 'Bearer token');
+
+        expect(res.status).toBe(200);
+      },
+    );
+
+    it('answers 404 for a product that does not exist', async () => {
+      await authenticate('owner-1');
+      authorize('b-1', 'br-1');
+      productsRepository.getByIdWithUnits.mockResolvedValue(null);
+
+      const res = await request(app)
+        .get('/api/businesses/b-1/products/ghost/units')
+        .set('Authorization', 'Bearer token');
+
+      expect(res.status).toBe(404);
+      expect(res.body).toMatchObject({ error: { code: ERROR_CODES.NOT_FOUND } });
     });
   });
 });

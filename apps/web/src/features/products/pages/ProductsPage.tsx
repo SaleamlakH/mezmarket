@@ -1,12 +1,12 @@
 import { useCallback, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { CreateProductResponse, ProductWithUnitsResponse } from '@mez/types';
+import type { CreateProductResponse, ProductSummaryResponse } from '@mez/types';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { Loader } from '@/components/Loader';
 import { Toast } from '@/components/Toast';
-import { formatMoney, pluralize } from '@/lib/format';
+import { pluralize } from '@/lib/format';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
 import { AddProductDialog } from '../components/AddProductDialog';
 import { ProductCard } from '../components/ProductCard';
@@ -21,20 +21,13 @@ interface CardView {
   low?: boolean | undefined;
 }
 
-function cardFor(product: ProductWithUnitsResponse, currency: string): CardView {
-  const baseUnit = product.units.find((unit) => unit.unitRole === 'BASE');
-  const price = baseUnit?.price;
-  const symbol = baseUnit?.name;
-  const sell = product.units
-    .filter((unit) => unit.sellCapable)
-    .map((unit) => unit.name)
-    .join(', ');
+function cardFor(product: ProductSummaryResponse): CardView {
+  const symbol = product.baseUnitLabel;
   const low =
     product.lowStockThreshold != null && product.currentSealedStock <= product.lowStockThreshold;
   return {
     name: product.name,
-    meta: sell ? `sold by ${sell}` : (product.brand ?? undefined),
-    price: formatMoney(price, currency, symbol),
+    meta: product.brand ?? undefined,
     sub: `${product.currentSealedStock}${symbol ? ` ${symbol}` : ''}`,
     low,
   };
@@ -43,7 +36,6 @@ function cardFor(product: ProductWithUnitsResponse, currency: string): CardView 
 export function ProductsPage() {
   const { currentBusiness } = useBusinessContext();
   const businessId = currentBusiness?.id;
-  const currency = currentBusiness?.currencyCode ?? 'ETB';
   const queryClient = useQueryClient();
 
   const { data, isLoading, isError, isRefetching, refetch } = useProducts(businessId ?? '');
@@ -118,7 +110,7 @@ export function ProductsPage() {
               businessId={businessId}
               uploadId={product.uploadId ?? undefined}
               uploadUrls={uploadUrls}
-              {...cardFor(product, currency)}
+              {...cardFor(product)}
             />
           ))}
         </div>

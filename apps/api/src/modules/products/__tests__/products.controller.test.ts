@@ -7,6 +7,7 @@ import type { ProductService } from '../products.types.js';
 function mockService(): ProductService {
   return {
     listProducts: vi.fn(),
+    listProductUnits: vi.fn(),
     getProduct: vi.fn(),
     createProduct: vi.fn(),
     resolveUploadId: vi.fn(),
@@ -37,25 +38,42 @@ describe('products.controller', () => {
   });
 
   describe('listProducts', () => {
-    it('returns 200 with the products from the service', async () => {
+    it('returns 200 with the summaries the service listed', async () => {
       const controller = createProductsController(service);
-      const products = [{ id: 'p-1' }];
-      vi.mocked(service.listProducts).mockResolvedValue(products as never);
+      vi.mocked(service.listProducts).mockResolvedValue([] as never);
       const res = mockRes();
 
       await controller.listProducts(mockReq(), res);
 
       expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith(products);
+      expect(res.json).toHaveBeenCalledWith([]);
     });
 
-    it('passes the business and branch ids to the service', async () => {
+    it('lists the business and branch the authorize middleware resolved', async () => {
       const controller = createProductsController(service);
       vi.mocked(service.listProducts).mockResolvedValue([] as never);
 
       await controller.listProducts(mockReq(), mockRes());
 
-      expect(service.listProducts).toHaveBeenCalledWith('b-1', 'br-1');
+      expect(service.listProducts).toHaveBeenCalledWith({
+        businessId: 'b-1',
+        branchId: 'br-1',
+      });
+    });
+
+    it('takes the scope from the request rather than the url', async () => {
+      const controller = createProductsController(service);
+      vi.mocked(service.listProducts).mockResolvedValue([] as never);
+
+      await controller.listProducts(
+        mockReq({ params: { businessId: 'someone-elses-business' } }),
+        mockRes(),
+      );
+
+      expect(service.listProducts).toHaveBeenCalledWith({
+        businessId: 'b-1',
+        branchId: 'br-1',
+      });
     });
 
     it('propagates service errors', async () => {
@@ -67,6 +85,40 @@ describe('products.controller', () => {
       await expect(controller.listProducts(mockReq(), mockRes())).rejects.toThrow(
         new AppError(ERROR_CODES.UNAUTHORIZED, 'Unauthorized', 401),
       );
+    });
+  });
+
+  describe('listProductUnits', () => {
+    it('returns 200 with the units the service listed', async () => {
+      const controller = createProductsController(service);
+      vi.mocked(service.listProductUnits).mockResolvedValue([] as never);
+      const res = mockRes();
+
+      await controller.listProductUnits(mockReq({ params: { productId: 'p-1' } }), res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith([]);
+    });
+
+    it('passes the product id from the path and the resolved scope', async () => {
+      const controller = createProductsController(service);
+      vi.mocked(service.listProductUnits).mockResolvedValue([] as never);
+
+      await controller.listProductUnits(mockReq({ params: { productId: 'p-1' } }), mockRes());
+
+      expect(service.listProductUnits).toHaveBeenCalledWith(
+        { businessId: 'b-1', branchId: 'br-1' },
+        'p-1',
+      );
+    });
+
+    it('propagates service errors', async () => {
+      const controller = createProductsController(service);
+      vi.mocked(service.listProductUnits).mockRejectedValue(new Error('db down'));
+
+      await expect(
+        controller.listProductUnits(mockReq({ params: { productId: 'p-1' } }), mockRes()),
+      ).rejects.toThrow('db down');
     });
   });
 
