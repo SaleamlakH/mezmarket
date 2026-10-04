@@ -2,12 +2,7 @@ import { Router } from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import type { BatchController } from './batches.controller.js';
 
-/**
- * Both routes run behind the business's own authorization: which business is
- * addressed comes from the path, and — for the write — the acting member's
- * role has to allow it. Only the write carries a body, so only it needs its
- * input validated. Reading a batch is open to any member of the business.
- */
+/** Reads are open to any member; only the write is role-gated and validated. */
 export function createBatchRouter(
   controller: BatchController,
   authorizeBusiness: (req: Request, res: Response, next: NextFunction) => void,
@@ -23,6 +18,12 @@ export function createBatchRouter(
     requireBatchWriteRole,
     validateBatchInput,
     controller.createBatch,
+  );
+
+  router.get(
+    '/businesses/:businessId/inventory/products',
+    authorizeBusiness,
+    controller.listProductInventorySummaries,
   );
 
   return router;

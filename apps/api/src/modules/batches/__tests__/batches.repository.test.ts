@@ -123,6 +123,7 @@ describe('batches.repository', () => {
     expect(typeof repo.getProductUnitContext).toBe('function');
     expect(typeof repo.createBatchAndAdjustStock).toBe('function');
     expect(typeof repo.listBatches).toBe('function');
+    expect(typeof repo.listProductInventorySummaries).toBe('function');
   });
 
   describe('getProductUnitContext', () => {
@@ -355,6 +356,70 @@ describe('batches.repository', () => {
       for (const batch of result) {
         expect(batch.receivedByMember).toEqual({ id: 'm-1', name: 'me', role: 'OWNER' });
       }
+    });
+  });
+
+  describe('listProductInventorySummaries', () => {
+    const INVENTORY_INCLUDE = {
+      productUnits: { where: { unitRole: 'BASE' }, take: 1 },
+      stockBatchLines: { where: { quantityRemaining: { gt: 0 } } },
+    };
+
+    it('reads the active products of the branch with both summary relations', async () => {
+      const { prisma, product } = createPrismaStub();
+      const repo = createBatchRepository(prisma);
+      product.findMany.mockResolvedValue([]);
+
+      await repo.listProductInventorySummaries('b-1', 'br-1');
+
+      expect(product.findMany).toHaveBeenCalledWith({
+        where: { businessId: 'b-1', branchId: 'br-1', active: true },
+        include: INVENTORY_INCLUDE,
+        orderBy: { name: 'asc' },
+      });
+    });
+
+    it('fetches the product whole rather than field by field', async () => {
+      const { prisma, product } = createPrismaStub();
+      const repo = createBatchRepository(prisma);
+      product.findMany.mockResolvedValue([]);
+
+      await repo.listProductInventorySummaries('b-1', 'br-1');
+
+      const query = product.findMany.mock.calls[0]?.[0] as Record<string, unknown>;
+
+      expect(query).not.toHaveProperty('select');
+    });
+
+    it('asks only for the Base Unit and only for lines still holding stock', async () => {
+      const { prisma, product } = createPrismaStub();
+      const repo = createBatchRepository(prisma);
+      product.findMany.mockResolvedValue([]);
+
+      await repo.listProductInventorySummaries('b-1', 'br-1');
+
+      expect(product.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: {
+            productUnits: { where: { unitRole: 'BASE' }, take: 1 },
+            stockBatchLines: { where: { quantityRemaining: { gt: 0 } } },
+          },
+        }),
+      );
+    });
+
+    it('returns the product rows the query answered with', async () => {
+      const { prisma, product } = createPrismaStub();
+      const repo = createBatchRepository(prisma);
+      const rows = [
+        { id: 'p-1', name: 'A', productUnits: [], stockBatchLines: [] },
+        { id: 'p-2', name: 'B', productUnits: [], stockBatchLines: [] },
+      ];
+      product.findMany.mockResolvedValue(rows as never);
+
+      const result = await repo.listProductInventorySummaries('b-1', 'br-1');
+
+      expect(result.map((row) => row.id)).toEqual(['p-1', 'p-2']);
     });
   });
 });

@@ -1,22 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createBatchService } from '../batches.service.js';
-import { ERROR_CODES } from '../../../shared/errors/app-error.js';
 import type {
   BatchRepository,
   BatchService,
   CreateBatchCommand,
   CreateBatchInput,
   ProductContext,
+  ProductInventoryRecord,
   ProductUnitContext,
   StockBatchRecord,
 } from '../batches.types.js';
 import type { Prisma } from '../../../../generated/prisma/client.js';
+import { ERROR_CODES } from '../../../shared/errors/app-error.js';
 
 function mockRepository(): BatchRepository {
   return {
     getProductUnitContext: vi.fn(),
     createBatchAndAdjustStock: vi.fn(),
     listBatches: vi.fn(),
+    listProductInventorySummaries: vi.fn(),
   };
 }
 
@@ -278,7 +280,7 @@ function written(): CreateBatchCommand {
 
 /**
  * A thrown AppError pinned by code and status only. The message text is the
- * implementation's to word, so it is never matched literally.
+ * implementation to be relied on, so it is never matched literally.
  */
 function appError(code: string, statusCode: number) {
   return expect.objectContaining({ code, statusCode, message: expect.any(String) });
@@ -809,6 +811,235 @@ describe('batches.service', () => {
         productBrand: 'Sierra',
         purchaseQuantity: 10,
       });
+    });
+  });
+});
+
+describe('batch service listProductInventorySummaries', () => {
+  let mockRepo: BatchRepository;
+  let service: ReturnType<typeof createBatchService>;
+
+  const SCOPE = { businessId: 'b-1', branchId: 'br-1' };
+
+  function line(overrides: Partial<ProductInventoryRecord['stockBatchLines'][number]> = {}) {
+    return {
+      id: 'sbl-1',
+      stockBatchId: 'sb-1',
+      productId: 'p-tequila',
+      purchaseUnit: 'Bottle',
+      purchaseQuantity: decimal(10),
+      purchaseUnitCost: decimal(950),
+      standardUnit: 'pc',
+      standardQuantity: decimal(10),
+      productUnitId: 'pu-bottle',
+      resolvedStandardUnitId: 'su-pc',
+      quantityRemaining: decimal(10),
+      expiryDate: null,
+      createdAt: new Date('2026-02-01T10:00:00.000Z'),
+      updatedAt: new Date('2026-02-01T10:00:00.000Z'),
+      ...overrides,
+    };
+  }
+
+  function inventoryRecord(
+    overrides: Partial<ProductInventoryRecord> = {},
+  ): ProductInventoryRecord {
+    return {
+      id: 'p-tequila',
+      businessId: 'b-1',
+      branchId: 'br-1',
+      categoryId: null,
+      name: 'Sierra Tequila 350 ml',
+      brand: 'Sierra',
+      description: null,
+      photoUrl: null,
+      trackAsPartial: false,
+      lowStockThreshold: decimal(5),
+      currentSealedStock: decimal(10),
+      active: true,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+      productUnits: [unit()],
+      stockBatchLines: [line()],
+      ...overrides,
+    } as ProductInventoryRecord;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRepo = mockRepository();
+    service = createBatchService(mockRepo);
+  });
+
+  it('returns a list of summaries in the correct shape', async () => {
+    vi.mocked(mockRepo.listProductInventorySummaries).mockResolvedValue([inventoryRecord()]);
+    const result = await service.listProductInventorySummaries(SCOPE);
+    expect(mockRepo.listProductInventorySummaries).toHaveBeenCalledWith('b-1', 'br-1');
+    expect(result).toEqual([
+      {
+        id: 'p-tequila',
+        name: 'Sierra Tequila 350 ml',
+        brand: 'Sierra',
+        currentSealedStock: 10,
+        lowStockThreshold: 5,
+        active: true,
+        baseUnitLabel: 'Bottle',
+        totalCost: 9500,
+        earliestExpiry: null,
+        expiryCount: 0,
+        numberOfBatches: 1,
+        stockStatus: 'IN_STOCK',
+      },
+    ]);
+  });
+
+  it('fails the request when a product has no base unit', async () => {
+    vi.mocked(mockRepo.listProductInventorySummaries).mockResolvedValue([
+      inventoryRecord({ productUnits: [] }),
+    ]);
+
+    await expect(service.listProductInventorySummaries(SCOPE)).rejects.toMatchObject({
+      code: ERROR_CODES.INTERNAL_ERROR,
+      statusCode: 500,
+    });
+  });
+
+  describe('totalCost', () => {
+    it('correctly calculates the total cost when a fraction remains', async () => {
+      vi.mocked(mockRepo.listProductInventorySummaries).mockResolvedValue([
+        inventoryRecord({
+          stockBatchLines: [line({ purchaseQuantity: decimal(10), quantityRemaining: decimal(4) })],
+        }),
+      ]);
+      const [summary] = await service.listProductInventorySummaries(SCOPE);
+      expect(summary?.totalCost).toBe(3800);
+    });
+
+    it('returns 0 for a product with no remaining lines', async () => {
+      vi.mocked(mockRepo.listProductInventorySummaries).mockResolvedValue([
+        inventoryRecord({ stockBatchLines: [] }),
+      ]);
+      const [summary] = await service.listProductInventorySummaries(SCOPE);
+      expect(summary?.totalCost).toBe(0);
+    });
+
+    it('does not fail when a line has no standard quantity', async () => {
+      vi.mocked(mockRepo.listProductInventorySummaries).mockResolvedValue([
+        inventoryRecord({
+          stockBatchLines: [line({ standardQuantity: decimal(0), quantityRemaining: decimal(0) })],
+        }),
+      ]);
+      const [summary] = await service.listProductInventorySummaries(SCOPE);
+      expect(summary?.totalCost).toBe(0);
+    });
+  });
+
+  describe('expiry', () => {
+    const EARLY = new Date('2026-03-01T00:00:00.000Z');
+    const LATE = new Date('2026-09-01T00:00:00.000Z');
+
+    it('correctly reports the earliest expiry and counts expiring lines correctly', async () => {
+      vi.mocked(mockRepo.listProductInventorySummaries).mockResolvedValue([
+        inventoryRecord({
+          stockBatchLines: [
+            line({ id: 'sbl-1', stockBatchId: 'sb-1', expiryDate: LATE }),
+            line({ id: 'sbl-2', stockBatchId: 'sb-2', expiryDate: EARLY }),
+          ],
+        }),
+      ]);
+      const [summary] = await service.listProductInventorySummaries(SCOPE);
+      expect(summary?.earliestExpiry).toEqual(EARLY);
+      expect(summary?.expiryCount).toBe(2);
+    });
+  });
+
+  describe('numberOfBatches', () => {
+    it('counts every batch still holding stock of the product', async () => {
+      vi.mocked(mockRepo.listProductInventorySummaries).mockResolvedValue([
+        inventoryRecord({
+          stockBatchLines: [
+            line({ id: 'sbl-1', stockBatchId: 'sb-1' }),
+            line({ id: 'sbl-2', stockBatchId: 'sb-2' }),
+            line({ id: 'sbl-3', stockBatchId: 'sb-1' }),
+          ],
+        }),
+      ]);
+
+      const [summary] = await service.listProductInventorySummaries(SCOPE);
+
+      expect(summary?.numberOfBatches).toBe(2);
+    });
+
+    it('is zero for a product with nothing left', async () => {
+      vi.mocked(mockRepo.listProductInventorySummaries).mockResolvedValue([
+        inventoryRecord({ stockBatchLines: [] }),
+      ]);
+
+      const [summary] = await service.listProductInventorySummaries(SCOPE);
+
+      expect(summary?.numberOfBatches).toBe(0);
+    });
+  });
+
+  describe('stockStatus', () => {
+    it('is out of stock when nothing is left', async () => {
+      vi.mocked(mockRepo.listProductInventorySummaries).mockResolvedValue([
+        inventoryRecord({ currentSealedStock: decimal(0) }),
+      ]);
+
+      const [summary] = await service.listProductInventorySummaries(SCOPE);
+
+      expect(summary?.stockStatus).toBe('OUT_OF_STOCK');
+    });
+
+    it('is out of stock when the figure has gone negative', async () => {
+      vi.mocked(mockRepo.listProductInventorySummaries).mockResolvedValue([
+        inventoryRecord({ currentSealedStock: decimal(-1) }),
+      ]);
+
+      const [summary] = await service.listProductInventorySummaries(SCOPE);
+
+      expect(summary?.stockStatus).toBe('OUT_OF_STOCK');
+    });
+
+    it('is low when the stock has fallen under the product threshold', async () => {
+      vi.mocked(mockRepo.listProductInventorySummaries).mockResolvedValue([
+        inventoryRecord({ currentSealedStock: decimal(4), lowStockThreshold: decimal(5) }),
+      ]);
+
+      const [summary] = await service.listProductInventorySummaries(SCOPE);
+
+      expect(summary?.stockStatus).toBe('LOW_STOCK');
+    });
+
+    it('is in stock once the stock reaches the threshold exactly', async () => {
+      vi.mocked(mockRepo.listProductInventorySummaries).mockResolvedValue([
+        inventoryRecord({ currentSealedStock: decimal(5), lowStockThreshold: decimal(5) }),
+      ]);
+
+      const [summary] = await service.listProductInventorySummaries(SCOPE);
+
+      expect(summary?.stockStatus).toBe('IN_STOCK');
+    });
+
+    it('treats a product that as stock with no threshold as in stock', async () => {
+      vi.mocked(mockRepo.listProductInventorySummaries).mockResolvedValue([
+        inventoryRecord({ currentSealedStock: decimal(1), lowStockThreshold: null }),
+      ]);
+
+      const [summary] = await service.listProductInventorySummaries(SCOPE);
+
+      expect(summary?.stockStatus).toBe('IN_STOCK');
+    });
+
+    it('is out of stock if nothing is left for a product no threshold', async () => {
+      vi.mocked(mockRepo.listProductInventorySummaries).mockResolvedValue([
+        inventoryRecord({ currentSealedStock: decimal(0), lowStockThreshold: null }),
+      ]);
+
+      const [summary] = await service.listProductInventorySummaries(SCOPE);
+
+      expect(summary?.stockStatus).toBe('OUT_OF_STOCK');
     });
   });
 });

@@ -21,6 +21,7 @@ const { verifyJwt, authRepository, businessRepository, batchRepository } = vi.ho
     getProductUnitContext: vi.fn(),
     createBatchAndAdjustStock: vi.fn(),
     listBatches: vi.fn(),
+    listProductInventorySummaries: vi.fn(),
   } satisfies BatchRepository,
 }));
 
@@ -36,6 +37,7 @@ vi.mock('../modules/batches/batches.repository.js', () => ({
 }));
 
 import app from '../app.js';
+import { ERROR_CODES } from '../shared/errors/app-error.js';
 
 const PRODUCT = {
   id: 'p-tequila',
@@ -88,6 +90,45 @@ const BATCH_RECORD = {
   receivedByMember: { id: 'm-1', name: 'me', role: 'OWNER' },
 };
 
+const INVENTORY_PRODUCT_RECORD = {
+  id: 'p-tequila',
+  businessId: 'b-1',
+  branchId: 'br-1',
+  categoryId: null,
+  name: 'Sierra Tequila 350 ml',
+  brand: 'Sierra',
+  description: null,
+  photoUrl: null,
+  trackAsPartial: false,
+  lowStockThreshold: { toNumber: () => 5 },
+  currentSealedStock: { toNumber: () => 10 },
+  active: true,
+  createdAt: new Date('2026-01-01T00:00:00.000Z'),
+  updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+  productUnits: [
+    {
+      id: 'pu-bottle',
+      productId: 'p-tequila',
+      unitRole: 'BASE',
+      standardUnitId: 'su-pc',
+      name: 'Bottle',
+      dependsOn: null,
+      conversionRate: null,
+      purchaseCapable: true,
+      sellCapable: true,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+    },
+  ],
+  stockBatchLines: [
+    {
+      ...LINE_RECORD,
+      expiryDate: new Date('2026-03-01T00:00:00.000Z'),
+      product: undefined,
+    },
+  ],
+};
+
 const BODY = {
   batchDate: '2026-02-01T09:00:00.000Z',
   supplierName: 'Awash Mart',
@@ -119,6 +160,7 @@ describe('batches.integration', () => {
     batchRepository.getProductUnitContext.mockResolvedValue([PRODUCT]);
     batchRepository.createBatchAndAdjustStock.mockResolvedValue(BATCH_RECORD);
     batchRepository.listBatches.mockResolvedValue([]);
+    batchRepository.listProductInventorySummaries.mockResolvedValue([]);
   });
 
   describe('POST /api/businesses/:businessId/batches', () => {
@@ -126,7 +168,7 @@ describe('batches.integration', () => {
       const res = await request(app).post('/api/businesses/b-1/batches').send(BODY);
 
       expect(res.status).toBe(401);
-      expect(res.body).toMatchObject({ error: { code: 'UNAUTHORIZED' } });
+      expect(res.body).toMatchObject({ error: { code: ERROR_CODES.UNAUTHORIZED } });
       expect(batchRepository.createBatchAndAdjustStock).not.toHaveBeenCalled();
     });
 
@@ -140,7 +182,7 @@ describe('batches.integration', () => {
 
       expect(res.status).toBe(400);
       expect(res.body).toMatchObject({
-        error: { code: 'BAD_REQUEST', message: 'Invalid request' },
+        error: { code: ERROR_CODES.BAD_REQUEST, message: expect.any(String) },
       });
       expect(batchRepository.getProductUnitContext).not.toHaveBeenCalled();
     });
@@ -154,7 +196,7 @@ describe('batches.integration', () => {
         .send(BODY);
 
       expect(res.status).toBe(403);
-      expect(res.body).toMatchObject({ error: { code: 'FORBIDDEN' } });
+      expect(res.body).toMatchObject({ error: { code: ERROR_CODES.FORBIDDEN } });
       expect(batchRepository.createBatchAndAdjustStock).not.toHaveBeenCalled();
     });
 
@@ -202,7 +244,7 @@ describe('batches.integration', () => {
         .send(BODY);
 
       expect(res.status).toBe(404);
-      expect(res.body).toMatchObject({ error: { code: 'NOT_FOUND' } });
+      expect(res.body).toMatchObject({ error: { code: ERROR_CODES.NOT_FOUND } });
       expect(batchRepository.createBatchAndAdjustStock).not.toHaveBeenCalled();
     });
 
@@ -279,6 +321,118 @@ describe('batches.integration', () => {
 
       expect(res.status).toBe(404);
       expect(batchRepository.listBatches).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('GET /api/businesses/:businessId/inventory/products', () => {
+    it('rejects an unauthenticated request', async () => {
+      const res = await request(app).get('/api/businesses/b-1/inventory/products');
+
+      expect(res.status).toBe(401);
+      expect(batchRepository.listProductInventorySummaries).not.toHaveBeenCalled();
+    });
+
+    it('summarises the resolved business and branch', async () => {
+      await authenticate();
+      batchRepository.listProductInventorySummaries.mockResolvedValue([
+        INVENTORY_PRODUCT_RECORD as never,
+      ]);
+
+      const res = await request(app)
+        .get('/api/businesses/b-1/inventory/products')
+        .set('Authorization', 'Bearer token');
+
+      expect(res.status).toBe(200);
+      expect(batchRepository.listProductInventorySummaries).toHaveBeenCalledWith('b-1', 'br-1');
+    });
+
+    it('answers a bare list of summaries carrying the aggregates', async () => {
+      await authenticate();
+      batchRepository.listProductInventorySummaries.mockResolvedValue([
+        INVENTORY_PRODUCT_RECORD as never,
+      ]);
+
+      const res = await request(app)
+        .get('/api/businesses/b-1/inventory/products')
+        .set('Authorization', 'Bearer token');
+
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0]).toMatchObject({
+        id: 'p-tequila',
+        name: 'Sierra Tequila 350 ml',
+        brand: 'Sierra',
+        currentSealedStock: 10,
+        lowStockThreshold: 5,
+        active: true,
+        baseUnitLabel: 'Bottle',
+        totalCost: 9500,
+        numberOfBatches: 1,
+        expiryCount: 1,
+        stockStatus: 'IN_STOCK',
+      });
+    });
+
+    it('does not leak the rows the summary was worked out from', async () => {
+      await authenticate();
+      batchRepository.listProductInventorySummaries.mockResolvedValue([
+        INVENTORY_PRODUCT_RECORD as never,
+      ]);
+
+      const res = await request(app)
+        .get('/api/businesses/b-1/inventory/products')
+        .set('Authorization', 'Bearer token');
+
+      expect(res.body[0]).not.toHaveProperty('productUnits');
+      expect(res.body[0]).not.toHaveProperty('stockBatchLines');
+    });
+
+    it('answers an empty array when no active product holds stock', async () => {
+      await authenticate();
+
+      const res = await request(app)
+        .get('/api/businesses/b-1/inventory/products')
+        .set('Authorization', 'Bearer token');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual([]);
+    });
+
+    it.each(['OWNER', 'MANAGER', 'CASHIER', 'SERVER'] as const)(
+      'lets a %s read the inventory summary',
+      async (role) => {
+        await authenticate(role);
+
+        const res = await request(app)
+          .get('/api/businesses/b-1/inventory/products')
+          .set('Authorization', 'Bearer token');
+
+        expect(res.status).toBe(200);
+      },
+    );
+
+    it('answers 404 when the caller has no active member in the business', async () => {
+      await authenticate();
+      businessRepository.getActor.mockResolvedValue(null);
+
+      const res = await request(app)
+        .get('/api/businesses/b-1/inventory/products')
+        .set('Authorization', 'Bearer token');
+
+      expect(res.status).toBe(404);
+      expect(batchRepository.listProductInventorySummaries).not.toHaveBeenCalled();
+    });
+
+    it('answers 500 when a product has no base unit', async () => {
+      await authenticate();
+      batchRepository.listProductInventorySummaries.mockResolvedValue([
+        { ...INVENTORY_PRODUCT_RECORD, productUnits: [] } as never,
+      ]);
+
+      const res = await request(app)
+        .get('/api/businesses/b-1/inventory/products')
+        .set('Authorization', 'Bearer token');
+
+      expect(res.status).toBe(500);
     });
   });
 });

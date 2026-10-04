@@ -3,20 +3,30 @@ import type {
   CreateBatchInput,
   CreateBatchLineInput,
   CreateBatchResult,
+  ProductInventorySummary,
   StockBatch,
   StockBatchDetailResult,
   StockBatchLine,
-  StockBatchLineDetailResult,
+  StockStatus,
   UnitRole,
 } from '@mez/types';
 
 import type {
+  Product,
   StockBatchLine as StockBatchLineRecord,
   StandardUnit,
   ProductUnit,
 } from '../../../generated/prisma/client.js';
 
-export type { CreateBatchInput, CreateBatchLineInput, CreateBatchResult, UnitRole };
+export type {
+  CreateBatchInput,
+  CreateBatchLineInput,
+  CreateBatchResult,
+  ProductInventorySummary,
+  StockBatchDetailResult,
+  StockStatus,
+  UnitRole,
+};
 
 /**
  * A `Decimal` column as Prisma hands it back. The service narrows these to
@@ -123,16 +133,23 @@ export type BatchScope = {
   branchId: string;
 };
 
-export type BatchListResult = StockBatchDetailResult[];
-export type BatchLineDetail = StockBatchLineDetailResult;
+export type ProductInventoryRecord = Product & {
+  productUnits: ProductUnit[];
+  stockBatchLines: StockBatchLineRecord[];
+};
 
 export type BatchRepository = {
   getProductUnitContext(businessId: string, productIds: string[]): Promise<ProductContext[]>;
   createBatchAndAdjustStock(command: CreateBatchCommand): Promise<StockBatchRecord>;
   listBatches(businessId: string, branchId: string): Promise<StockBatchRecord[]>;
+  listProductInventorySummaries(
+    businessId: string,
+    branchId: string,
+  ): Promise<ProductInventoryRecord[]>;
 };
 
 export type BatchService = {
   createBatch(actor: BatchActor, input: CreateBatchInput): Promise<CreateBatchResult>;
-  listBatches(scope: BatchScope): Promise<BatchListResult>;
+  listBatches(scope: BatchScope): Promise<StockBatchDetailResult[]>;
+  listProductInventorySummaries(scope: BatchScope): Promise<ProductInventorySummary[]>;
 };
