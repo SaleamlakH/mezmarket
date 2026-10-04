@@ -181,10 +181,6 @@ function convertToStandardQuantity(
   // one to one conversion
   if (unit.unitRole === targetRole) return quantity;
 
-  if (unit.unitRole === 'BASE') {
-    throw new AppError(ERROR_CODES.INTERNAL_ERROR, `Base unit cannot become ${targetRole}`, 500);
-  }
-
   if (!unit.conversionRate) {
     throw new AppError(ERROR_CODES.INTERNAL_ERROR, `Unit ${unit.name} has no conversion rate`, 500);
   }
@@ -206,26 +202,19 @@ function convertToStandardQuantity(
 
   if (unit.dependsOn === targetRole) return convertedQuantity;
 
-  // Depends on an MOU but the target is BASE, so one more hop.
-  if (unit.dependsOn === 'MOU') {
-    const mou = productUnits.find((target) => target.unitRole === unit.dependsOn);
+  // `dependsOn` and `targetRole` are both BASE or MOU, so the only unequal pair
+  // left is an MOU that must hop once more down to BASE.
+  const mou = productUnits.find((target) => target.unitRole === 'MOU');
 
-    if (!mou?.conversionRate) {
-      throw new AppError(
-        ERROR_CODES.INTERNAL_ERROR,
-        `The product has no conversion rate on its ${unit.dependsOn} unit`,
-        500,
-      );
-    }
-
-    return convertedQuantity / mou.conversionRate.toNumber();
+  if (!mou?.conversionRate) {
+    throw new AppError(
+      ERROR_CODES.INTERNAL_ERROR,
+      `The product has no conversion rate on its MOU unit`,
+      500,
+    );
   }
 
-  throw new AppError(
-    ERROR_CODES.INTERNAL_ERROR,
-    `Cannot convert ${unit.unitRole} to ${targetRole}`,
-    500,
-  );
+  return convertedQuantity / mou.conversionRate.toNumber();
 }
 
 /** Sealed stock is counted per product, so lines of one product are summed. */

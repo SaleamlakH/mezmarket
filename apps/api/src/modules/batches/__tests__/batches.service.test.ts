@@ -633,146 +633,80 @@ describe('batches.service', () => {
      * or converted, and must not be guessed at: the batch is refused outright.
      */
     describe('a catalog whose unit rows contradict each other', () => {
-      it('refuses a base unit that is linked to no standard unit', async () => {
-        vi.mocked(mockRepo.getProductUnitContext).mockResolvedValue([
-          withUnit(TEQUILA, 'pu-bottle', { standardUnitId: null, standardUnit: null }),
-        ]);
+      const shot = () => line({ productUnitId: 'pu-shot', purchaseQuantity: 4 });
+      const liter = () => line({ productUnitId: 'pu-liter', purchaseQuantity: 20 });
 
-        await expect(service.createBatch(actor(), input())).rejects.toEqual(
+      const CONTRADICTIONS: Array<{
+        name: string;
+        catalog: () => ProductContext[];
+        buildLine: () => CreateBatchInput['lines'][number];
+      }> = [
+        {
+          name: 'refuses a base unit that is linked to no standard unit',
+          catalog: () => [
+            withUnit(TEQUILA, 'pu-bottle', { standardUnitId: null, standardUnit: null }),
+          ],
+          buildLine: () => line(),
+        },
+        {
+          name: 'refuses a measurement unit that is linked to no standard unit',
+          catalog: () => [
+            withUnit(TEQUILA, 'pu-mou', { standardUnitId: null, standardUnit: null }),
+          ],
+          buildLine: shot,
+        },
+        {
+          name: 'refuses a standard unit that is linked to no standard unit',
+          catalog: () => [
+            withUnit(TEQUILA, 'pu-liter', { standardUnitId: null, standardUnit: null }),
+          ],
+          buildLine: liter,
+        },
+        {
+          name: 'refuses a custom unit depending on a role the product does not have',
+          catalog: () => [withoutRole(TEQUILA, 'MOU')],
+          buildLine: shot,
+        },
+        {
+          name: 'refuses a custom unit linked to no unit to resolve through',
+          catalog: () => [withUnit(TEQUILA, 'pu-shot', { dependsOn: null })],
+          buildLine: shot,
+        },
+        {
+          name: 'refuses a standard unit linked to no unit to convert through',
+          catalog: () => [withUnit(TEQUILA, 'pu-liter', { dependsOn: null })],
+          buildLine: liter,
+        },
+        {
+          name: 'refuses a custom unit with no conversion rate',
+          catalog: () => [withUnit(TEQUILA, 'pu-shot', { conversionRate: null })],
+          buildLine: shot,
+        },
+        {
+          name: 'refuses a standard unit with no conversion rate',
+          catalog: () => [withUnit(TEQUILA, 'pu-liter', { conversionRate: null })],
+          buildLine: liter,
+        },
+        {
+          name: 'refuses a measurement unit with no pack relation',
+          catalog: () => [withUnit(OIL, 'pu-oil-mou', { conversionRate: null })],
+          buildLine: () =>
+            line({ productId: 'p-oil', productUnitId: 'pu-oil-mou', purchaseQuantity: 350 }),
+        },
+        {
+          name: 'refuses to convert through a measurement unit that has no pack relation',
+          catalog: () => [withUnit(OIL, 'pu-oil-mou', { conversionRate: null })],
+          buildLine: () =>
+            line({ productId: 'p-oil', productUnitId: 'pu-oil-liter', purchaseQuantity: 20 }),
+        },
+      ];
+
+      it.each(CONTRADICTIONS)('$name', async ({ catalog, buildLine }) => {
+        vi.mocked(mockRepo.getProductUnitContext).mockResolvedValue(catalog());
+
+        await expect(service.createBatch(actor(), input({ lines: [buildLine()] }))).rejects.toEqual(
           appError(ERROR_CODES.INTERNAL_ERROR, 500),
         );
-        expect(mockRepo.createBatchAndAdjustStock).not.toHaveBeenCalled();
-      });
-
-      it('refuses a measurement unit that is linked to no standard unit', async () => {
-        vi.mocked(mockRepo.getProductUnitContext).mockResolvedValue([
-          withUnit(TEQUILA, 'pu-mou', { standardUnitId: null, standardUnit: null }),
-        ]);
-
-        await expect(
-          service.createBatch(
-            actor(),
-            input({ lines: [line({ productUnitId: 'pu-shot', purchaseQuantity: 4 })] }),
-          ),
-        ).rejects.toEqual(appError(ERROR_CODES.INTERNAL_ERROR, 500));
-        expect(mockRepo.createBatchAndAdjustStock).not.toHaveBeenCalled();
-      });
-
-      it('refuses a standard unit that is linked to no standard unit', async () => {
-        vi.mocked(mockRepo.getProductUnitContext).mockResolvedValue([
-          withUnit(TEQUILA, 'pu-liter', { standardUnitId: null, standardUnit: null }),
-        ]);
-
-        await expect(
-          service.createBatch(
-            actor(),
-            input({ lines: [line({ productUnitId: 'pu-liter', purchaseQuantity: 20 })] }),
-          ),
-        ).rejects.toEqual(appError(ERROR_CODES.INTERNAL_ERROR, 500));
-        expect(mockRepo.createBatchAndAdjustStock).not.toHaveBeenCalled();
-      });
-
-      it('refuses a custom unit depending on a role the product does not have', async () => {
-        vi.mocked(mockRepo.getProductUnitContext).mockResolvedValue([withoutRole(TEQUILA, 'MOU')]);
-
-        await expect(
-          service.createBatch(
-            actor(),
-            input({ lines: [line({ productUnitId: 'pu-shot', purchaseQuantity: 4 })] }),
-          ),
-        ).rejects.toEqual(appError(ERROR_CODES.INTERNAL_ERROR, 500));
-        expect(mockRepo.createBatchAndAdjustStock).not.toHaveBeenCalled();
-      });
-
-      it('refuses a custom unit linked to no unit to resolve through', async () => {
-        vi.mocked(mockRepo.getProductUnitContext).mockResolvedValue([
-          withUnit(TEQUILA, 'pu-shot', { dependsOn: null }),
-        ]);
-
-        await expect(
-          service.createBatch(
-            actor(),
-            input({ lines: [line({ productUnitId: 'pu-shot', purchaseQuantity: 4 })] }),
-          ),
-        ).rejects.toEqual(appError(ERROR_CODES.INTERNAL_ERROR, 500));
-        expect(mockRepo.createBatchAndAdjustStock).not.toHaveBeenCalled();
-      });
-
-      it('refuses a standard unit linked to no unit to convert through', async () => {
-        vi.mocked(mockRepo.getProductUnitContext).mockResolvedValue([
-          withUnit(TEQUILA, 'pu-liter', { dependsOn: null }),
-        ]);
-
-        await expect(
-          service.createBatch(
-            actor(),
-            input({ lines: [line({ productUnitId: 'pu-liter', purchaseQuantity: 20 })] }),
-          ),
-        ).rejects.toEqual(appError(ERROR_CODES.INTERNAL_ERROR, 500));
-        expect(mockRepo.createBatchAndAdjustStock).not.toHaveBeenCalled();
-      });
-
-      it('refuses a custom unit with no conversion rate', async () => {
-        vi.mocked(mockRepo.getProductUnitContext).mockResolvedValue([
-          withUnit(TEQUILA, 'pu-shot', { conversionRate: null }),
-        ]);
-
-        await expect(
-          service.createBatch(
-            actor(),
-            input({ lines: [line({ productUnitId: 'pu-shot', purchaseQuantity: 4 })] }),
-          ),
-        ).rejects.toEqual(appError(ERROR_CODES.INTERNAL_ERROR, 500));
-        expect(mockRepo.createBatchAndAdjustStock).not.toHaveBeenCalled();
-      });
-
-      it('refuses a standard unit with no conversion rate', async () => {
-        vi.mocked(mockRepo.getProductUnitContext).mockResolvedValue([
-          withUnit(TEQUILA, 'pu-liter', { conversionRate: null }),
-        ]);
-
-        await expect(
-          service.createBatch(
-            actor(),
-            input({ lines: [line({ productUnitId: 'pu-liter', purchaseQuantity: 20 })] }),
-          ),
-        ).rejects.toEqual(appError(ERROR_CODES.INTERNAL_ERROR, 500));
-        expect(mockRepo.createBatchAndAdjustStock).not.toHaveBeenCalled();
-      });
-
-      it('refuses a measurement unit with no pack relation', async () => {
-        vi.mocked(mockRepo.getProductUnitContext).mockResolvedValue([
-          withUnit(OIL, 'pu-oil-mou', { conversionRate: null }),
-        ]);
-
-        await expect(
-          service.createBatch(
-            actor(),
-            input({
-              lines: [
-                line({ productId: 'p-oil', productUnitId: 'pu-oil-mou', purchaseQuantity: 350 }),
-              ],
-            }),
-          ),
-        ).rejects.toEqual(appError(ERROR_CODES.INTERNAL_ERROR, 500));
-        expect(mockRepo.createBatchAndAdjustStock).not.toHaveBeenCalled();
-      });
-
-      it('refuses to convert through a measurement unit that has no pack relation', async () => {
-        vi.mocked(mockRepo.getProductUnitContext).mockResolvedValue([
-          withUnit(OIL, 'pu-oil-mou', { conversionRate: null }),
-        ]);
-
-        await expect(
-          service.createBatch(
-            actor(),
-            input({
-              lines: [
-                line({ productId: 'p-oil', productUnitId: 'pu-oil-liter', purchaseQuantity: 20 }),
-              ],
-            }),
-          ),
-        ).rejects.toEqual(appError(ERROR_CODES.INTERNAL_ERROR, 500));
         expect(mockRepo.createBatchAndAdjustStock).not.toHaveBeenCalled();
       });
     });
@@ -915,6 +849,34 @@ describe('batch service listProductInventorySummaries', () => {
       expect(summary?.totalCost).toBe(3800);
     });
 
+    it('sums the remaining cost across every line of the product', async () => {
+      vi.mocked(mockRepo.listProductInventorySummaries).mockResolvedValue([
+        inventoryRecord({
+          stockBatchLines: [
+            line({ id: 'sbl-1', purchaseQuantity: decimal(10), quantityRemaining: decimal(4) }),
+            line({
+              id: 'sbl-2',
+              purchaseQuantity: decimal(10),
+              purchaseUnitCost: decimal(100),
+              quantityRemaining: decimal(5),
+            }),
+            line({
+              id: 'sbl-3',
+              stockBatchId: 'sb-2',
+              purchaseQuantity: decimal(10),
+              purchaseUnitCost: decimal(20),
+              quantityRemaining: decimal(10),
+            }),
+          ],
+        }),
+      ]);
+
+      const [summary] = await service.listProductInventorySummaries(SCOPE);
+
+      // 10x950x(4/10) + 10x100x(5/10) + 10x20x(10/10)
+      expect(summary?.totalCost).toBe(3800 + 500 + 200);
+    });
+
     it('returns 0 for a product with no remaining lines', async () => {
       vi.mocked(mockRepo.listProductInventorySummaries).mockResolvedValue([
         inventoryRecord({ stockBatchLines: [] }),
@@ -951,6 +913,24 @@ describe('batch service listProductInventorySummaries', () => {
       expect(summary?.earliestExpiry).toEqual(EARLY);
       expect(summary?.expiryCount).toBe(2);
     });
+
+    it('skips lines with no expiry when reporting the earliest', async () => {
+      vi.mocked(mockRepo.listProductInventorySummaries).mockResolvedValue([
+        inventoryRecord({
+          stockBatchLines: [
+            line({ id: 'sbl-1', stockBatchId: 'sb-1', expiryDate: null }),
+            line({ id: 'sbl-2', stockBatchId: 'sb-2', expiryDate: LATE }),
+            line({ id: 'sbl-3', stockBatchId: 'sb-3', expiryDate: EARLY }),
+          ],
+        }),
+      ]);
+
+      const [summary] = await service.listProductInventorySummaries(SCOPE);
+
+      expect(summary?.earliestExpiry).toEqual(EARLY);
+      expect(summary?.expiryCount).toBe(2);
+      expect(summary?.numberOfBatches).toBe(3);
+    });
   });
 
   describe('numberOfBatches', () => {
@@ -982,64 +962,58 @@ describe('batch service listProductInventorySummaries', () => {
   });
 
   describe('stockStatus', () => {
-    it('is out of stock when nothing is left', async () => {
+    const CASES: Array<{
+      name: string;
+      stock: number;
+      threshold: ReturnType<typeof decimal> | null;
+      expected: string;
+    }> = [
+      {
+        name: 'is out of stock when nothing is left',
+        stock: 0,
+        threshold: decimal(5),
+        expected: 'OUT_OF_STOCK',
+      },
+      {
+        name: 'is out of stock when the figure has gone negative',
+        stock: -1,
+        threshold: decimal(5),
+        expected: 'OUT_OF_STOCK',
+      },
+      {
+        name: 'is low when the stock has fallen under the product threshold',
+        stock: 4,
+        threshold: decimal(5),
+        expected: 'LOW_STOCK',
+      },
+      {
+        name: 'is in stock once the stock reaches the threshold exactly',
+        stock: 5,
+        threshold: decimal(5),
+        expected: 'IN_STOCK',
+      },
+      {
+        name: 'treats a product that has stock with no threshold as in stock',
+        stock: 1,
+        threshold: null,
+        expected: 'IN_STOCK',
+      },
+      {
+        name: 'is out of stock if nothing is left for a product with no threshold',
+        stock: 0,
+        threshold: null,
+        expected: 'OUT_OF_STOCK',
+      },
+    ];
+
+    it.each(CASES)('$name', async ({ stock, threshold, expected }) => {
       vi.mocked(mockRepo.listProductInventorySummaries).mockResolvedValue([
-        inventoryRecord({ currentSealedStock: decimal(0) }),
+        inventoryRecord({ currentSealedStock: decimal(stock), lowStockThreshold: threshold }),
       ]);
 
       const [summary] = await service.listProductInventorySummaries(SCOPE);
 
-      expect(summary?.stockStatus).toBe('OUT_OF_STOCK');
-    });
-
-    it('is out of stock when the figure has gone negative', async () => {
-      vi.mocked(mockRepo.listProductInventorySummaries).mockResolvedValue([
-        inventoryRecord({ currentSealedStock: decimal(-1) }),
-      ]);
-
-      const [summary] = await service.listProductInventorySummaries(SCOPE);
-
-      expect(summary?.stockStatus).toBe('OUT_OF_STOCK');
-    });
-
-    it('is low when the stock has fallen under the product threshold', async () => {
-      vi.mocked(mockRepo.listProductInventorySummaries).mockResolvedValue([
-        inventoryRecord({ currentSealedStock: decimal(4), lowStockThreshold: decimal(5) }),
-      ]);
-
-      const [summary] = await service.listProductInventorySummaries(SCOPE);
-
-      expect(summary?.stockStatus).toBe('LOW_STOCK');
-    });
-
-    it('is in stock once the stock reaches the threshold exactly', async () => {
-      vi.mocked(mockRepo.listProductInventorySummaries).mockResolvedValue([
-        inventoryRecord({ currentSealedStock: decimal(5), lowStockThreshold: decimal(5) }),
-      ]);
-
-      const [summary] = await service.listProductInventorySummaries(SCOPE);
-
-      expect(summary?.stockStatus).toBe('IN_STOCK');
-    });
-
-    it('treats a product that as stock with no threshold as in stock', async () => {
-      vi.mocked(mockRepo.listProductInventorySummaries).mockResolvedValue([
-        inventoryRecord({ currentSealedStock: decimal(1), lowStockThreshold: null }),
-      ]);
-
-      const [summary] = await service.listProductInventorySummaries(SCOPE);
-
-      expect(summary?.stockStatus).toBe('IN_STOCK');
-    });
-
-    it('is out of stock if nothing is left for a product no threshold', async () => {
-      vi.mocked(mockRepo.listProductInventorySummaries).mockResolvedValue([
-        inventoryRecord({ currentSealedStock: decimal(0), lowStockThreshold: null }),
-      ]);
-
-      const [summary] = await service.listProductInventorySummaries(SCOPE);
-
-      expect(summary?.stockStatus).toBe('OUT_OF_STOCK');
+      expect(summary?.stockStatus).toBe(expected);
     });
   });
 });
