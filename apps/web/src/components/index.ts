@@ -27,6 +27,8 @@ export { Input } from './Input';
 export type { InputProps } from './Input';
 export { Select } from './Select';
 export type { SelectProps, SelectOption } from './Select';
+export { Table, TableHead, TableBody, TableRow, TableHeadCell, TableCell } from './Table';
+export type { TableProps, TableRowProps } from './Table';
 export { PasswordInput } from './PasswordInput';
 export type { PasswordInputProps } from './PasswordInput';
 export { ListCard } from './ListCard';

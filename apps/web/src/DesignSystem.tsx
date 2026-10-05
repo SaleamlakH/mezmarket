@@ -42,6 +42,12 @@ import {
   BottomNav,
   InvoiceSheet,
   ThemeToggle,
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableHeadCell,
+  TableCell,
 } from './components';
 
 /* ---------- small demo helpers ---------- */
@@ -522,6 +528,89 @@ function FormsPanel() {
   );
 }
 
+function TablePanel() {
+  return (
+    <Panel
+      span="md:col-span-12"
+      title={
+        <>
+          Table{' '}
+          <span className="font-normal normal-case tracking-normal text-(--text-muted)">
+            — head, rows &amp; cells, scrolls on small screens
+          </span>
+        </>
+      }
+    >
+      <Table className="min-w-170">
+        <TableHead>
+          <TableRow>
+            <TableHeadCell>Product</TableHeadCell>
+            <TableHeadCell>On hand</TableHeadCell>
+            <TableHeadCell className="text-right">Value</TableHeadCell>
+            <TableHeadCell>Status</TableHeadCell>
+            <TableHeadCell>Expires</TableHeadCell>
+            <TableHeadCell className="text-right">Batches</TableHeadCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          <TableRow>
+            <TableCell>
+              <span className="block font-semibold text-(--text)">Sierra Tequila 350 ml</span>
+              <span className="mt-1 block text-xs text-(--text-muted)">Sierra Tequila</span>
+            </TableCell>
+            <TableCell className="whitespace-nowrap">24 cases</TableCell>
+            <TableCell className="font-mono text-right tabular-nums">ETB 31,200.00</TableCell>
+            <TableCell>
+              <Badge tone="positive">Healthy</Badge>
+            </TableCell>
+            <TableCell className="whitespace-nowrap">12 Mar 2027</TableCell>
+            <TableCell className="font-mono text-right tabular-nums">3</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell>
+              <span className="block font-semibold text-(--text)">Cooking Oil 5 L</span>
+              <span className="mt-1 block text-xs text-(--text-muted)">Sunflower</span>
+            </TableCell>
+            <TableCell className="whitespace-nowrap">18 bottles</TableCell>
+            <TableCell className="font-mono text-right tabular-nums">ETB 2,340.00</TableCell>
+            <TableCell>
+              <Badge tone="warning">Low</Badge>
+            </TableCell>
+            <TableCell className="whitespace-nowrap">04 Jan 2027</TableCell>
+            <TableCell className="font-mono text-right tabular-nums">2</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell>
+              <span className="block font-semibold text-(--text)">Loose Rice (sack)</span>
+              <span className="mt-1 block text-xs text-(--text-muted)">No brand</span>
+            </TableCell>
+            <TableCell className="whitespace-nowrap">6 sacks</TableCell>
+            <TableCell className="font-mono text-right tabular-nums">ETB 4,050.00</TableCell>
+            <TableCell>
+              <Badge tone="positive">Healthy</Badge>
+            </TableCell>
+            <TableCell className="whitespace-nowrap">—</TableCell>
+            <TableCell className="font-mono text-right tabular-nums">1</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell>
+              <span className="block font-semibold text-(--text)">Plain T-shirt</span>
+              <span className="mt-1 block text-xs text-(--text-muted)">No brand</span>
+            </TableCell>
+            <TableCell className="whitespace-nowrap">3 pcs</TableCell>
+            <TableCell className="font-mono text-right tabular-nums">ETB 285.00</TableCell>
+            <TableCell>
+              <Badge tone="danger">Out of stock</Badge>
+            </TableCell>
+            <TableCell className="whitespace-nowrap">—</TableCell>
+            <TableCell className="font-mono text-right tabular-nums">2</TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>
+    </Panel>
+  );
+}
+
 function SpacingPanel() {
   const spacing = [4, 8, 12, 16, 24, 32, 48];
   return (
@@ -669,6 +758,7 @@ export function DesignSystem() {
           <StatusPanel />
           <BannersPanel />
           <FormsPanel />
+          <TablePanel />
           <SpacingPanel />
           <GridPanel />
           <ShadowsPanel />
