@@ -11,9 +11,13 @@ export function createBatchRouter(
 ): Router {
   const router = Router();
 
-  router.get('/businesses/:businessId/batches', authorizeBusiness, controller.listBatches);
+  router.get(
+    '/businesses/:businessId/inventory/batches',
+    authorizeBusiness,
+    controller.listBatches,
+  );
   router.post(
-    '/businesses/:businessId/batches',
+    '/businesses/:businessId/inventory/batches',
     authorizeBusiness,
     requireBatchWriteRole,
     validateBatchInput,

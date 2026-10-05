@@ -163,9 +163,9 @@ describe('batches.integration', () => {
     batchRepository.listProductInventorySummaries.mockResolvedValue([]);
   });
 
-  describe('POST /api/businesses/:businessId/batches', () => {
+  describe('POST /api/businesses/:businessId/inventory/batches', () => {
     it('rejects an unauthenticated request', async () => {
-      const res = await request(app).post('/api/businesses/b-1/batches').send(BODY);
+      const res = await request(app).post('/api/businesses/b-1/inventory/batches').send(BODY);
 
       expect(res.status).toBe(401);
       expect(res.body).toMatchObject({ error: { code: ERROR_CODES.UNAUTHORIZED } });
@@ -176,7 +176,7 @@ describe('batches.integration', () => {
       await authenticate();
 
       const res = await request(app)
-        .post('/api/businesses/b-1/batches')
+        .post('/api/businesses/b-1/inventory/batches')
         .set('Authorization', 'Bearer token')
         .send({ batchDate: '', lines: [] });
 
@@ -191,7 +191,7 @@ describe('batches.integration', () => {
       await authenticate(role);
 
       const res = await request(app)
-        .post('/api/businesses/b-1/batches')
+        .post('/api/businesses/b-1/inventory/batches')
         .set('Authorization', 'Bearer token')
         .send(BODY);
 
@@ -204,7 +204,7 @@ describe('batches.integration', () => {
       await authenticate(role);
 
       const res = await request(app)
-        .post('/api/businesses/b-1/batches')
+        .post('/api/businesses/b-1/inventory/batches')
         .set('Authorization', 'Bearer token')
         .send(BODY);
 
@@ -239,7 +239,7 @@ describe('batches.integration', () => {
       batchRepository.getProductUnitContext.mockResolvedValue([]);
 
       const res = await request(app)
-        .post('/api/businesses/b-1/batches')
+        .post('/api/businesses/b-1/inventory/batches')
         .set('Authorization', 'Bearer token')
         .send(BODY);
 
@@ -253,7 +253,7 @@ describe('batches.integration', () => {
       businessRepository.getBusinessId.mockResolvedValue(null);
 
       const res = await request(app)
-        .post('/api/businesses/b-1/batches')
+        .post('/api/businesses/b-1/inventory/batches')
         .set('Authorization', 'Bearer token')
         .send(BODY);
 
@@ -262,9 +262,9 @@ describe('batches.integration', () => {
     });
   });
 
-  describe('GET /api/businesses/:businessId/batches', () => {
+  describe('GET /api/businesses/:businessId/inventory/batches', () => {
     it('rejects an unauthenticated request', async () => {
-      const res = await request(app).get('/api/businesses/b-1/batches');
+      const res = await request(app).get('/api/businesses/b-1/inventory/batches');
 
       expect(res.status).toBe(401);
       expect(batchRepository.listBatches).not.toHaveBeenCalled();
@@ -275,7 +275,7 @@ describe('batches.integration', () => {
       batchRepository.listBatches.mockResolvedValue([BATCH_RECORD]);
 
       const res = await request(app)
-        .get('/api/businesses/b-1/batches')
+        .get('/api/businesses/b-1/inventory/batches')
         .set('Authorization', 'Bearer token');
 
       expect(res.status).toBe(200);
@@ -291,7 +291,7 @@ describe('batches.integration', () => {
       await authenticate();
 
       const res = await request(app)
-        .get('/api/businesses/b-1/batches')
+        .get('/api/businesses/b-1/inventory/batches')
         .set('Authorization', 'Bearer token');
 
       expect(res.status).toBe(200);
@@ -304,7 +304,7 @@ describe('batches.integration', () => {
         await authenticate(role);
 
         const res = await request(app)
-          .get('/api/businesses/b-1/batches')
+          .get('/api/businesses/b-1/inventory/batches')
           .set('Authorization', 'Bearer token');
 
         expect(res.status).toBe(200);
@@ -316,7 +316,7 @@ describe('batches.integration', () => {
       businessRepository.getActor.mockResolvedValue(null);
 
       const res = await request(app)
-        .get('/api/businesses/b-1/batches')
+        .get('/api/businesses/b-1/inventory/batches')
         .set('Authorization', 'Bearer token');
 
       expect(res.status).toBe(404);
