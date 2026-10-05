@@ -1,7 +1,9 @@
 import { ClipboardList, Package, Plus } from 'lucide-react';
+import { useNavigate } from 'react-router';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionHeader } from '@/components/SectionHeader';
+import { BATCHES_PATH } from '@/layouts/navigation';
 import { BatchSummaryCard } from '../components/BatchSummaryCard';
 import { ProductStockList } from '../components/ProductStockList';
 import { useCurrency } from '../hooks/useCurrency';
@@ -20,6 +22,7 @@ const TILE_VISIBILITY = ['block', 'block', 'hidden sm:block', 'hidden lg:block']
 export function InventoryPage() {
   const { batches, products } = useInventoryData();
   const currency = useCurrency();
+  const navigate = useNavigate();
 
   const previewBatches = batches.slice(0, BATCH_PREVIEW_COUNT);
 
@@ -35,6 +38,7 @@ export function InventoryPage() {
       <SectionHeader
         icon={<ClipboardList size={14} aria-hidden />}
         title="Recent batches"
+        onSeeMore={() => navigate(BATCHES_PATH)}
         seeMoreLabel="See all"
       />
 

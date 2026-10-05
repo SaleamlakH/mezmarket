@@ -20,6 +20,7 @@ import { DashboardPage } from './features/dashboard/pages/DashboardPage';
 import { ProductsPage } from './features/products/pages/ProductsPage';
 import { SalesPage } from './features/sales/pages/SalesPage';
 import { InventoryPage } from './features/inventory/pages/InventoryPage';
+import { BatchesPage } from './features/inventory/pages/BatchesPage';
 import { SettingsPage } from './features/settings/pages/SettingsPage';
 import { BusinessProfilePage } from './features/business/pages/BusinessProfilePage';
 import { businessService } from './features/business/api/businessService';
@@ -52,6 +53,7 @@ const router = createBrowserRouter([
               { path: 'products', element: <ProductsPage /> },
               { path: 'sales', element: <SalesPage /> },
               { path: 'inventory', element: <InventoryPage /> },
+              { path: 'inventory/batches', element: <BatchesPage /> },
               { path: 'settings', element: <SettingsPage /> },
               { path: 'settings/profile', element: <OwnerProfilePage ownerApi={ownerApi} /> },
               { path: 'settings/business', element: <BusinessProfilePage /> },
