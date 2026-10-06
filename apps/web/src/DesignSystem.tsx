@@ -278,10 +278,26 @@ function ButtonsPanel() {
                 <Button key="s" variant="secondary">
                   Button
                 </Button>,
-                <Button key="sh" variant="secondary" className="border-(--text)">
+                <Button
+                  key="sh"
+                  variant="secondary"
+                  className="border-(--text-muted) bg-(--surface-primary)"
+                >
                   Button
                 </Button>,
                 <Button key="sd" disabled>
+                  Button
+                </Button>,
+              ],
+              [
+                'Outline',
+                <Button key="o" variant="outline">
+                  Button
+                </Button>,
+                <Button key="oh" variant="outline" className="border-(--accent) text-(--accent)">
+                  Button
+                </Button>,
+                <Button key="od" disabled>
                   Button
                 </Button>,
               ],
@@ -516,6 +532,9 @@ function FormsPanel() {
         </Field>
         <Field label="Email" error="Enter a valid email address">
           <Input state="error" defaultValue="not-an-email" />
+        </Field>
+        <Field label="Email" muted hint="Muted — label drops to --text-muted">
+          <Input placeholder="you@business.com" />
         </Field>
         <Field label="Password" hint="Hidden — eye icon shows text">
           <PasswordInput placeholder="password123" defaultValue="password123" />

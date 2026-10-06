@@ -5,18 +5,30 @@ export interface FieldProps {
   label?: string;
   optional?: boolean;
   hint?: string | undefined;
+  muted?: boolean;
   error?: string | undefined;
   className?: string;
   children: ReactNode;
 }
 
-export function Field({ id, label, optional, hint, error, className, children }: FieldProps) {
+export function Field({
+  id,
+  label,
+  optional,
+  muted = false,
+  hint,
+  error,
+  className,
+  children,
+}: FieldProps) {
   return (
     <div className={`flex flex-col gap-1.5 ${className ?? ''}`}>
       {label && (
         <label
           htmlFor={id}
-          className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-(--text)"
+          className={`block text-[11px] font-semibold uppercase tracking-[0.08em] ${
+            muted ? 'text-(--text-muted)' : 'text-(--text)'
+          }`}
         >
           {label}
           {optional && (
