@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { ClipboardList, Package, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionHeader } from '@/components/SectionHeader';
 import { BATCHES_PATH } from '@/layouts/navigation';
+import { AddBatchSheet } from '../components/AddBatchSheet';
 import { BatchSummaryCard } from '../components/BatchSummaryCard';
 import { ProductStockList } from '../components/ProductStockList';
 import { useCurrency } from '../hooks/useCurrency';
@@ -23,6 +25,7 @@ export function InventoryPage() {
   const { batches, products } = useInventoryData();
   const currency = useCurrency();
   const navigate = useNavigate();
+  const [isAddingBatch, setIsAddingBatch] = useState(false);
 
   const previewBatches = batches.slice(0, BATCH_PREVIEW_COUNT);
 
@@ -30,7 +33,7 @@ export function InventoryPage() {
     <div className="mx-auto max-w-5xl pb-4">
       <div className="flex items-center justify-between gap-3 pt-1">
         <h2 className="m-0 text-lg font-bold text-(--text)">Inventory</h2>
-        <Button type="button">
+        <Button type="button" onClick={() => setIsAddingBatch(true)}>
           <Plus size={14} aria-hidden /> Add batch
         </Button>
       </div>
@@ -47,7 +50,7 @@ export function InventoryPage() {
           title="No batches recorded yet"
           description="Record what you receive and it shows up here."
           action={
-            <Button type="button" variant="primary">
+            <Button type="button" variant="primary" onClick={() => setIsAddingBatch(true)}>
               <Plus size={14} aria-hidden /> Add batch
             </Button>
           }
@@ -75,6 +78,8 @@ export function InventoryPage() {
       ) : (
         <ProductStockList products={products} currency={currency} />
       )}
+
+      <AddBatchSheet open={isAddingBatch} onClose={() => setIsAddingBatch(false)} />
     </div>
   );
 }
