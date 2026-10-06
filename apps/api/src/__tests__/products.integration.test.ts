@@ -30,6 +30,8 @@ const {
       createForOwner: vi.fn(),
       getBusinessId: vi.fn(),
       getBranchId: vi.fn(),
+      getForOwner: vi.fn(),
+      updateForOwner: vi.fn(),
     } satisfies BusinessRepository,
     productsRepository: {
       list: vi.fn(),
