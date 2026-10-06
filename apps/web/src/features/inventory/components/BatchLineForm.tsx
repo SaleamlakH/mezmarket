@@ -1,33 +1,28 @@
-import { useState } from 'react';
 import type { BatchLineFormValues, ProductSummaryResponse } from '@mez/types';
+import { Controller } from 'react-hook-form';
 import { Button } from '@/components/Button';
 import { Field } from '@/components/Field';
 import { Input } from '@/components/Input';
 import { Select } from '@/components/Select';
-import { formatMoney, formatQuantity } from '@/lib/format';
+import {
+  dateInputToInstant,
+  formatMoney,
+  formatQuantity,
+  instantToDateInputValue,
+} from '@/lib/format';
 import type { PurchasableUnit } from '../data/fixtures';
-import { lineTotal } from '../lib/lineTotal';
+import { useBatchLineForm } from '../hooks/useBatchLineForm';
 import { ProductImage } from './ProductImage';
 
 export interface BatchLineFormProps {
   product: ProductSummaryResponse;
-  /** Only the units this product can be bought in. */
   units: PurchasableUnit[];
-  /** The line being changed; omitted when adding a new one. */
   initialLine?: BatchLineFormValues | undefined;
-  /** Used to show what the line comes to. */
   currency: string;
   submitLabel: string;
   onSave: (line: BatchLineFormValues) => void;
   onCancel: () => void;
 }
-
-const emptyLineFor = (productId: string): BatchLineFormValues => ({
-  productId,
-  productUnitId: '',
-  purchaseQuantity: '',
-  purchaseUnitCost: '',
-});
 
 /**
  * The line's own fields, once its product has been picked. The product
@@ -43,26 +38,11 @@ export function BatchLineForm({
   onSave,
   onCancel,
 }: BatchLineFormProps) {
-  const [line, setLine] = useState<BatchLineFormValues>(
-    () => initialLine ?? emptyLineFor(product.id),
-  );
-
-  const setField = <K extends keyof BatchLineFormValues>(
-    field: K,
-    value: BatchLineFormValues[K],
-  ) => {
-    setLine((previous) => ({ ...previous, [field]: value }));
-  };
-
-  const total = lineTotal(line);
-
-  const canSave =
-    line.productUnitId !== '' &&
-    line.purchaseQuantity.trim() !== '' &&
-    line.purchaseUnitCost.trim() !== '';
+  const { form, errors, submit, total } = useBatchLineForm({ product, initialLine, onSave });
+  const { register, control } = form;
 
   return (
-    <div className="flex flex-col gap-4">
+    <form onSubmit={submit} className="flex flex-col gap-4">
       <div className="flex items-center gap-3 rounded-xl border border-(--border) bg-(--field) px-3 py-2.5">
         <ProductImage size={40} />
         <div className="min-w-0">
@@ -79,50 +59,50 @@ export function BatchLineForm({
           id="productUnitId"
           label="Bought in"
           hint="Only units this product is purchased in are listed"
+          error={errors.productUnitId?.message}
         >
           <Select
             id="productUnitId"
-            name="productUnitId"
             placeholder="Select the unit"
-            value={line.productUnitId}
-            onChange={(event) => setField('productUnitId', event.target.value)}
+            error={Boolean(errors.productUnitId)}
+            {...register('productUnitId')}
             options={units.map((unit) => ({ value: unit.id, label: unit.name }))}
           />
         </Field>
 
-        <Field id="purchaseQuantity" label="Quantity">
+        <Field id="purchaseQuantity" label="Quantity" error={errors.purchaseQuantity?.message}>
           <Input
             id="purchaseQuantity"
-            name="purchaseQuantity"
             type="number"
             inputMode="decimal"
             step="any"
             min="0"
             placeholder="0"
-            value={line.purchaseQuantity}
-            onChange={(event) => setField('purchaseQuantity', event.target.value)}
+            error={errors.purchaseQuantity?.message}
+            {...register('purchaseQuantity')}
           />
         </Field>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <Field id="purchaseUnitCost" label="Unit cost" hint="Per that unit">
+        <Field
+          id="purchaseUnitCost"
+          label="Unit cost"
+          hint="Per that unit"
+          error={errors.purchaseUnitCost?.message}
+        >
           <Input
             id="purchaseUnitCost"
-            name="purchaseUnitCost"
             type="number"
             inputMode="decimal"
             step="any"
             min="0"
             placeholder="0.00"
-            value={line.purchaseUnitCost}
-            onChange={(event) => setField('purchaseUnitCost', event.target.value)}
+            error={errors.purchaseUnitCost?.message}
+            {...register('purchaseUnitCost')}
           />
         </Field>
 
-        {/* Not an input: this is read back from the two fields beside it, so
-            there is nothing to type here. An output is labelable, so it still
-            takes its place in the form's field order. */}
         <Field id="lineTotal" label="Line total" muted>
           <output
             id="lineTotal"
@@ -134,24 +114,38 @@ export function BatchLineForm({
         </Field>
       </div>
 
-      <Field id="expiryDate" label="Expiry date" optional hint="Only for products that expire">
-        <Input
-          id="expiryDate"
-          name="expiryDate"
-          type="date"
-          value={line.expiryDate ?? ''}
-          onChange={(event) => setField('expiryDate', event.target.value)}
-        />
-      </Field>
+      <Controller
+        control={control}
+        name="expiryDate"
+        render={({ field, fieldState }) => (
+          <Field
+            id="expiryDate"
+            label="Expiry date"
+            optional
+            hint="Only for products that expire"
+            error={fieldState.error?.message}
+          >
+            <Input
+              id="expiryDate"
+              type="date"
+              ref={field.ref}
+              value={typeof field.value === 'string' ? instantToDateInputValue(field.value) : ''}
+              onChange={(event) => field.onChange(dateInputToInstant(event.target.value))}
+              onBlur={field.onBlur}
+              error={fieldState.error?.message}
+            />
+          </Field>
+        )}
+      />
 
       <div className="flex gap-3 pt-1">
         <Button variant="secondary" type="button" onClick={onCancel} className="flex-1">
           Back
         </Button>
-        <Button type="button" onClick={() => onSave(line)} disabled={!canSave} className="flex-1">
+        <Button type="submit" className="flex-1">
           {submitLabel}
         </Button>
       </div>
-    </div>
+    </form>
   );
 }

@@ -3,9 +3,9 @@ import type { ReactNode } from 'react';
 export interface FieldProps {
   id?: string;
   label?: string;
-  optional?: boolean;
-  hint?: string | undefined;
+  optional?: boolean | undefined;
   muted?: boolean;
+  hint?: string | undefined;
   error?: string | undefined;
   className?: string;
   children: ReactNode;

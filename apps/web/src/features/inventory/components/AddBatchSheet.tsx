@@ -1,15 +1,14 @@
 import { useState } from 'react';
-import type { BatchLineFormValues, ProductSummaryResponse } from '@mez/types';
 import { Plus } from 'lucide-react';
+import type { BatchLineFormValues } from '@mez/types';
 import { Button } from '@/components/Button';
 import { Dialog } from '@/components/Dialog';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionHeader } from '@/components/SectionHeader';
 import { Toast } from '@/components/Toast';
 import { formatMoney } from '@/lib/format';
-import { useInventoryData } from '../hooks/useInventoryData';
 import { useCurrency } from '../hooks/useCurrency';
-import { useBatchDraft } from '../hooks/useBatchDraft';
+import { useAddBatch } from '../hooks/useAddBatch';
 import { BatchHeaderForm } from './BatchHeaderForm';
 import { BatchLineForm } from './BatchLineForm';
 import { BatchLineList } from './BatchLineList';
@@ -32,35 +31,46 @@ export interface AddBatchSheetProps {
  * Records one purchase event. It is a single sheet that moves between three
  * steps — the batch itself, the product picker, and one product line's
  * fields — so the lines collapse into short rows in between instead of
- * nesting sheets on top of each other.
+ * nesting sheets on top of each other. The draft, its steps, and the
+ * validation that gates the confirmation all live in `useAddBatch`; this
+ * component only lays them out.
  */
 export function AddBatchSheet({ open, onClose }: AddBatchSheetProps) {
-  const { products, purchasableUnitsByProductId } = useInventoryData();
   const currency = useCurrency();
   const {
-    header,
-    setHeaderField,
+    form,
+    linesError,
+    isConfirmed,
+    products,
+    purchasableUnitsByProductId,
     lines,
+    totalAmount,
+    confirm,
+    dismissConfirmed,
+    close: closeDraft,
     addLine,
     updateLine,
     removeLine,
-    reset,
-    hasLines,
-    totalAmount,
-  } = useBatchDraft();
+  } = useAddBatch({ onClose });
 
   const [step, setStep] = useState<Step>('batch');
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [pickedProductId, setPickedProductId] = useState<string | null>(null);
-  const [isConfirmed, setIsConfirmed] = useState(false);
 
-  const close = () => {
-    reset();
+  const editingLine = editingIndex === null ? undefined : lines[editingIndex];
+  const activeProductId = editingLine?.productId ?? pickedProductId;
+  const activeProduct =
+    activeProductId == null
+      ? undefined
+      : products.find((product) => product.id === activeProductId);
+  const activeUnits =
+    activeProduct == null ? [] : (purchasableUnitsByProductId[activeProduct.id] ?? []);
+  const title = step === 'line' && editingIndex !== null ? 'Edit product line' : STEP_TITLES[step];
+
+  const backToBatch = () => {
     setStep('batch');
     setEditingIndex(null);
     setPickedProductId(null);
-    setIsConfirmed(false);
-    onClose();
   };
 
   const startNewLine = () => {
@@ -69,7 +79,7 @@ export function AddBatchSheet({ open, onClose }: AddBatchSheetProps) {
     setStep('pick');
   };
 
-  const pickProduct = (product: ProductSummaryResponse) => {
+  const pickProduct = (product: { id: string }) => {
     setPickedProductId(product.id);
     setStep('line');
   };
@@ -80,22 +90,16 @@ export function AddBatchSheet({ open, onClose }: AddBatchSheetProps) {
     setStep('line');
   };
 
-  const backToBatch = () => {
-    setStep('batch');
-    setEditingIndex(null);
-    setPickedProductId(null);
-  };
-
   const saveLine = (line: BatchLineFormValues) => {
     if (editingIndex === null) addLine(line);
     else updateLine(editingIndex, line);
     backToBatch();
   };
 
-  const editingLine = editingIndex === null ? undefined : lines[editingIndex];
-  const activeProductId = editingLine?.productId ?? pickedProductId;
-  const activeProduct = products.find((product) => product.id === activeProductId);
-  const title = step === 'line' && editingIndex !== null ? 'Edit product line' : STEP_TITLES[step];
+  const close = () => {
+    backToBatch();
+    closeDraft();
+  };
 
   return (
     <Dialog open={open} title={title} onClose={close} size="md">
@@ -106,14 +110,12 @@ export function AddBatchSheet({ open, onClose }: AddBatchSheetProps) {
           variant="success"
           duration={3000}
           position="top-center"
-          onDismiss={() => setIsConfirmed(false)}
+          onDismiss={dismissConfirmed}
         />
       )}
 
       {step === 'batch' && (
-        <div className="flex flex-col gap-5 pb-1">
-          {/* What came in leads: the lines are the reason for the batch, so
-              they are added and reviewed before the paperwork around it. */}
+        <form onSubmit={confirm} className="flex flex-col gap-5 pb-1">
           <div>
             <SectionHeader
               title={lines.length === 0 ? 'Product lines' : `Product lines (${lines.length})`}
@@ -152,19 +154,20 @@ export function AddBatchSheet({ open, onClose }: AddBatchSheetProps) {
                 </Button>
               </div>
             )}
+
+            {linesError && (
+              <p className="mt-2 text-[11px] font-semibold text-(--danger)" role="alert">
+                {linesError}
+              </p>
+            )}
           </div>
 
-          <BatchHeaderForm header={header} onChange={setHeaderField} />
+          <BatchHeaderForm form={form} />
 
-          <Button
-            type="button"
-            onClick={() => setIsConfirmed(true)}
-            disabled={!hasLines}
-            className="w-full"
-          >
+          <Button type="submit" className="w-full">
             Confirm batch
           </Button>
-        </div>
+        </form>
       )}
 
       {step === 'pick' && <ProductPickerList products={products} onSelect={pickProduct} />}
@@ -172,7 +175,7 @@ export function AddBatchSheet({ open, onClose }: AddBatchSheetProps) {
       {step === 'line' && activeProduct && (
         <BatchLineForm
           product={activeProduct}
-          units={purchasableUnitsByProductId[activeProduct.id] ?? []}
+          units={activeUnits}
           currency={currency}
           initialLine={editingLine}
           submitLabel={editingIndex === null ? 'Add line' : 'Save changes'}
