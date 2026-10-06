@@ -74,14 +74,18 @@ export function CustomUnitCard({
   // tellable apart from the others.
   const label = typed || `Unit ${index + 1}`;
 
-  // The rate is how many of this unit one of its basis is worth — one `ml` is `1000`
-  // `L` — so both the hint and the summary read it the same way rather than as its
-  // reciprocal.
+  /*
+   * The rate says what one of this unit is worth in its basis — a `slice` at `0.125`
+   * is an eighth of a piece, a `shot` at `25` is twenty-five millilitres — so both the
+   * hint and the summary read it in that direction. It is the opposite of the content
+   * unit's rate, which answers the other question: how much content one base unit
+   * holds. A hint worded the other way round would have the owner type the reciprocal
+   * of the factor they meant.
+   */
   const basis = dependsOn === 'MOU' ? contentUnitSymbol : baseUnitSymbol;
   const basisLabel = basis || (dependsOn === 'MOU' ? 'content unit' : 'base unit');
-  const rateLine = rate?.trim()
-    ? `1 ${basisLabel} = ${rate.trim()}${typed ? ` ${typed}` : ' of these'}`
-    : undefined;
+  const unitLabel = typed || 'unit';
+  const rateLine = rate?.trim() ? `1 ${unitLabel} = ${rate.trim()} ${basisLabel}` : undefined;
 
   // Said in the words the switches use. With neither switch on there is nothing to
   // say — the card carries the refusal instead, and claiming a use would contradict it.
@@ -163,7 +167,7 @@ export function CustomUnitCard({
         <Field
           id={`${name}.conversionRate`}
           label="Conversion rate"
-          hint={`1 ${basisLabel} = ? ${typed || 'unit'}`}
+          hint={`1 ${unitLabel} = ? ${basisLabel}`}
           error={unitErrors?.conversionRate?.message}
         >
           <Input

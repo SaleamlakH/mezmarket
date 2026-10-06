@@ -748,9 +748,10 @@ describe('AddProductDialog', () => {
       await user.click(unitToggle('Shot'));
 
       // A shut card cannot show its own fields, so it says what they were worth: the
-      // rate in the unit it is based on, the price, and what the unit may be used for.
+      // rate — what one of this unit is worth in the unit it is based on — the price,
+      // and what the unit may be used for.
       const card = within(unitCard('Shot'));
-      expect(card.getByText('1 kg = 0.125 Shot')).toBeInTheDocument();
+      expect(card.getByText('1 Shot = 0.125 kg')).toBeInTheDocument();
       expect(card.getByText('45')).toBeInTheDocument();
       expect(card.getByText('Buy & sell')).toBeInTheDocument();
     });
@@ -774,7 +775,7 @@ describe('AddProductDialog', () => {
       // Bought but not sold: a price is not part of what the unit is, so it is left
       // out rather than quoted at a value that is no longer charged.
       const card = within(unitCard('Box'));
-      expect(card.getByText('1 kg = 12 Box')).toBeInTheDocument();
+      expect(card.getByText('1 Box = 12 kg')).toBeInTheDocument();
       expect(card.getByText('Buy only')).toBeInTheDocument();
       expect(card.queryByText('5')).toBeNull();
     });
