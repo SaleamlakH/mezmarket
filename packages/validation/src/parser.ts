@@ -14,7 +14,7 @@ import {
   type CreateBusinessFormValues,
   type UpdateBusinessFormValues,
 } from './schema/business.schema.js';
-import { createProductSchema, type CreateProductFormValues } from './schema/product.schema.js';
+import { createProductSchema } from './schema/product.schema.js';
 import { createUploadSchema, type CreateUploadClientInput } from './schema/upload.schema.js';
 
 export function validateInput<T>(schema: ZodType<T>, input: unknown): ValidationResult<T> {
@@ -51,7 +51,8 @@ export function validateUpdateBusiness(
 ): ValidationResult<UpdateBusinessFormValues> {
   return validateInput(updateBusinessSchema, values) as ValidationResult<UpdateBusinessFormValues>;
 }
-export function validateCreateProduct(values: CreateProductFormValues) {
+
+export function validateCreateProduct(values: unknown) {
   return validateInput(createProductSchema, values) as ValidationResult<CreateProductInput>;
 }
 
