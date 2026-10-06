@@ -6,41 +6,56 @@ export interface SelectOption {
   label: string;
 }
 
-export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
-  state?: 'default' | 'focus' | 'error';
+export interface SelectGroup {
+  label: string;
   options: SelectOption[];
+}
+
+export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
+  error?: boolean;
   placeholder?: string;
+  options?: SelectOption[];
+  groups?: SelectGroup[];
 }
 
 export function Select({
-  state = 'default',
-  options,
+  error,
   placeholder,
+  options,
+  groups,
   className = '',
   ...rest
 }: SelectProps) {
-  const border =
-    state === 'focus'
-      ? 'border-(--accent)'
-      : state === 'error'
-        ? 'border-(--danger)'
-        : 'border-(--border)';
   return (
-    <span className={`relative inline-block w-full text-[13px] ${className}`}>
+    <span className={`relative block w-full ${className}`}>
       <select
-        className={`focus-ring w-full cursor-pointer appearance-none rounded-lg border bg-(--field) py-2.5 pl-3 pr-9 text-(--text) outline-none placeholder:text-(--text-muted) ${border}`}
+        aria-invalid={error || undefined}
+        className={`w-full cursor-pointer appearance-none rounded-[13px] border bg-(--field) px-3.5 py-3 pr-10 text-sm text-(--text) outline-none transition-colors duration-150 placeholder:text-(--text-muted) focus:border-(--accent) ${
+          error ? 'border-(--warning)' : 'border-(--border)'
+        }`}
         {...rest}
       >
         {placeholder && <option value="">{placeholder}</option>}
-        {options.map((option) => (
+        {options?.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
           </option>
         ))}
+        {groups?.map((group) => (
+          <optgroup key={group.label} label={group.label}>
+            {group.options.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </optgroup>
+        ))}
       </select>
-      <span className="pointer-events-none absolute right-3 top-1/2 flex -translate-y-1/2 text-(--text-muted)">
-        <ChevronDown size={16} />
-      </span>
+      <ChevronDown
+        size={16}
+        aria-hidden
+        className="pointer-events-none absolute top-1/2 right-3.5 -translate-y-1/2 text-(--text-muted)"
+      />
     </span>
   );
 }

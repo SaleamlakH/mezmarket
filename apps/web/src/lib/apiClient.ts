@@ -39,21 +39,30 @@ async function getAccessToken(): Promise<string | null> {
   }
 }
 
-export async function apiRequest<TResponse>(
-  path: string,
-  req: RequestInit = {},
-): Promise<TResponse> {
+interface sendRequestArgs {
+  path: string;
+  request: RequestInit;
+}
+
+async function sendRequest({ path, request = {} }: sendRequestArgs) {
   const token = await getAccessToken();
 
-  const response = await fetch(`${import.meta.env.VITE_API_URL}${path}`, {
+  return fetch(`${import.meta.env.VITE_API_URL}${path}`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
       ...(token && { Authorization: `Bearer ${token}` }),
-      ...req.headers,
+      ...request.headers,
     },
-    ...req,
+    ...request,
   });
+}
+
+export async function apiRequest<TResponse>(
+  path: string,
+  request: RequestInit = {},
+): Promise<TResponse> {
+  const response = await sendRequest({ path, request });
 
   const body = (await response.json().catch(() => null)) as TResponse | ErrorEnvelope | null;
 

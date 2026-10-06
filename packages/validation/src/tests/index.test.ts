@@ -1,5 +1,5 @@
 import { describe, it, expect, expectTypeOf } from 'vitest';
-import type { CreateBusinessInput } from '@mez/types';
+import type { CreateBusinessInput, CreateUploadInput } from '@mez/types';
 import {
   type FieldErrors,
   validateLoginValues,
@@ -10,6 +10,13 @@ import {
   type CreateBusinessFormValues,
   validateUpdateOwnerValues,
   type UpdateOwnerFormValues,
+  validateCreateProduct,
+  type CreateProductFormValues,
+  type CreateCustomUnitFormValues,
+  createProductSchema,
+  createProductFormSchema,
+  validateCreateUpload,
+  type CreateUploadClientInput,
   type ValidationResult,
 } from '../index.js';
 
@@ -30,6 +37,14 @@ describe('index', () => {
     expect(validateUpdateOwnerValues).toBeDefined();
   });
 
+  it('exports validateCreateProduct', () => {
+    expect(validateCreateProduct).toBeDefined();
+  });
+
+  it('exports validateCreateUpload', () => {
+    expect(validateCreateUpload).toBeDefined();
+  });
+
   it('exports LoginFormValues', () => {
     expectTypeOf<LoginFormValues>().toBeObject();
   });
@@ -40,6 +55,34 @@ describe('index', () => {
 
   it('exports CreateBusinessFormValues', () => {
     expectTypeOf<CreateBusinessFormValues>().toEqualTypeOf<CreateBusinessInput>();
+  });
+
+  it('exports CreateProductFormValues', () => {
+    expectTypeOf<CreateProductFormValues>().toBeObject();
+  });
+
+  it('exports createProductFormSchema and createProductSchema', () => {
+    expect(createProductFormSchema).toBeDefined();
+    expect(createProductSchema).toBeDefined();
+  });
+
+  it('holds the form rate and price as text, and the input as numbers', () => {
+    expectTypeOf<CreateCustomUnitFormValues['conversionRate']>().toEqualTypeOf<string>();
+    expectTypeOf<CreateCustomUnitFormValues['price']>().toEqualTypeOf<string>();
+  });
+
+  it('carries the custom units as a field on the create-product shape', () => {
+    expectTypeOf<CreateProductFormValues['customUnits']>().toEqualTypeOf<
+      CreateCustomUnitFormValues[]
+    >();
+  });
+
+  it('exports CreateUploadClientInput', () => {
+    expectTypeOf<CreateUploadClientInput>().toBeObject();
+  });
+
+  it('derives CreateUploadClientInput from @mez/types', () => {
+    expectTypeOf<CreateUploadClientInput>().toMatchTypeOf<CreateUploadInput>();
   });
 
   it('exports UpdateOwnerFormValues', () => {

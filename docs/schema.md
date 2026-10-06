@@ -152,13 +152,14 @@ Different physical package sizes of what might look like "the same product" (a 5
 | name               | String                            |                                                                             |
 | brand              | String?                           |                                                                             |
 | description        | String?                           |                                                                             |
-| photoUrl           | String?                           |                                                                             |
 | trackAsPartial     | Boolean                           | requires an MOU and a qualifying sell-capable unit smaller than 1 Base Unit |
 | lowStockThreshold  | Decimal?                          | in Base Unit terms                                                          |
 | currentSealedStock | Decimal                           | derived value, see §9                                                       |
 | active             | Boolean                           |                                                                             |
 
 No `sku`, no `cost_price` — neither is stored: SKU has no current feature depending on it, and cost is recorded per `StockBatchLine` at time of purchase (and varies purchase to purchase), so margin is derived from that history rather than a static field.
+
+A product's photo, if any, is not a field on this table — it is represented by a live `Attachment` row referencing this product (see `Upload` and `Attachment` below), since a product does not directly reference the file that represents its photo.
 
 ### `Category`
 
@@ -169,7 +170,36 @@ No `sku`, no `cost_price` — neither is stored: SKU has no current feature depe
 | name        | String                 |       |
 | description | String?                |       |
 
----
+### `Upload`
+
+The DB-backed state record for a file transferred directly to object storage via the presigned-URL pattern (see `docs/file-transfer-architecture.md`). The backend never touches file bytes — it issues a time-limited presigned URL and tracks the transfer's lifecycle here as PENDING → ACTIVE / FAILED. Not business-scoped, and not aware of what, if anything, uses it — that relationship is represented separately by `Attachment`, below.
+
+| Field      | Type                              | Notes                                                                                                                                                                                                                                                                                                                                        |
+| ---------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| id         | String (PK, ulid)                 | the identifier the client uses when asking for the presigned URL                                                                                                                                                                                                                                                                             |
+| storageKey | String (UQ)                       | the object-storage key/path; generated server-side, never guessed by the client                                                                                                                                                                                                                                                              |
+| mimeType   | String?                           | known by the client at request time; optional                                                                                                                                                                                                                                                                                                |
+| sizeBytes  | Int?                              | optional                                                                                                                                                                                                                                                                                                                                     |
+| status     | enum(`PENDING`,`ACTIVE`,`FAILED`) | `PENDING` = record created, transfer outcome not yet resolved; `ACTIVE` = resolved, confirmed present in storage, eligible for download; `FAILED` = resolved, not present in storage. Resolution happens lazily, at first download request, or via periodic reconciliation for uploads never requested — never via client-side confirmation. |
+| createdAt  | DateTime                          |                                                                                                                                                                                                                                                                                                                                              |
+| updatedAt  | DateTime                          |                                                                                                                                                                                                                                                                                                                                              |
+
+Relations: `attachments` (Attachment[] — zero or more; an `Upload` is considered claimed if at least one live `Attachment` referencing it exists).
+
+### `Attachment`
+
+`Upload` deliberately holds no reference to what uses it. Early in this model's design, `Product` referenced `Upload` directly through a `photoId` FK. **This meant determining whether a given upload was still in use required scanning every consumer table individually**, since `Upload` had no way to answer that question about itself — a cost that would grow every time a new consumer was added. `Attachment` exists to make that check a single-table lookup instead.
+
+| Field      | Type                                      | Notes                                                                                                                                                                                              |
+| ---------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| id         | String (PK, ulid)                         |                                                                                                                                                                                                    |
+| uploadId   | String (FK → Upload, `onDelete: Cascade`) |                                                                                                                                                                                                    |
+| recordType | enum(`PRODUCT`)                           | identifies which table `recordId` refers to; extended with a new value as new consumers adopt `Upload`                                                                                             |
+| recordId   | String                                    | no DB-level FK; validated at the application layer                                                                                                                                                 |
+| createdAt  | DateTime                                  |                                                                                                                                                                                                    |
+| deletedAt  | DateTime?                                 | set when the owning record no longer references this upload; the row itself is retained. An `Upload` with no live (`deletedAt IS NULL`) `Attachment` is unclaimed and eligible for reconciliation. |
+
+`Attachment` is created at the point an owning record is created or updated to reference an upload (e.g. at product creation), not at upload initialization — the file transfer and the creation of the referencing record occur concurrently at submission, so an `Attachment` may reference an `Upload` still in `PENDING` status. Not every `Upload` is ever claimed: a file may be transferred and never referenced, if a user changes their selection before submitting.
 
 ## 4. Inventory Intake
 
@@ -345,7 +375,7 @@ Append-only. Written explicitly by the application's service layer, in the same 
 |---|---|---|
 | id | String (PK, ulid) | |
 | businessId | String (FK → Business) | denormalized so "this business's audit log" needs no per-entity-type join |
-| entityType | enum(`STOCK_BATCH`,`SALE`,`CONTAINER`,`INVENTORY_ADJUSTMENT`,`STAFF`,`BUSINESS`,`PRODUCT`,…) | |
+| entityType | enum(`STOCK_BATCH`,`SALE`,`CONTAINER`,`INVENTORY_ADJUSTMENT`,`STAFF`,`BUSINESS`,`PRODUCT`,`UPLOAD`,…) | |
 | entityId | String | |
 | action | enum(`CREATED`,`CONFIRMED`,`VOIDED`,`CLOSED`,`REFUNDED`,`ADJUSTED`,`UPDATED`,`DEACTIVATED`,…) | |
 | businessMemberId | String (FK → BusinessMember) | |
@@ -364,6 +394,8 @@ Owner ──< Business ──< Branch ──< BusinessMember
                     └──< StockBatch ──< StockBatchLine
                     └──< Sale ──< SaleLine ──< SaleLineCost >── StockBatchLine
                                 └──< Payment
+
+Upload ──< Attachment >── Product (Attachment.recordType = PRODUCT, Attachment.recordId = Product.id; recordId has no DB-level FK — validated at the application layer)
 
 Owner ──< BusinessMember (one per Business owned, role = owner)
 Business ──< BusinessMember (includes the owner + every regular team member)

@@ -66,6 +66,16 @@ enum LossReason {
 }
 
 // Extend as new event types/actions are needed
+enum UploadStatus {
+  PENDING
+  ACTIVE
+  FAILED
+}
+
+enum AttachmentRecordType {
+  PRODUCT
+}
+
 enum AuditEntityType {
   STOCK_BATCH
   STOCK_BATCH_LINE
@@ -75,6 +85,7 @@ enum AuditEntityType {
   STAFF
   BUSINESS
   PRODUCT
+  UPLOAD
 }
 
 enum AuditAction {
@@ -324,7 +335,6 @@ model Product {
   name        String
   brand       String?
   description String?
-  photoUrl    String?
 
   // Requires an MOU and a qualifying sell-capable unit smaller than 1 Base Unit
   trackAsPartial Boolean @default(false)
@@ -367,6 +377,46 @@ model Category {
 
   @@unique([businessId, name])
   @@map("category")
+}
+
+model Upload {
+  id String @id @default(ulid())
+
+  // The object storage key/path, unique per upload record
+  storageKey String  @unique
+  mimeType   String?
+  sizeBytes  Int?
+
+  status UploadStatus @default(PENDING)
+
+  // Claims on this upload — a generic polymorphic reference, resolved at the
+  // application layer via (recordType, recordId) since Prisma has no polymorphic FK.
+  attachments Attachment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@map("upload")
+}
+
+model Attachment {
+  id String @id @default(ulid())
+
+  uploadId String
+  upload   Upload @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+
+  // Generic reference to the owning entity, e.g. ("product", <productId>).
+  // No DB-level FK; resolved at the application layer.
+  recordType AttachmentRecordType
+  recordId   String
+
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  @@index([uploadId])
+  @@index([recordType, recordId])
+  @@map("attachment")
 }
 
 // ==========================================
