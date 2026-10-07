@@ -42,6 +42,11 @@ import {
   BottomNav,
   InvoiceSheet,
   ThemeToggle,
+  LoadingState,
+  ErrorState,
+  EmptyState,
+  StateSwitcher,
+  type SectionState,
   Table,
   TableHead,
   TableBody,
@@ -520,6 +525,33 @@ function BannersPanel() {
   );
 }
 
+function LoadingErrorPanel() {
+  const [state, setState] = useState<SectionState>('ready');
+  return (
+    <Panel span="md:col-span-6" title="Loading & error states">
+      <PanelSub>State switcher — dev-only preview</PanelSub>
+      <StateSwitcher value={state} onChange={setState} label="State preview" />
+      <PanelSub>Section</PanelSub>
+      {state === 'loading' && <LoadingState />}
+      {state === 'error' && <ErrorState onRetry={() => setState('ready')} />}
+      {state === 'empty' && (
+        <EmptyState
+          title="Nothing here yet"
+          description="Once there is data it shows up in this space."
+        />
+      )}
+      {state === 'ready' && (
+        <ListCard title="Product Name" meta="24 cases left · 3 batches" price="ETB 31,200" />
+      )}
+      <p className="mt-3.5 font-mono text-[11px] text-(--text-muted)">
+        The switcher is dev scaffolding — it previews each state by hand until query status drives
+        them, then it goes away. Loading / error / empty share the dashed EmptyState card, so they
+        swap in place.
+      </p>
+    </Panel>
+  );
+}
+
 function FormsPanel() {
   return (
     <Panel span="md:col-span-8" title="Form inputs">
@@ -776,6 +808,7 @@ export function DesignSystem() {
           <CardsPanel />
           <StatusPanel />
           <BannersPanel />
+          <LoadingErrorPanel />
           <FormsPanel />
           <TablePanel />
           <SpacingPanel />
