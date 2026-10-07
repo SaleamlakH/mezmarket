@@ -44,9 +44,17 @@ const optionalDateFromString = z
 /** Rounds a number to the decimal places a column keeps. */
 const toStoredPrecision = (decimals: number) => (value: number) => Number(value.toFixed(decimals));
 
-/** Required numeric input: text in, number out at the column's precision. */
+/**
+ * Required numeric input: text or a number in, number out at the column's
+ * precision. The form sends text; the wire also carries numbers a client has
+ * already parsed, and both transform alike.
+ */
 const numberFromString = (label: string, decimals: number) =>
-  requiredText(`${label} is required`)
+  z
+    .custom<string>(
+      (value) => typeof value === 'number' || (typeof value === 'string' && value.trim() !== ''),
+      { error: `${label} is required` },
+    )
     .transform(Number)
     .pipe(
       z

@@ -353,18 +353,14 @@ describe('typed fields accept text input', () => {
     });
   });
 
-  it('rejects a number where a text field is expected', () => {
+  it('accepts a number a client has already parsed', () => {
     const result = createBatchSchema.safeParse({
       batchDate: BATCH_DATE,
-      lines: [{ productId: 'p', productUnitId: 'u', purchaseQuantity: 2, purchaseUnitCost: '1' }],
+      lines: [{ productId: 'p', productUnitId: 'u', purchaseQuantity: 2, purchaseUnitCost: 950 }],
     });
 
-    expect(result.error?.issues[0]).toEqual(
-      expect.objectContaining({
-        path: ['lines', 0, 'purchaseQuantity'],
-        message: expect.any(String),
-      }),
-    );
+    expect(result.error).toBeUndefined();
+    expect(result.data?.lines[0]).toMatchObject({ purchaseQuantity: 2, purchaseUnitCost: 950 });
   });
 });
 
