@@ -6,7 +6,7 @@ export type BannerTone = 'success' | 'warning' | 'danger';
 export interface BannerProps {
   tone: BannerTone;
   title: string;
-  description: string;
+  description?: string | undefined;
 }
 
 const config: Record<BannerTone, { icon: ReactNode; box: string }> = {
@@ -27,11 +27,16 @@ const config: Record<BannerTone, { icon: ReactNode; box: string }> = {
 export function Banner({ tone, title, description }: BannerProps) {
   const { icon, box } = config[tone];
   return (
-    <div className={`flex items-start gap-2.5 rounded-lg border p-3 ${box}`}>
+    <div
+      role={tone === 'danger' ? 'alert' : undefined}
+      className={`flex items-start gap-2.5 rounded-lg border p-3 ${box}`}
+    >
       <span className="mt-0.5 flex shrink-0">{icon}</span>
       <div className="min-w-0 flex-1">
         <p className="m-0 text-xs font-bold text-(--text)">{title}</p>
-        <p className="m-0 text-[11px] leading-relaxed text-(--text-muted)">{description}</p>
+        {description && (
+          <p className="m-0 text-[11px] leading-relaxed text-(--text-muted)">{description}</p>
+        )}
       </div>
     </div>
   );
