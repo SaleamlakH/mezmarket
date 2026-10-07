@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import type { BatchLineFormValues } from '@mez/types';
 import { useBatchLineForm } from '../useBatchLineForm';
-import { products } from '../../data/fixtures';
+import { products } from '../../__tests__/fixtures';
 
 function fakeEvent() {
   return { preventDefault: vi.fn() } as unknown as React.SubmitEvent<HTMLFormElement>;

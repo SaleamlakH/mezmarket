@@ -7,12 +7,11 @@ import { SectionHeader } from '@/components/SectionHeader';
 import { BATCHES_PATH } from '@/layouts/navigation';
 import { ErrorState } from '@/components/ErrorState';
 import { LoadingState } from '@/components/LoadingState';
-import { StateSwitcher, type SectionState } from '@/components/StateSwitcher';
 import { AddBatchSheet } from '../components/AddBatchSheet';
 import { BatchSummaryCard } from '../components/BatchSummaryCard';
 import { ProductStockList } from '../components/ProductStockList';
 import { useCurrency } from '../hooks/useCurrency';
-import { useInventoryData } from '../hooks/useInventoryData';
+import { useInventoryBatches, useInventoryProducts } from '../hooks/useInventoryApi';
 
 /** How many batches the page leads with before "See all" takes over. */
 const BATCH_PREVIEW_COUNT = 4;
@@ -25,18 +24,23 @@ const BATCH_PREVIEW_COUNT = 4;
 const TILE_VISIBILITY = ['block', 'block', 'hidden sm:block', 'hidden lg:block'];
 
 export function InventoryPage() {
-  const { batches, products } = useInventoryData();
+  const {
+    isPending: batchesPending,
+    isError: batchesError,
+    refetch: refetchBatches,
+    data: batches = [],
+  } = useInventoryBatches();
+  const {
+    isPending: productsPending,
+    isError: productsError,
+    refetch: refetchProducts,
+    data: products = [],
+  } = useInventoryProducts();
   const currency = useCurrency();
   const navigate = useNavigate();
   const [isAddingBatch, setIsAddingBatch] = useState(false);
-  const [batchesState, setBatchesState] = useState<SectionState>('ready');
-  const [productsState, setProductsState] = useState<SectionState>('ready');
 
   const previewBatches = batches.slice(0, BATCH_PREVIEW_COUNT);
-  const showBatchesEmpty =
-    batchesState === 'empty' || (batchesState === 'ready' && previewBatches.length === 0);
-  const showProductsEmpty =
-    productsState === 'empty' || (productsState === 'ready' && products.length === 0);
 
   return (
     <div className="mx-auto max-w-5xl pb-4">
@@ -54,23 +58,15 @@ export function InventoryPage() {
         seeMoreLabel="See all"
       />
 
-      <div className="mb-3 flex justify-end">
-        <StateSwitcher
-          value={batchesState}
-          onChange={setBatchesState}
-          label="Recent batches state"
-        />
-      </div>
-
-      {batchesState === 'loading' ? (
+      {batchesPending ? (
         <LoadingState label="Loading batches…" />
-      ) : batchesState === 'error' ? (
+      ) : batchesError ? (
         <ErrorState
           title="Could not load batches"
           description="Something went wrong while fetching your recent batches."
-          onRetry={() => setBatchesState('ready')}
+          onRetry={() => void refetchBatches()}
         />
-      ) : showBatchesEmpty ? (
+      ) : batches.length === 0 ? (
         <EmptyState
           title="No batches recorded yet"
           description="Record what you receive and it shows up here."
@@ -95,19 +91,15 @@ export function InventoryPage() {
 
       <SectionHeader icon={<Package size={14} aria-hidden />} title="Products" />
 
-      <div className="mb-3 flex justify-end">
-        <StateSwitcher value={productsState} onChange={setProductsState} label="Products state" />
-      </div>
-
-      {productsState === 'loading' ? (
+      {productsPending ? (
         <LoadingState label="Loading products…" />
-      ) : productsState === 'error' ? (
+      ) : productsError ? (
         <ErrorState
           title="Could not load products"
           description="Something went wrong while fetching your products."
-          onRetry={() => setProductsState('ready')}
+          onRetry={() => void refetchProducts()}
         />
-      ) : showProductsEmpty ? (
+      ) : products.length === 0 ? (
         <EmptyState
           title="No products yet"
           description="Products you add to the catalog will show their stock here."

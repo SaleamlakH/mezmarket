@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import type { BatchLineFormValues, ProductSummaryResponse } from '@mez/types';
 import { Controller } from 'react-hook-form';
 import { Button } from '@/components/Button';
@@ -12,14 +11,12 @@ import {
   formatQuantity,
   instantToDateInputValue,
 } from '@/lib/format';
-import type { PurchasableUnit } from '../data/fixtures';
 import { useBatchLineForm } from '../hooks/useBatchLineForm';
-import { StateSwitcher, type SectionState } from '@/components/StateSwitcher';
+import { useProductUnits } from '../hooks/useInventoryApi';
 import { ProductImage } from './ProductImage';
 
 export interface BatchLineFormProps {
   product: ProductSummaryResponse;
-  units: PurchasableUnit[];
   initialLine?: BatchLineFormValues | undefined;
   currency: string;
   submitLabel: string;
@@ -30,11 +27,12 @@ export interface BatchLineFormProps {
 /**
  * The line's own fields, once its product has been picked. The product
  * itself is fixed here — changing it means going back to the picker, so it
- * is shown as a read-only summary rather than another control.
+ * is shown as a read-only summary rather than another control. The product's
+ * purchasable units are fetched here too, so the request only starts once
+ * this form is opened.
  */
 export function BatchLineForm({
   product,
-  units,
   initialLine,
   currency,
   submitLabel,
@@ -43,7 +41,13 @@ export function BatchLineForm({
 }: BatchLineFormProps) {
   const { form, errors, submit, total } = useBatchLineForm({ product, initialLine, onSave });
   const { register, control } = form;
-  const [unitsState, setUnitsState] = useState<SectionState>('ready');
+  const {
+    isPending: unitsPending,
+    isError: unitsError,
+    refetch: retryUnits,
+    data: units = [],
+  } = useProductUnits(product.id);
+  const activeUnits = units.filter((unit) => unit.purchaseCapable);
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
@@ -58,10 +62,6 @@ export function BatchLineForm({
         </div>
       </div>
 
-      <div className="flex justify-end">
-        <StateSwitcher value={unitsState} onChange={setUnitsState} label="Unit selector state" />
-      </div>
-
       <div className="grid grid-cols-2 gap-3">
         <Field
           id="productUnitId"
@@ -69,7 +69,7 @@ export function BatchLineForm({
           hint="Only units this product is purchased in are listed"
           error={errors.productUnitId?.message}
         >
-          {unitsState === 'loading' ? (
+          {unitsPending ? (
             <div
               role="status"
               aria-label="Loading units…"
@@ -78,7 +78,7 @@ export function BatchLineForm({
               <Loader size={16} />
               <span className="text-sm text-(--text-muted)">Loading units…</span>
             </div>
-          ) : unitsState === 'error' ? (
+          ) : unitsError ? (
             <div
               role="alert"
               className="flex w-full items-center justify-between gap-2 rounded-[13px] border border-(--border) bg-(--field) px-3.5 py-3"
@@ -86,7 +86,7 @@ export function BatchLineForm({
               <span className="text-sm text-(--text-muted)">Could not load units.</span>
               <button
                 type="button"
-                onClick={() => setUnitsState('ready')}
+                onClick={() => void retryUnits()}
                 className="focus-ring cursor-pointer rounded-md text-[13px] font-semibold text-(--accent) transition-colors hover:text-(--accent-hover)"
               >
                 Retry
@@ -95,11 +95,11 @@ export function BatchLineForm({
           ) : (
             <Select
               id="productUnitId"
-              placeholder={unitsState === 'empty' ? 'No units available' : 'Select the unit'}
+              placeholder={activeUnits.length === 0 ? 'No units available' : 'Select the unit'}
               error={Boolean(errors.productUnitId)}
-              disabled={unitsState === 'empty'}
+              disabled={activeUnits.length === 0}
               {...register('productUnitId')}
-              options={units.map((unit) => ({ value: unit.id, label: unit.name }))}
+              options={activeUnits.map((unit) => ({ value: unit.id, label: unit.name }))}
             />
           )}
         </Field>

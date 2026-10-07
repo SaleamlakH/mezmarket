@@ -1,17 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import type { BatchLineFormValues } from '@mez/types';
 import { useAddBatch } from '../useAddBatch';
 
-function fakeEvent() {
-  return { preventDefault: vi.fn() } as unknown as React.SubmitEvent<HTMLFormElement>;
-}
-
-function setup() {
-  const onClose = vi.fn();
-  const rendered = renderHook(() => useAddBatch({ onClose }));
-  return { onClose, ...rendered };
-}
+const setup = () => renderHook(() => useAddBatch());
 
 function line(overrides: Partial<BatchLineFormValues> = {}): BatchLineFormValues {
   return {
@@ -26,10 +18,6 @@ function line(overrides: Partial<BatchLineFormValues> = {}): BatchLineFormValues
 const today = () => new Date().toISOString().slice(0, 10);
 
 describe('useAddBatch', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('starts with an empty batch dated today', () => {
     const { result } = setup();
 
@@ -80,56 +68,13 @@ describe('useAddBatch', () => {
     expect(result.current.totalAmount).toBe(21);
   });
 
-  it('does not confirm while the batch has no product lines', async () => {
+  it('resets back to a blank batch', () => {
     const { result } = setup();
-
-    await act(async () => {
-      await result.current.confirm(fakeEvent());
-    });
-
-    expect(result.current.isConfirmed).toBe(false);
-    expect(result.current.linesError).toBeTruthy();
-  });
-
-  it('does not confirm and shows an error when the batch date fails validation', async () => {
-    const { result } = setup();
-
-    act(() => result.current.addLine(line()));
-    act(() => result.current.form.setValue('batchDate', ''));
-    await act(async () => {
-      await result.current.confirm(fakeEvent());
-    });
-
-    expect(result.current.isConfirmed).toBe(false);
-    expect(result.current.errors.batchDate).toBeDefined();
-  });
-
-  it('confirms a batch that has a product line and a valid date', async () => {
-    const { result } = setup();
-
-    act(() => result.current.addLine(line()));
-    await act(async () => {
-      await result.current.confirm(fakeEvent());
-    });
-
-    expect(result.current.isConfirmed).toBe(true);
-    expect(result.current.linesError).toBeUndefined();
-  });
-
-  it('resets the draft and calls onClose when closed', async () => {
-    const { result, onClose } = setup();
 
     act(() => result.current.addLine(line()));
     act(() => result.current.form.setValue('supplierName', 'Acme Traders'));
-    await act(async () => {
-      await result.current.confirm(fakeEvent());
-    });
-    expect(result.current.isConfirmed).toBe(true);
+    act(() => result.current.reset());
 
-    act(() => result.current.close());
-
-    expect(onClose).toHaveBeenCalledTimes(1);
-    expect(result.current.isConfirmed).toBe(false);
     expect(result.current.lines).toEqual([]);
     expect(result.current.form.getValues('supplierName')).toBe('');
     expect(result.current.form.getValues('batchDate').slice(0, 10)).toBe(today());

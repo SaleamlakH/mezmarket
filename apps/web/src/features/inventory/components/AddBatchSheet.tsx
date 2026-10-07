@@ -1,17 +1,17 @@
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
-import type { BatchLineFormValues } from '@mez/types';
+import type { BatchLineFormValues, ProductSummaryResponse } from '@mez/types';
 import { Button } from '@/components/Button';
 import { Dialog } from '@/components/Dialog';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionHeader } from '@/components/SectionHeader';
 import { Toast } from '@/components/Toast';
 import { formatMoney } from '@/lib/format';
-import { ErrorState } from '@/components/ErrorState';
-import { LoadingState } from '@/components/LoadingState';
-import { StateSwitcher, type SectionState } from '@/components/StateSwitcher';
+import { useBusinessContext } from '@/providers/business/useBusinessContext';
 import { useCurrency } from '../hooks/useCurrency';
 import { useAddBatch } from '../hooks/useAddBatch';
+import { inventoryKeys, useCreateBatch } from '../hooks/useInventoryApi';
 import { BatchHeaderForm } from './BatchHeaderForm';
 import { BatchLineForm } from './BatchLineForm';
 import { BatchLineList } from './BatchLineList';
@@ -34,63 +34,55 @@ export interface AddBatchSheetProps {
  * Records one purchase event. It is a single sheet that moves between three
  * steps — the batch itself, the product picker, and one product line's
  * fields — so the lines collapse into short rows in between instead of
- * nesting sheets on top of each other. The draft, its steps, and the
- * validation that gates the confirmation all live in `useAddBatch`; this
- * component only lays them out.
+ * nesting sheets on top of each other. The draft and its validation live in
+ * `useAddBatch`; the catalog and unit requests belong to the components that
+ * render them, so nothing is fetched until those steps are opened. The only
+ * request made here is recording the batch.
  */
 export function AddBatchSheet({ open, onClose }: AddBatchSheetProps) {
   const currency = useCurrency();
+  const { form, linesError, lines, totalAmount, reset, addLine, updateLine, removeLine } =
+    useAddBatch();
   const {
-    form,
-    linesError,
-    isConfirmed,
-    products,
-    purchasableUnitsByProductId,
-    lines,
-    totalAmount,
-    confirm,
-    dismissConfirmed,
-    close: closeDraft,
-    addLine,
-    updateLine,
-    removeLine,
-  } = useAddBatch({ onClose });
+    isPending: isConfirming,
+    error: confirmError,
+    mutateAsync: createBatchAsync,
+    reset: resetCreateBatch,
+  } = useCreateBatch();
 
   const [step, setStep] = useState<Step>('batch');
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [pickedProductId, setPickedProductId] = useState<string | null>(null);
-  const [pickState, setPickState] = useState<SectionState>('ready');
+  const [activeProduct, setActiveProduct] = useState<ProductSummaryResponse | null>(null);
+  const [isConfirmed, setIsConfirmed] = useState(false);
 
   const editingLine = editingIndex === null ? undefined : lines[editingIndex];
-  const activeProductId = editingLine?.productId ?? pickedProductId;
-  const activeProduct =
-    activeProductId == null
-      ? undefined
-      : products.find((product) => product.id === activeProductId);
-  const activeUnits =
-    activeProduct == null ? [] : (purchasableUnitsByProductId[activeProduct.id] ?? []);
   const title = step === 'line' && editingIndex !== null ? 'Edit product line' : STEP_TITLES[step];
+
+  const { currentBusiness } = useBusinessContext();
+  const businessId = currentBusiness?.id;
+  const queryClient = useQueryClient();
 
   const backToBatch = () => {
     setStep('batch');
     setEditingIndex(null);
-    setPickedProductId(null);
+    setActiveProduct(null);
   };
 
   const startNewLine = () => {
     setEditingIndex(null);
-    setPickedProductId(null);
+    setActiveProduct(null);
     setStep('pick');
   };
 
-  const pickProduct = (product: { id: string }) => {
-    setPickedProductId(product.id);
+  const pickProduct = (product: ProductSummaryResponse) => {
+    setEditingIndex(null);
+    setActiveProduct(product);
     setStep('line');
   };
 
-  const editLine = (index: number) => {
+  const editLine = (index: number, product: ProductSummaryResponse) => {
     setEditingIndex(index);
-    setPickedProductId(null);
+    setActiveProduct(product);
     setStep('line');
   };
 
@@ -100,9 +92,26 @@ export function AddBatchSheet({ open, onClose }: AddBatchSheetProps) {
     backToBatch();
   };
 
+  const confirm = form.handleSubmit(async (values) => {
+    try {
+      await createBatchAsync(values);
+      setIsConfirmed(true);
+      reset();
+    } catch {
+      // The failure is surfaced through `confirmError`.
+    }
+  });
+
   const close = () => {
     backToBatch();
-    closeDraft();
+    reset();
+    resetCreateBatch();
+    setIsConfirmed(false);
+    // The catalog and unit caches exist only for an open sheet's session,
+    if (businessId) {
+      queryClient.removeQueries({ queryKey: inventoryKeys.products(businessId) });
+    }
+    onClose();
   };
 
   return (
@@ -110,11 +119,10 @@ export function AddBatchSheet({ open, onClose }: AddBatchSheetProps) {
       {isConfirmed && (
         <Toast
           message="Batch recorded"
-          description="Presentation only — no request is sent yet."
           variant="success"
           duration={3000}
           position="top-center"
-          onDismiss={dismissConfirmed}
+          onDismiss={() => setIsConfirmed(false)}
         />
       )}
 
@@ -139,8 +147,6 @@ export function AddBatchSheet({ open, onClose }: AddBatchSheetProps) {
               <div className="flex flex-col gap-3 rounded-xl border border-(--border) p-2">
                 <BatchLineList
                   lines={lines}
-                  products={products}
-                  unitsByProductId={purchasableUnitsByProductId}
                   currency={currency}
                   onEdit={editLine}
                   onRemove={removeLine}
@@ -168,41 +174,23 @@ export function AddBatchSheet({ open, onClose }: AddBatchSheetProps) {
 
           <BatchHeaderForm form={form} />
 
-          <Button type="submit" className="w-full">
-            Confirm batch
+          {confirmError && (
+            <p className="mt-2 text-[11px] font-semibold text-(--danger)" role="alert">
+              Could not record the batch. Check your connection and try again.
+            </p>
+          )}
+
+          <Button type="submit" className="w-full" disabled={isConfirming}>
+            {isConfirming ? 'Recording…' : 'Confirm batch'}
           </Button>
         </form>
       )}
 
-      {step === 'pick' && (
-        <div className="flex flex-col gap-3">
-          <div className="flex justify-end">
-            <StateSwitcher value={pickState} onChange={setPickState} label="Product picker state" />
-          </div>
-
-          {pickState === 'loading' && <LoadingState label="Loading products…" />}
-
-          {pickState === 'error' && (
-            <ErrorState
-              title="Could not load products"
-              description="Something went wrong while fetching your products."
-              onRetry={() => setPickState('ready')}
-            />
-          )}
-
-          {(pickState === 'empty' || pickState === 'ready') && (
-            <ProductPickerList
-              products={pickState === 'empty' ? [] : products}
-              onSelect={pickProduct}
-            />
-          )}
-        </div>
-      )}
+      {step === 'pick' && <ProductPickerList onSelect={pickProduct} />}
 
       {step === 'line' && activeProduct && (
         <BatchLineForm
           product={activeProduct}
-          units={activeUnits}
           currency={currency}
           initialLine={editingLine}
           submitLabel={editingIndex === null ? 'Add line' : 'Save changes'}

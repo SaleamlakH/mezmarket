@@ -1,20 +1,40 @@
-import type { ProductSummary, ProductSummaryResponse } from '@mez/types';
+import type { ProductSummaryResponse } from '@mez/types';
 import { ChevronRight } from 'lucide-react';
 import { EmptyState } from '@/components/EmptyState';
+import { ErrorState } from '@/components/ErrorState';
+import { LoadingState } from '@/components/LoadingState';
 import { formatQuantity } from '@/lib/format';
+import { useBusinessProducts } from '../hooks/useInventoryApi';
 import { ProductImage } from './ProductImage';
 
 export interface ProductPickerListProps {
-  products: ProductSummary[];
   onSelect: (product: ProductSummaryResponse) => void;
 }
 
 /**
  * Picks the product a new batch line is for. Every product is offered — a
  * delivery can legitimately carry the same product twice in different
- * units, so nothing is filtered out once a product has been used.
+ * units, so nothing is filtered out once a product has been used. The
+ * catalog request is owned here, so nothing is fetched until the picker
+ * itself is opened.
  */
-export function ProductPickerList({ products, onSelect }: ProductPickerListProps) {
+export function ProductPickerList({ onSelect }: ProductPickerListProps) {
+  const { isPending, isError, refetch, data: products = [] } = useBusinessProducts();
+
+  if (isPending) {
+    return <LoadingState label="Loading products…" />;
+  }
+
+  if (isError) {
+    return (
+      <ErrorState
+        title="Could not load products"
+        description="Something went wrong while fetching your products."
+        onRetry={() => void refetch()}
+      />
+    );
+  }
+
   if (products.length === 0) {
     return (
       <EmptyState title="No products yet" description="Add a product before receiving stock." />

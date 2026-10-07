@@ -1,10 +1,8 @@
-import { useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 import type { BatchFormValues, BatchLineFormValues, CreateBatchInput } from '@mez/types';
 import { createBatchSchema } from '@mez/validation';
 import { lineTotal } from '../lib/lineTotal';
-import { useInventoryData } from './useInventoryData';
 
 const freshDraft = (): BatchFormValues => ({
   batchDate: new Date().toISOString(),
@@ -19,13 +17,7 @@ function linesRootMessage(error: unknown): string | undefined {
   return nested.root?.message ?? nested.message;
 }
 
-export interface UseAddBatchOptions {
-  onClose: () => void;
-}
-
-export function useAddBatch({ onClose }: UseAddBatchOptions) {
-  const { products, purchasableUnitsByProductId } = useInventoryData();
-
+export function useAddBatch() {
   const form = useForm<BatchFormValues, unknown, CreateBatchInput>({
     resolver: zodResolver(createBatchSchema),
     defaultValues: freshDraft(),
@@ -37,33 +29,15 @@ export function useAddBatch({ onClose }: UseAddBatchOptions) {
     name: 'lines',
   });
 
-  const [isConfirmed, setIsConfirmed] = useState(false);
-
   const lines = useWatch({ control: form.control, name: 'lines' });
   const { errors } = form.formState;
 
-  const confirm = form.handleSubmit(() => {
-    setIsConfirmed(true);
-  });
-
-  const close = () => {
-    form.reset(freshDraft());
-    setIsConfirmed(false);
-    onClose();
-  };
-
   return {
     form,
-    errors,
     linesError: linesRootMessage(errors.lines),
-    isConfirmed,
-    confirm,
-    dismissConfirmed: () => setIsConfirmed(false),
-    close,
-    products,
-    purchasableUnitsByProductId,
     lines,
     totalAmount: lines.reduce((sum, line) => sum + (lineTotal(line) ?? 0), 0),
+    reset: () => form.reset(freshDraft()),
     addLine: (line: BatchLineFormValues) => append(line),
     updateLine: (index: number, line: BatchLineFormValues) => update(index, line),
     removeLine: (index: number) => remove(index),

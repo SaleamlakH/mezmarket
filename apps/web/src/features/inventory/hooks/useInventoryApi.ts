@@ -62,6 +62,10 @@ export function useBusinessProducts() {
       return inventoryService.getProducts(businessId);
     },
     enabled: Boolean(businessId),
+    // Reference data: kept for the whole add-batch session so row names can
+    // be read back from the cache; expired in AddBatchSheet's close().
+    staleTime: Infinity,
+    gcTime: Infinity,
   });
 }
 
@@ -81,6 +85,9 @@ export function useProductUnits(productId: string | undefined) {
       return inventoryService.getProductUnits(businessId, productId);
     },
     enabled: Boolean(businessId && productId),
+    // Reference data: always read from cache, never re-requested or evicted.
+    staleTime: Infinity,
+    gcTime: Infinity,
   });
 }
 

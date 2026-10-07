@@ -1,21 +1,16 @@
-import { useState } from 'react';
 import { Link } from 'react-router';
 import { ChevronLeft } from 'lucide-react';
 import { EmptyState } from '@/components/EmptyState';
 import { INVENTORY_PATH } from '@/layouts/navigation';
 import { ErrorState } from '@/components/ErrorState';
 import { LoadingState } from '@/components/LoadingState';
-import { StateSwitcher, type SectionState } from '@/components/StateSwitcher';
 import { BatchSummaryCard } from '../components/BatchSummaryCard';
 import { useCurrency } from '../hooks/useCurrency';
-import { useInventoryData } from '../hooks/useInventoryData';
+import { useInventoryBatches } from '../hooks/useInventoryApi';
 
 export function BatchesPage() {
-  const { batches } = useInventoryData();
+  const { isPending, isError, refetch, data: batches = [] } = useInventoryBatches();
   const currency = useCurrency();
-  const [state, setState] = useState<SectionState>('ready');
-
-  const showEmpty = state === 'empty' || (state === 'ready' && batches.length === 0);
 
   return (
     <div className="mx-auto max-w-5xl pb-4">
@@ -31,19 +26,15 @@ export function BatchesPage() {
         <h2 className="m-0 text-lg font-bold text-(--text)">All batches</h2>
       </div>
 
-      <div className="mb-3 flex justify-end">
-        <StateSwitcher value={state} onChange={setState} label="All batches state" />
-      </div>
-
-      {state === 'loading' ? (
+      {isPending ? (
         <LoadingState label="Loading batches…" />
-      ) : state === 'error' ? (
+      ) : isError ? (
         <ErrorState
           title="Could not load batches"
           description="Something went wrong while fetching your batches."
-          onRetry={() => setState('ready')}
+          onRetry={() => void refetch()}
         />
-      ) : showEmpty ? (
+      ) : batches.length === 0 ? (
         <EmptyState
           title="No batches recorded yet"
           description="Batches you record will be listed here."

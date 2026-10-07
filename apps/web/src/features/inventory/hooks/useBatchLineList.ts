@@ -1,0 +1,35 @@
+import type {
+  BatchLineFormValues,
+  ProductSummaryResponse,
+  ProductUnitOptionResponse,
+} from '@mez/types';
+import { useQueryClient } from '@tanstack/react-query';
+import { useBusinessContext } from '@/providers/business/useBusinessContext';
+import { inventoryKeys } from './useInventoryApi';
+
+/**
+ * The add-batch session's catalog entries for the lines on screen. Product
+ * and unit names are read back from the query cache instead of requested
+ * again, since opening the picker and the line form already fetched them.
+ */
+export function useBatchLineList(lines: BatchLineFormValues[]) {
+  const queryClient = useQueryClient();
+  const { currentBusiness } = useBusinessContext();
+  const businessId = currentBusiness?.id;
+
+  const cachedProducts = businessId
+    ? queryClient.getQueryData<ProductSummaryResponse[]>(inventoryKeys.products(businessId))
+    : undefined;
+
+  const unitsByProductId: Record<string, ProductUnitOptionResponse[]> = {};
+  if (businessId) {
+    for (const productId of new Set(lines.map((line) => line.productId))) {
+      const units = queryClient.getQueryData<ProductUnitOptionResponse[]>(
+        inventoryKeys.productUnits(businessId, productId),
+      );
+      if (units) unitsByProductId[productId] = units;
+    }
+  }
+
+  return { cachedProducts, unitsByProductId };
+}
