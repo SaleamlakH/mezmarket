@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import type { BatchLineFormValues, ProductSummaryResponse } from '@mez/types';
 import { Controller } from 'react-hook-form';
 import { Button } from '@/components/Button';
 import { Field } from '@/components/Field';
 import { Input } from '@/components/Input';
+import { Loader } from '@/components/Loader';
 import { Select } from '@/components/Select';
 import {
   dateInputToInstant,
@@ -12,6 +14,7 @@ import {
 } from '@/lib/format';
 import type { PurchasableUnit } from '../data/fixtures';
 import { useBatchLineForm } from '../hooks/useBatchLineForm';
+import { StateSwitcher, type SectionState } from '@/components/StateSwitcher';
 import { ProductImage } from './ProductImage';
 
 export interface BatchLineFormProps {
@@ -40,6 +43,7 @@ export function BatchLineForm({
 }: BatchLineFormProps) {
   const { form, errors, submit, total } = useBatchLineForm({ product, initialLine, onSave });
   const { register, control } = form;
+  const [unitsState, setUnitsState] = useState<SectionState>('ready');
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
@@ -54,6 +58,10 @@ export function BatchLineForm({
         </div>
       </div>
 
+      <div className="flex justify-end">
+        <StateSwitcher value={unitsState} onChange={setUnitsState} label="Unit selector state" />
+      </div>
+
       <div className="grid grid-cols-2 gap-3">
         <Field
           id="productUnitId"
@@ -61,13 +69,39 @@ export function BatchLineForm({
           hint="Only units this product is purchased in are listed"
           error={errors.productUnitId?.message}
         >
-          <Select
-            id="productUnitId"
-            placeholder="Select the unit"
-            error={Boolean(errors.productUnitId)}
-            {...register('productUnitId')}
-            options={units.map((unit) => ({ value: unit.id, label: unit.name }))}
-          />
+          {unitsState === 'loading' ? (
+            <div
+              role="status"
+              aria-label="Loading units…"
+              className="flex w-full items-center gap-2 rounded-[13px] border border-(--border) bg-(--field) px-3.5 py-3"
+            >
+              <Loader size={16} />
+              <span className="text-sm text-(--text-muted)">Loading units…</span>
+            </div>
+          ) : unitsState === 'error' ? (
+            <div
+              role="alert"
+              className="flex w-full items-center justify-between gap-2 rounded-[13px] border border-(--border) bg-(--field) px-3.5 py-3"
+            >
+              <span className="text-sm text-(--text-muted)">Could not load units.</span>
+              <button
+                type="button"
+                onClick={() => setUnitsState('ready')}
+                className="focus-ring cursor-pointer rounded-md text-[13px] font-semibold text-(--accent) transition-colors hover:text-(--accent-hover)"
+              >
+                Retry
+              </button>
+            </div>
+          ) : (
+            <Select
+              id="productUnitId"
+              placeholder={unitsState === 'empty' ? 'No units available' : 'Select the unit'}
+              error={Boolean(errors.productUnitId)}
+              disabled={unitsState === 'empty'}
+              {...register('productUnitId')}
+              options={units.map((unit) => ({ value: unit.id, label: unit.name }))}
+            />
+          )}
         </Field>
 
         <Field id="purchaseQuantity" label="Quantity" error={errors.purchaseQuantity?.message}>

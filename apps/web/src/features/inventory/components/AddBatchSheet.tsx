@@ -7,6 +7,9 @@ import { EmptyState } from '@/components/EmptyState';
 import { SectionHeader } from '@/components/SectionHeader';
 import { Toast } from '@/components/Toast';
 import { formatMoney } from '@/lib/format';
+import { ErrorState } from '@/components/ErrorState';
+import { LoadingState } from '@/components/LoadingState';
+import { StateSwitcher, type SectionState } from '@/components/StateSwitcher';
 import { useCurrency } from '../hooks/useCurrency';
 import { useAddBatch } from '../hooks/useAddBatch';
 import { BatchHeaderForm } from './BatchHeaderForm';
@@ -56,6 +59,7 @@ export function AddBatchSheet({ open, onClose }: AddBatchSheetProps) {
   const [step, setStep] = useState<Step>('batch');
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [pickedProductId, setPickedProductId] = useState<string | null>(null);
+  const [pickState, setPickState] = useState<SectionState>('ready');
 
   const editingLine = editingIndex === null ? undefined : lines[editingIndex];
   const activeProductId = editingLine?.productId ?? pickedProductId;
@@ -170,7 +174,30 @@ export function AddBatchSheet({ open, onClose }: AddBatchSheetProps) {
         </form>
       )}
 
-      {step === 'pick' && <ProductPickerList products={products} onSelect={pickProduct} />}
+      {step === 'pick' && (
+        <div className="flex flex-col gap-3">
+          <div className="flex justify-end">
+            <StateSwitcher value={pickState} onChange={setPickState} label="Product picker state" />
+          </div>
+
+          {pickState === 'loading' && <LoadingState label="Loading products…" />}
+
+          {pickState === 'error' && (
+            <ErrorState
+              title="Could not load products"
+              description="Something went wrong while fetching your products."
+              onRetry={() => setPickState('ready')}
+            />
+          )}
+
+          {(pickState === 'empty' || pickState === 'ready') && (
+            <ProductPickerList
+              products={pickState === 'empty' ? [] : products}
+              onSelect={pickProduct}
+            />
+          )}
+        </div>
+      )}
 
       {step === 'line' && activeProduct && (
         <BatchLineForm
