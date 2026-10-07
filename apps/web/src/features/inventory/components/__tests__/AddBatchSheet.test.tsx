@@ -155,9 +155,9 @@ describe('AddBatchSheet', () => {
     await addTequilaLine(user);
     await user.click(screen.getByRole('button', { name: 'Confirm batch' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Could not record the batch. Check your connection and try again.',
-    );
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Could not record the batch');
+    expect(alert).toHaveTextContent('Check your connection and try again.');
     expect(screen.queryByText('Batch recorded')).toBeNull();
   }, 15_000);
 

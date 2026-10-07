@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import type { BatchLineFormValues, ProductSummaryResponse } from '@mez/types';
+import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
 import { Dialog } from '@/components/Dialog';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionHeader } from '@/components/SectionHeader';
 import { Toast } from '@/components/Toast';
+import { ApiError } from '@/lib/apiClient';
 import { formatMoney } from '@/lib/format';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
 import { useCurrency } from '../hooks/useCurrency';
@@ -102,6 +104,13 @@ export function AddBatchSheet({ open, onClose }: AddBatchSheetProps) {
     }
   });
 
+  let confirmTitle = 'Could not record the batch';
+  let confirmDescription: string | undefined = 'Check your connection and try again.';
+  if (confirmError instanceof ApiError) {
+    confirmTitle = confirmError.message;
+    confirmDescription = undefined;
+  }
+
   const close = () => {
     backToBatch();
     reset();
@@ -164,20 +173,17 @@ export function AddBatchSheet({ open, onClose }: AddBatchSheetProps) {
                 </Button>
               </div>
             )}
-
-            {linesError && (
-              <p className="mt-2 text-[11px] font-semibold text-(--danger)" role="alert">
-                {linesError}
-              </p>
-            )}
           </div>
 
           <BatchHeaderForm form={form} />
 
-          {confirmError && (
-            <p className="mt-2 text-[11px] font-semibold text-(--danger)" role="alert">
-              Could not record the batch. Check your connection and try again.
-            </p>
+          {(linesError || confirmError) && (
+            <div className="flex flex-col gap-2">
+              {linesError && <Banner tone="danger" title={linesError} />}
+              {confirmError && (
+                <Banner tone="danger" title={confirmTitle} description={confirmDescription} />
+              )}
+            </div>
           )}
 
           <Button type="submit" className="w-full" disabled={isConfirming}>
