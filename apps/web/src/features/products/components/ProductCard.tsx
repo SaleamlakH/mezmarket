@@ -28,8 +28,8 @@ export function ProductCard({
   const imageUrl = useProductImage(businessId, uploadId, uploadUrls);
 
   return (
-    <div className="flex cursor-pointer flex-col gap-2 rounded-2xl border border-(--border) bg-(--field) px-2 pt-2 pb-4 transition-[border-color,background-color] duration-150 hover:border-(--border-strong) hover:bg-(--surface-primary)">
-      <span className="flex aspect-4/3 w-full items-center justify-center overflow-hidden rounded-[10px] border border-(--border) bg-(--surface-secondary) text-(--text-muted)">
+    <div className="flex cursor-pointer flex-col gap-2 rounded-2xl border border-(--border) bg-(--surface-primary) px-2 pt-2 pb-4 transition-[border-color,background-color] duration-150 hover:border-(--border-strong) hover:bg-(--surface-primary)">
+      <div className="flex aspect-4/3 w-full items-center justify-center overflow-hidden rounded-[10px] border border-(--border) bg-(--surface-secondary) text-(--text-muted)">
         {imageUrl ? (
           <img
             src={imageUrl}
@@ -43,7 +43,7 @@ export function ProductCard({
         ) : (
           <Image aria-hidden className="h-11 w-11" />
         )}
-      </span>
+      </div>
 
       <div className="min-w-0">
         <p className="truncate text-[15px] font-semibold text-(--text)">{name}</p>
