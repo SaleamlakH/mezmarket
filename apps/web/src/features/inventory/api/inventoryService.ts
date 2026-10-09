@@ -1,8 +1,6 @@
 import type {
   CreateBatchInput,
   ProductInventorySummaryResponse,
-  ProductSummaryResponse,
-  ProductUnitOptionResponse,
   StockBatchDetailResponse,
 } from '@mez/types';
 import { apiClient, type ApiClient } from '@/lib/apiClient';
@@ -11,8 +9,6 @@ export interface InventoryApi {
   getBatches(businessId: string): Promise<StockBatchDetailResponse[]>;
   getInventoryProducts(businessId: string): Promise<ProductInventorySummaryResponse[]>;
   createBatch(businessId: string, input: CreateBatchInput): Promise<StockBatchDetailResponse>;
-  getProducts(businessId: string): Promise<ProductSummaryResponse[]>;
-  getProductUnits(businessId: string, productId: string): Promise<ProductUnitOptionResponse[]>;
 }
 
 export function createInventoryService(client: ApiClient): InventoryApi {
@@ -31,14 +27,6 @@ export function createInventoryService(client: ApiClient): InventoryApi {
       return client.post<StockBatchDetailResponse>(
         `/api/businesses/${businessId}/inventory/batches`,
         input,
-      );
-    },
-    getProducts(businessId) {
-      return client.get<ProductSummaryResponse[]>(`/api/businesses/${businessId}/products`);
-    },
-    getProductUnits(businessId, productId) {
-      return client.get<ProductUnitOptionResponse[]>(
-        `/api/businesses/${businessId}/products/${productId}/units`,
       );
     },
   };

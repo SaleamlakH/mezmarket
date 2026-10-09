@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createBrowserRouter, Navigate } from 'react-router';
 import { AuthProvider } from './providers/auth-provider/AuthProvider';
 import { BusinessProvider } from './providers/business/BusinessProvider';
+import { CatalogProvider } from './providers/catalog/CatalogProvider';
 import { ThemeProvider } from './providers/theme/ThemeProvider';
 import { useAuthContext } from './providers/auth-provider/useAuthContext';
 import { RouterProvider } from 'react-router/dom';
@@ -24,6 +25,7 @@ import { BatchesPage } from './features/inventory/pages/BatchesPage';
 import { SettingsPage } from './features/settings/pages/SettingsPage';
 import { BusinessProfilePage } from './features/business/pages/BusinessProfilePage';
 import { businessService } from './features/business/api/businessService';
+import { productsService } from './features/products/api/productsService';
 import { CreateBusinessPage } from './features/business/pages/CreateBusinessPage';
 import { OwnerProfilePage } from './features/owner-profile/pages/OwnerProfilePage';
 import { ownerApi } from './features/owner-profile/api/ownerApi';
@@ -111,11 +113,13 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider authService={supabaseAuthService}>
-        <AppProviders>
-          <ThemeProvider>
-            <RouterProvider router={router} />
-          </ThemeProvider>
-        </AppProviders>
+        <CatalogProvider catalogService={productsService}>
+          <AppProviders>
+            <ThemeProvider>
+              <RouterProvider router={router} />
+            </ThemeProvider>
+          </AppProviders>
+        </CatalogProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

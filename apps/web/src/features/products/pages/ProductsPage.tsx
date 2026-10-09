@@ -6,12 +6,12 @@ import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { Loader } from '@/components/Loader';
 import { Toast } from '@/components/Toast';
+import { useProductUploadUrls } from '@/hooks/useProductUploadUrls';
 import { pluralize } from '@/lib/format';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
 import { AddProductDialog } from '../components/AddProductDialog';
 import { ProductCard } from '../components/ProductCard';
 import { useProducts } from '../hooks/useProducts';
-import { useProductUploadUrls } from '../hooks/useProductUploadUrls';
 
 interface CardView {
   name: string;

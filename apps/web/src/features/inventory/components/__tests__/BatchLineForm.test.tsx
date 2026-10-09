@@ -3,20 +3,27 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { BusinessContextValue } from '@/providers/business/types';
+import type { CatalogService } from '@/providers/catalog/types';
 import { BatchLineForm, type BatchLineFormProps } from '../BatchLineForm';
-import { inventoryService } from '../../api/inventoryService';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
+import { useCatalogService } from '@/providers/catalog/useCatalogService';
 import { products, purchasableUnitsByProductId } from '../../__tests__/fixtures';
-
-vi.mock('../../api/inventoryService', () => ({
-  inventoryService: {
-    getProductUnits: vi.fn(),
-  },
-}));
 
 vi.mock('@/providers/business/useBusinessContext', () => ({
   useBusinessContext: vi.fn(),
 }));
+
+vi.mock('@/providers/catalog/useCatalogService', () => ({
+  useCatalogService: vi.fn(),
+}));
+
+const getProductUnits = vi.fn();
+
+const catalogService = {
+  listProducts: vi.fn(),
+  getProductUnits,
+  getProductUploadUrls: vi.fn(),
+} satisfies CatalogService;
 
 function must<T>(value: T | undefined, what: string): T {
   if (value === undefined) throw new Error(`Missing ${what}`);
@@ -69,7 +76,8 @@ describe('BatchLineForm', () => {
       setCurrentBusiness: vi.fn(),
       refetch: vi.fn(),
     } satisfies BusinessContextValue);
-    vi.mocked(inventoryService.getProductUnits).mockResolvedValue(productUnits);
+    vi.mocked(useCatalogService).mockReturnValue(catalogService);
+    getProductUnits.mockResolvedValue(productUnits);
   });
 
   it('lists the purchasable units in the unit selector once they load', async () => {
@@ -80,11 +88,11 @@ describe('BatchLineForm', () => {
     for (const unit of productUnits) {
       expect(screen.getByRole('option', { name: unit.name })).toBeInTheDocument();
     }
-    expect(inventoryService.getProductUnits).toHaveBeenCalledTimes(1);
+    expect(getProductUnits).toHaveBeenCalledTimes(1);
   });
 
   it('shows a loading placeholder instead of the selector while units load', () => {
-    vi.mocked(inventoryService.getProductUnits).mockReturnValue(new Promise(() => {}));
+    getProductUnits.mockReturnValue(new Promise(() => {}));
     renderForm();
 
     expect(screen.getByRole('status', { name: 'Loading units…' })).toBeInTheDocument();
@@ -92,20 +100,20 @@ describe('BatchLineForm', () => {
   });
 
   it('shows an error with a retry that refetches the units', async () => {
-    vi.mocked(inventoryService.getProductUnits).mockRejectedValue(new Error('network failure'));
+    getProductUnits.mockRejectedValue(new Error('network failure'));
     const user = userEvent.setup();
     renderForm();
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not load units.');
-    expect(inventoryService.getProductUnits).toHaveBeenCalledTimes(1);
+    expect(getProductUnits).toHaveBeenCalledTimes(1);
 
     await user.click(screen.getByRole('button', { name: 'Retry' }));
 
-    expect(inventoryService.getProductUnits).toHaveBeenCalledTimes(2);
+    expect(getProductUnits).toHaveBeenCalledTimes(2);
   });
 
   it('disables the selector when the product has no purchasable units', async () => {
-    vi.mocked(inventoryService.getProductUnits).mockResolvedValue([]);
+    getProductUnits.mockResolvedValue([]);
     renderForm();
 
     const select = await screen.findByLabelText('Bought in');

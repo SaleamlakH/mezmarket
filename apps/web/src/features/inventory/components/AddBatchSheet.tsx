@@ -7,6 +7,7 @@ import { Button } from '@/components/Button';
 import { Dialog } from '@/components/Dialog';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionHeader } from '@/components/SectionHeader';
+import { useProductUploadUrls } from '@/hooks/useProductUploadUrls';
 import { ApiError } from '@/lib/apiClient';
 import { formatMoney } from '@/lib/format';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
@@ -61,6 +62,7 @@ export function AddBatchSheet({ open, onClose, onRecorded }: AddBatchSheetProps)
 
   const { currentBusiness } = useBusinessContext();
   const businessId = currentBusiness?.id;
+  const { data: uploadUrls } = useProductUploadUrls(businessId);
   const queryClient = useQueryClient();
 
   const backToBatch = () => {
@@ -145,6 +147,8 @@ export function AddBatchSheet({ open, onClose, onRecorded }: AddBatchSheetProps)
                 <BatchLineList
                   lines={lines}
                   currency={currency}
+                  businessId={businessId}
+                  uploadUrls={uploadUrls}
                   onEdit={editLine}
                   onRemove={removeLine}
                 />
@@ -180,7 +184,9 @@ export function AddBatchSheet({ open, onClose, onRecorded }: AddBatchSheetProps)
         </form>
       )}
 
-      {step === 'pick' && <ProductPickerList onSelect={pickProduct} />}
+      {step === 'pick' && (
+        <ProductPickerList onSelect={pickProduct} businessId={businessId} uploadUrls={uploadUrls} />
+      )}
 
       {step === 'line' && activeProduct && (
         <BatchLineForm

@@ -58,6 +58,13 @@ describe('productsService', () => {
     expect(client.post).toHaveBeenCalledWith('/api/businesses/b-1/products/uploads', meta);
   });
 
+  it('getProductUnits calls GET on the product units endpoint', async () => {
+    vi.mocked(client.get).mockResolvedValue([] as never);
+    await service.getProductUnits('b-1', 'p-1');
+
+    expect(client.get).toHaveBeenCalledWith('/api/businesses/b-1/products/p-1/units');
+  });
+
   it('getProductUploadUrls calls GET on the urls endpoint', async () => {
     vi.mocked(client.get).mockResolvedValue([{ uploadId: 'up-1', url: 'https://cdn/1' }] as never);
     await service.getProductUploadUrls('b-1');

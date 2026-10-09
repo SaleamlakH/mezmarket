@@ -8,6 +8,8 @@ import { Toast } from '@/components/Toast';
 import { BATCHES_PATH } from '@/layouts/navigation';
 import { ErrorState } from '@/components/ErrorState';
 import { LoadingState } from '@/components/LoadingState';
+import { useProductUploadUrls } from '@/hooks/useProductUploadUrls';
+import { useBusinessContext } from '@/providers/business/useBusinessContext';
 import { AddBatchSheet } from '../components/AddBatchSheet';
 import { BatchSummaryCard } from '../components/BatchSummaryCard';
 import { ProductStockList } from '../components/ProductStockList';
@@ -40,6 +42,9 @@ export function InventoryPage() {
   } = useInventoryProducts();
   const currency = useCurrency();
   const navigate = useNavigate();
+  const { currentBusiness } = useBusinessContext();
+  const businessId = currentBusiness?.id;
+  const { data: uploadUrls } = useProductUploadUrls(businessId);
   const [isAddingBatch, setIsAddingBatch] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -108,7 +113,12 @@ export function InventoryPage() {
           description="Products you add to the catalog will show their stock here."
         />
       ) : (
-        <ProductStockList products={products} currency={currency} />
+        <ProductStockList
+          products={products}
+          currency={currency}
+          businessId={businessId}
+          uploadUrls={uploadUrls}
+        />
       )}
 
       <AddBatchSheet

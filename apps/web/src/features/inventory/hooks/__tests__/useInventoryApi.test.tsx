@@ -4,8 +4,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import type { BusinessResponse, CreateBatchInput, StockBatchDetailResponse } from '@mez/types';
 import type { BusinessContextValue } from '@/providers/business/types';
+import type { CatalogService } from '@/providers/catalog/types';
 import { inventoryService } from '../../api/inventoryService';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
+import { useCatalogService } from '@/providers/catalog/useCatalogService';
 import {
   inventoryKeys,
   useBusinessProducts,
@@ -21,14 +23,22 @@ vi.mock('../../api/inventoryService', () => ({
     getBatches: vi.fn(),
     getInventoryProducts: vi.fn(),
     createBatch: vi.fn(),
-    getProducts: vi.fn(),
-    getProductUnits: vi.fn(),
   },
 }));
 
 vi.mock('@/providers/business/useBusinessContext', () => ({
   useBusinessContext: vi.fn(),
 }));
+
+vi.mock('@/providers/catalog/useCatalogService', () => ({
+  useCatalogService: vi.fn(),
+}));
+
+const catalogService = {
+  listProducts: vi.fn(),
+  getProductUnits: vi.fn(),
+  getProductUploadUrls: vi.fn(),
+} satisfies CatalogService;
 
 function businessFixture(id: string): BusinessResponse {
   return {
@@ -85,6 +95,7 @@ describe('useInventoryApi', () => {
       },
     });
     setBusiness('b1');
+    vi.mocked(useCatalogService).mockReturnValue(catalogService);
   });
 
   describe('useInventoryBatches', () => {
@@ -136,13 +147,13 @@ describe('useInventoryApi', () => {
 
   describe('useBusinessProducts', () => {
     it('fetches the catalog products of the current business', async () => {
-      vi.mocked(inventoryService.getProducts).mockResolvedValue(products);
+      catalogService.listProducts.mockResolvedValue(products);
 
       const { result } = renderHook(() => useBusinessProducts(), { wrapper });
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-      expect(inventoryService.getProducts).toHaveBeenCalledWith('b1');
+      expect(catalogService.listProducts).toHaveBeenCalledWith('b1');
       expect(result.current.data).toEqual(products);
       expect(queryClient.getQueryData(inventoryKeys.products('b1'))).toEqual(products);
     });
@@ -152,20 +163,20 @@ describe('useInventoryApi', () => {
 
       renderHook(() => useBusinessProducts(), { wrapper });
 
-      expect(inventoryService.getProducts).not.toHaveBeenCalled();
+      expect(catalogService.listProducts).not.toHaveBeenCalled();
     });
   });
 
   describe('useProductUnits', () => {
     it('fetches the units of the given product', async () => {
       const units = purchasableUnitsByProductId['prod_tequila'] ?? [];
-      vi.mocked(inventoryService.getProductUnits).mockResolvedValue(units);
+      catalogService.getProductUnits.mockResolvedValue(units);
 
       const { result } = renderHook(() => useProductUnits('prod_tequila'), { wrapper });
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-      expect(inventoryService.getProductUnits).toHaveBeenCalledWith('b1', 'prod_tequila');
+      expect(catalogService.getProductUnits).toHaveBeenCalledWith('b1', 'prod_tequila');
       expect(result.current.data).toEqual(units);
       expect(queryClient.getQueryData(inventoryKeys.productUnits('b1', 'prod_tequila'))).toEqual(
         units,
@@ -177,12 +188,12 @@ describe('useInventoryApi', () => {
 
       expect(result.current.isPending).toBe(true);
       expect(result.current.fetchStatus).toBe('idle');
-      expect(inventoryService.getProductUnits).not.toHaveBeenCalled();
+      expect(catalogService.getProductUnits).not.toHaveBeenCalled();
     });
 
     it('serves already fetched units from the cache without refetching', async () => {
       const units = purchasableUnitsByProductId['prod_tequila'] ?? [];
-      vi.mocked(inventoryService.getProductUnits).mockResolvedValue(units);
+      catalogService.getProductUnits.mockResolvedValue(units);
 
       const first = renderHook(() => useProductUnits('prod_tequila'), { wrapper });
       await waitFor(() => expect(first.result.current.isSuccess).toBe(true));
@@ -192,7 +203,7 @@ describe('useInventoryApi', () => {
 
       expect(second.result.current.data).toEqual(units);
       expect(second.result.current.fetchStatus).toBe('idle');
-      expect(inventoryService.getProductUnits).toHaveBeenCalledTimes(1);
+      expect(catalogService.getProductUnits).toHaveBeenCalledTimes(1);
     });
   });
 

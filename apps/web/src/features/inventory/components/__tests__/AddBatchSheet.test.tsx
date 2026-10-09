@@ -5,10 +5,12 @@ import type { UserEvent } from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { StockBatchDetailResponse } from '@mez/types';
 import type { BusinessContextValue } from '@/providers/business/types';
+import type { CatalogService } from '@/providers/catalog/types';
 import { AddBatchSheet } from '../AddBatchSheet';
 import { inventoryService } from '../../api/inventoryService';
 import { inventoryKeys } from '../../hooks/useInventoryApi';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
+import { useCatalogService } from '@/providers/catalog/useCatalogService';
 import { batches, products, purchasableUnitsByProductId } from '../../__tests__/fixtures';
 
 vi.mock('../../api/inventoryService', () => ({
@@ -16,14 +18,24 @@ vi.mock('../../api/inventoryService', () => ({
     getBatches: vi.fn(),
     getInventoryProducts: vi.fn(),
     createBatch: vi.fn(),
-    getProducts: vi.fn(),
-    getProductUnits: vi.fn(),
   },
 }));
 
 vi.mock('@/providers/business/useBusinessContext', () => ({
   useBusinessContext: vi.fn(),
 }));
+
+vi.mock('@/providers/catalog/useCatalogService', () => ({
+  useCatalogService: vi.fn(),
+}));
+
+const getProductUnits = vi.fn();
+
+const catalogService = {
+  listProducts: vi.fn(),
+  getProductUnits,
+  getProductUploadUrls: vi.fn(),
+} satisfies CatalogService;
 
 vi.mock('../../hooks/useCurrency', () => ({ useCurrency: () => 'ETB' }));
 
@@ -54,11 +66,13 @@ describe('AddBatchSheet', () => {
       setCurrentBusiness: vi.fn(),
       refetch: vi.fn(),
     } satisfies BusinessContextValue);
-    vi.mocked(inventoryService.getProducts).mockResolvedValue(products);
+    vi.mocked(useCatalogService).mockReturnValue(catalogService);
+    catalogService.listProducts.mockResolvedValue(products);
+    catalogService.getProductUploadUrls.mockResolvedValue([]);
     vi.mocked(inventoryService.createBatch).mockResolvedValue(
       batches[0] as StockBatchDetailResponse,
     );
-    vi.mocked(inventoryService.getProductUnits).mockImplementation((_businessId, productId) =>
+    getProductUnits.mockImplementation((_businessId, productId) =>
       Promise.resolve(purchasableUnitsByProductId[productId] ?? []),
     );
   });
@@ -116,7 +130,7 @@ describe('AddBatchSheet', () => {
     expect(await screen.findByText('Sierra Tequila 350 ml')).toBeInTheDocument();
     expect(screen.getByText('2 Bottle')).toBeInTheDocument();
     expect(screen.getByText('Batch total')).toBeInTheDocument();
-    expect(inventoryService.getProductUnits).toHaveBeenCalledTimes(1);
+    expect(getProductUnits).toHaveBeenCalledTimes(1);
   }, 15_000);
 
   it('reuses the cached units when a saved line is edited again', async () => {
@@ -124,12 +138,12 @@ describe('AddBatchSheet', () => {
     renderSheet();
 
     await addTequilaLine(user);
-    expect(inventoryService.getProductUnits).toHaveBeenCalledTimes(1);
+    expect(getProductUnits).toHaveBeenCalledTimes(1);
 
     await user.click(await screen.findByRole('button', { name: /^Sierra Tequila/ }));
 
     expect(await screen.findByLabelText('Bought in')).toHaveValue('unit_tequila_bottle');
-    expect(inventoryService.getProductUnits).toHaveBeenCalledTimes(1);
+    expect(getProductUnits).toHaveBeenCalledTimes(1);
   }, 15_000);
 
   it('confirms a batch and closes the sheet', async () => {
@@ -162,7 +176,7 @@ describe('AddBatchSheet', () => {
   }, 15_000);
 
   it('shows the loading state while the product list loads', async () => {
-    vi.mocked(inventoryService.getProducts).mockReturnValue(new Promise(() => {}));
+    catalogService.listProducts.mockReturnValue(new Promise(() => {}));
     const user = userEvent.setup();
     renderSheet();
 
@@ -172,7 +186,7 @@ describe('AddBatchSheet', () => {
   });
 
   it('shows the error state when the product list fails to load', async () => {
-    vi.mocked(inventoryService.getProducts).mockRejectedValue(new Error('network failure'));
+    catalogService.listProducts.mockRejectedValue(new Error('network failure'));
     const user = userEvent.setup();
     renderSheet();
 
@@ -182,7 +196,7 @@ describe('AddBatchSheet', () => {
   });
 
   it('shows the loading state for the unit selector while units load', async () => {
-    vi.mocked(inventoryService.getProductUnits).mockReturnValue(new Promise(() => {}));
+    getProductUnits.mockReturnValue(new Promise(() => {}));
     const user = userEvent.setup();
     renderSheet();
 
@@ -196,12 +210,12 @@ describe('AddBatchSheet', () => {
     const user = userEvent.setup();
     renderSheet();
 
-    expect(inventoryService.getProducts).not.toHaveBeenCalled();
+    expect(catalogService.listProducts).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole('button', { name: /Add product line/ }));
 
     expect(await screen.findByRole('button', { name: /Sierra Tequila/ })).toBeInTheDocument();
-    expect(inventoryService.getProducts).toHaveBeenCalledTimes(1);
+    expect(catalogService.listProducts).toHaveBeenCalledTimes(1);
   }, 15_000);
 
   it('does not request the units until the line form is opened', async () => {
@@ -211,12 +225,12 @@ describe('AddBatchSheet', () => {
     await user.click(screen.getByRole('button', { name: /Add product line/ }));
     await screen.findByRole('button', { name: /Sierra Tequila/ });
 
-    expect(inventoryService.getProductUnits).not.toHaveBeenCalled();
+    expect(getProductUnits).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole('button', { name: /Sierra Tequila/ }));
 
     expect(await screen.findByLabelText('Bought in')).toBeInTheDocument();
-    expect(inventoryService.getProductUnits).toHaveBeenCalledTimes(1);
+    expect(getProductUnits).toHaveBeenCalledTimes(1);
   }, 15_000);
 
   it('expires the product and unit caches when the sheet closes', async () => {

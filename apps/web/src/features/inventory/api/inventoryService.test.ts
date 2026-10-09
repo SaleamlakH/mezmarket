@@ -3,8 +3,6 @@ import type { ApiClient } from '@/lib/apiClient';
 import type {
   CreateBatchInput,
   ProductInventorySummaryResponse,
-  ProductSummaryResponse,
-  ProductUnitOptionResponse,
   StockBatchDetailResponse,
 } from '@mez/types';
 import { createInventoryService } from './inventoryService';
@@ -55,25 +53,5 @@ describe('createInventoryService', () => {
 
     expect(client.post).toHaveBeenCalledWith('/api/businesses/biz_1/inventory/batches', input);
     expect(result).toBe(response);
-  });
-
-  it('getProducts calls GET /api/businesses/:businessId/products and returns array', async () => {
-    const product = {} as ProductSummaryResponse;
-    vi.mocked(client.get).mockResolvedValue([product]);
-
-    const result = await service.getProducts('biz_1');
-
-    expect(client.get).toHaveBeenCalledWith('/api/businesses/biz_1/products');
-    expect(result).toEqual([product]);
-  });
-
-  it('getProductUnits calls GET /api/businesses/:businessId/products/:productId/units and returns array', async () => {
-    const units = [] as ProductUnitOptionResponse[];
-    vi.mocked(client.get).mockResolvedValue(units);
-
-    const result = await service.getProductUnits('biz_1', 'prod_1');
-
-    expect(client.get).toHaveBeenCalledWith('/api/businesses/biz_1/products/prod_1/units');
-    expect(result).toBe(units);
   });
 });

@@ -1,6 +1,7 @@
-import type { BatchLineFormValues, ProductSummaryResponse } from '@mez/types';
+import type { BatchLineFormValues, DownloadUrlsResponse, ProductSummaryResponse } from '@mez/types';
 import { X } from 'lucide-react';
 import { IconButton } from '@/components/IconButton';
+import { ProductThumb } from '@/components/ProductThumb';
 import { formatDate, formatMoney } from '@/lib/format';
 import { useBatchLineList } from '../hooks/useBatchLineList';
 import { lineTotal } from '../lib/lineTotal';
@@ -8,6 +9,8 @@ import { lineTotal } from '../lib/lineTotal';
 export interface BatchLineListProps {
   lines: BatchLineFormValues[];
   currency: string;
+  businessId?: string | undefined;
+  uploadUrls?: DownloadUrlsResponse | undefined;
   onEdit: (index: number, product: ProductSummaryResponse) => void;
   onRemove: (index: number) => void;
 }
@@ -19,7 +22,14 @@ export interface BatchLineListProps {
  * fields again. Names come from the query cache via `useBatchLineList` —
  * the add-batch session already fetched them.
  */
-export function BatchLineList({ lines, currency, onEdit, onRemove }: BatchLineListProps) {
+export function BatchLineList({
+  lines,
+  currency,
+  businessId,
+  uploadUrls,
+  onEdit,
+  onRemove,
+}: BatchLineListProps) {
   const { cachedProducts, unitsByProductId } = useBatchLineList(lines);
 
   const rowFor = (line: BatchLineFormValues) => {
@@ -45,8 +55,17 @@ export function BatchLineList({ lines, currency, onEdit, onRemove }: BatchLineLi
         return (
           <li
             key={`${line.productId}-${index}`}
-            className="flex items-center gap-1 border-b border-(--border) pr-1 pl-2 transition-colors last:border-b-0 hover:bg-(--surface-secondary)"
+            className="flex items-center gap-2 border-b border-(--border) pr-1 pl-2 transition-colors last:border-b-0 hover:bg-(--surface-secondary)"
           >
+            {row.product && (
+              <ProductThumb
+                businessId={businessId}
+                uploadId={row.product.uploadId}
+                uploadUrls={uploadUrls}
+                alt={row.productName}
+                size={36}
+              />
+            )}
             <button
               type="button"
               onClick={() => {

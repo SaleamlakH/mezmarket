@@ -1,6 +1,6 @@
 import type { DownloadUrlsResponse } from '@mez/types';
 import { RailCard } from '@/components/RailCard';
-import { useProductImage } from '../hooks/useProductImage';
+import { useProductImage } from '@/hooks/useProductImage';
 
 export interface ProductCardProps {
   name: string;

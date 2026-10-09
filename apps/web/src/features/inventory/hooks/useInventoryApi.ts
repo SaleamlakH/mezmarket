@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CreateBatchInput } from '@mez/types';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
+import { useCatalogService } from '@/providers/catalog/useCatalogService';
 import { inventoryService } from '../api/inventoryService';
 
 export const inventoryKeys = {
@@ -49,17 +50,18 @@ export function useInventoryProducts() {
 
 export function useBusinessProducts() {
   const { currentBusiness } = useBusinessContext();
+  const catalogService = useCatalogService();
   const businessId = currentBusiness?.id;
 
   return useQuery({
     queryKey: businessId
       ? inventoryKeys.products(businessId)
-      : ['inventory', 'business-products', 'disabled'],
+      : ['inventory', 'products', 'disabled'],
     queryFn: () => {
       if (!businessId) {
         throw new Error('No business selected');
       }
-      return inventoryService.getProducts(businessId);
+      return catalogService.listProducts(businessId);
     },
     enabled: Boolean(businessId),
     // Reference data: kept for the whole add-batch session so row names can
@@ -71,6 +73,7 @@ export function useBusinessProducts() {
 
 export function useProductUnits(productId: string | undefined) {
   const { currentBusiness } = useBusinessContext();
+  const catalogService = useCatalogService();
   const businessId = currentBusiness?.id;
 
   return useQuery({
@@ -82,7 +85,7 @@ export function useProductUnits(productId: string | undefined) {
       if (!businessId || !productId) {
         throw new Error('No business or product selected');
       }
-      return inventoryService.getProductUnits(businessId, productId);
+      return catalogService.getProductUnits(businessId, productId);
     },
     enabled: Boolean(businessId && productId),
     // Reference data: always read from cache, never re-requested or evicted.

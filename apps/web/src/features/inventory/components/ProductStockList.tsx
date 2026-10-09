@@ -1,5 +1,10 @@
-import type { ProductInventorySummaryResponse, StockStatus } from '@mez/types';
+import type {
+  DownloadUrlsResponse,
+  ProductInventorySummaryResponse,
+  StockStatus,
+} from '@mez/types';
 import { Badge, type BadgeTone } from '@/components/Badge';
+import { ProductThumb } from '@/components/ProductThumb';
 import { RailCard } from '@/components/RailCard';
 import {
   Table,
@@ -9,6 +14,7 @@ import {
   TableHeadCell,
   TableRow,
 } from '@/components/Table';
+import { useProductImage } from '@/hooks/useProductImage';
 import { formatDate, formatMoney, formatQuantity } from '@/lib/format';
 
 const STATUS_PRESENTATION: Record<StockStatus, { label: string; tone: BadgeTone }> = {
@@ -64,12 +70,58 @@ function StatusCell({ product }: { product: ProductInventorySummaryResponse }) {
   );
 }
 
-export interface ProductStockListProps {
+interface ProductImageContext {
+  businessId: string | undefined;
+  uploadUrls: DownloadUrlsResponse | undefined;
+}
+
+function ProductStockCard({
+  product,
+  currency,
+  businessId,
+  uploadUrls,
+}: { product: ProductInventorySummaryResponse; currency: string } & ProductImageContext) {
+  // The card owns its image request, so it fills in as soon as this one download
+  // lands and the placeholder covers the gap until then.
+  const imageUrl = useProductImage(businessId, product.uploadId ?? undefined, uploadUrls);
+
+  return (
+    <RailCard
+      variant="thumbnail"
+      className="shadow-(--shadow-md)"
+      badge={<StatusBadge product={product} />}
+      badgePosition="overlay"
+      thumb={{ imageUrl: imageUrl ?? null, imageAlt: product.name }}
+      footer={
+        <>
+          <p className="m-0 truncate font-mono text-[13px] font-semibold tabular-nums text-(--text)">
+            {formatMoney(product.totalCost, currency)}
+          </p>
+          <p className="m-0 truncate font-mono text-[11px] text-(--text-muted)">
+            <OnHand product={product} />
+          </p>
+        </>
+      }
+    >
+      <p className="m-0 truncate text-[15px] font-semibold text-(--text)">{product.name}</p>
+      <p className="m-0 truncate font-mono text-[11px] text-(--text-muted)">
+        {product.brand ?? 'No brand'}
+      </p>
+    </RailCard>
+  );
+}
+
+export interface ProductStockListProps extends ProductImageContext {
   products: ProductInventorySummaryResponse[];
   currency: string;
 }
 
-export function ProductStockList({ products, currency }: ProductStockListProps) {
+export function ProductStockList({
+  products,
+  currency,
+  businessId,
+  uploadUrls,
+}: ProductStockListProps) {
   return (
     <>
       <div className="hidden md:block">
@@ -89,9 +141,21 @@ export function ProductStockList({ products, currency }: ProductStockListProps) 
             {products.map((product) => (
               <TableRow key={product.id}>
                 <TableCell>
-                  <span className="block font-semibold text-(--text)">{product.name}</span>
-                  <span className="mt-1 block text-xs text-(--text-muted)">
-                    {product.brand ?? 'No brand'}
+                  <span className="flex items-center gap-2.5">
+                    <ProductThumb
+                      businessId={businessId}
+                      uploadId={product.uploadId}
+                      uploadUrls={uploadUrls}
+                      alt={product.name}
+                    />
+                    <span className="min-w-0">
+                      <span className="block truncate font-semibold text-(--text)">
+                        {product.name}
+                      </span>
+                      <span className="mt-1 block text-xs text-(--text-muted)">
+                        {product.brand ?? 'No brand'}
+                      </span>
+                    </span>
                   </span>
                 </TableCell>
                 <TableCell>
@@ -129,28 +193,13 @@ export function ProductStockList({ products, currency }: ProductStockListProps) 
 
       <div className="grid grid-cols-2 gap-2.5 min-[480px]:grid-cols-3 min-[640px]:grid-cols-4 md:hidden">
         {products.map((product) => (
-          <RailCard
+          <ProductStockCard
             key={product.id}
-            variant="thumbnail"
-            className="shadow-(--shadow-md)"
-            badge={<StatusBadge product={product} />}
-            badgePosition="overlay"
-            footer={
-              <>
-                <p className="m-0 truncate font-mono text-[13px] font-semibold tabular-nums text-(--text)">
-                  {formatMoney(product.totalCost, currency)}
-                </p>
-                <p className="m-0 truncate font-mono text-[11px] text-(--text-muted)">
-                  <OnHand product={product} />
-                </p>
-              </>
-            }
-          >
-            <p className="m-0 truncate text-[15px] font-semibold text-(--text)">{product.name}</p>
-            <p className="m-0 truncate font-mono text-[11px] text-(--text-muted)">
-              {product.brand ?? 'No brand'}
-            </p>
-          </RailCard>
+            product={product}
+            currency={currency}
+            businessId={businessId}
+            uploadUrls={uploadUrls}
+          />
         ))}
       </div>
     </>
