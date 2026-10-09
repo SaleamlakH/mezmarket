@@ -9,6 +9,7 @@ function createFakeSupabaseClient() {
       signInWithPassword: vi.fn(),
       signUp: vi.fn(),
       getSession: vi.fn(),
+      onAuthStateChange: vi.fn(),
     },
   };
 }
@@ -61,6 +62,39 @@ describe('createSupabaseAuthService', () => {
       });
 
       await expect(service.getSession()).rejects.toThrow();
+    });
+  });
+
+  describe('onAuthStateChange', () => {
+    it('maps every emitted session and returns an unsubscribe function', () => {
+      const unsubscribe = vi.fn();
+      let emit: ((event: string, session: unknown) => void) | undefined;
+      fakeClient.auth.onAuthStateChange.mockImplementation(
+        (callback: (event: string, session: unknown) => void) => {
+          emit = callback;
+          return { data: { subscription: { unsubscribe } } };
+        },
+      );
+
+      const listener = vi.fn();
+      const stop = service.onAuthStateChange(listener);
+
+      emit?.('SIGNED_IN', {
+        user: { id: 'u1', email: 'a@b.com', email_confirmed_at: '2026-01-01T00:00:00Z' },
+      });
+
+      expect(listener).toHaveBeenCalledWith({
+        status: 'authenticated',
+        user: { id: 'u1', email: 'a@b.com', emailVerifiedAt: '2026-01-01T00:00:00Z' },
+      });
+
+      emit?.('SIGNED_OUT', null);
+
+      expect(listener).toHaveBeenLastCalledWith({ status: 'guest', user: null });
+
+      stop();
+
+      expect(unsubscribe).toHaveBeenCalledTimes(1);
     });
   });
 

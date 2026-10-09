@@ -6,6 +6,7 @@ import type { AuthService, AuthSession } from '@mez/types';
 function createFakeAuthService(overrides: Partial<AuthService> = {}): AuthService {
   return {
     getSession: vi.fn().mockResolvedValue({ status: 'guest', user: null } satisfies AuthSession),
+    onAuthStateChange: vi.fn().mockReturnValue(vi.fn()),
     signInWithEmail: vi.fn().mockResolvedValue(undefined),
     signUpWithEmail: vi.fn().mockResolvedValue(undefined),
     ...overrides,
@@ -93,6 +94,42 @@ describe('useAuthService', () => {
     await waitFor(() => {
       expect(result.current.signUpWithEmail).toBe(fakeService.signUpWithEmail);
     });
+  });
+
+  it('subscribes to auth state changes on mount and unsubscribes on unmount', async () => {
+    const unsubscribe = vi.fn();
+    const fakeService = createFakeAuthService({
+      onAuthStateChange: vi.fn().mockReturnValue(unsubscribe),
+    });
+
+    const { unmount } = renderHook(() => useAuthService(fakeService));
+
+    await waitFor(() => expect(fakeService.onAuthStateChange).toHaveBeenCalledTimes(1));
+
+    unmount();
+
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('updates the session when the service reports a change', async () => {
+    let listener: ((session: AuthSession) => void) | undefined;
+    const fakeService = createFakeAuthService({
+      onAuthStateChange: vi.fn().mockImplementation((cb: (session: AuthSession) => void) => {
+        listener = cb;
+        return vi.fn();
+      }),
+    });
+
+    const { result } = renderHook(() => useAuthService(fakeService));
+
+    await waitFor(() => expect(result.current.session.status).toBe('guest'));
+
+    act(() => {
+      listener?.({ status: 'authenticated', user: { id: 'u1', email: 'a@b.com' } });
+    });
+
+    await waitFor(() => expect(result.current.session.status).toBe('authenticated'));
+    expect(result.current.session.user).toEqual({ id: 'u1', email: 'a@b.com' });
   });
 
   it('does not call signInWithEmail or signUpWithEmail on its own at any point', async () => {
