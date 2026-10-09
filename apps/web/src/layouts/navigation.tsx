@@ -12,6 +12,11 @@ export interface NavTab {
 
 export const SIDEBAR_WIDTH_STYLE = { width: '16rem' };
 
+export const SETTINGS_PATH = '/settings';
+export const PROFILE_PATH = '/settings/profile';
+export const INVENTORY_PATH = '/inventory';
+export const BATCHES_PATH = '/inventory/batches';
+
 export const NAV_TABS: NavTab[] = [
   { key: 'dashboard', label: 'Dashboard', path: '/dashboard', icon: <LayoutGrid aria-hidden /> },
   { key: 'sales', label: 'Sales', path: '/sales', icon: <ShoppingCart aria-hidden /> },

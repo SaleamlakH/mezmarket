@@ -16,14 +16,10 @@ export function SettingsPage() {
         className="focus-ring block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
       >
         <ListCard
-          thumb={
-            <span className="flex h-full w-full items-center justify-center text-(--text-muted)">
-              <UserRound size={20} />
-            </span>
-          }
+          icon={<UserRound size={20} />}
           title="Profile"
           meta="Manage your account information"
-          tag={<ChevronRight size={16} className="text-(--text-muted)" />}
+          trailing={<ChevronRight size={16} className="text-(--text-muted)" />}
         />
       </Link>
 
@@ -31,14 +27,10 @@ export function SettingsPage() {
 
       <Link to="business" className="group block focus-ring rounded-xl">
         <ListCard
-          thumb={
-            <span className="flex h-full w-full items-center justify-center text-(--text-muted)">
-              <Store size={20} />
-            </span>
-          }
+          icon={<Store size={20} />}
           title="Business profile"
           meta="Name, currency, tax and stock preferences"
-          tag={
+          trailing={
             <span className="text-[13px] text-(--text-muted) transition-colors group-hover:text-(--accent)">
               ›
             </span>

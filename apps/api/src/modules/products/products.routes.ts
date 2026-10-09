@@ -24,5 +24,11 @@ export function createProductsRouter(
 
   router.use('/businesses/:businessId/products', authorizeBusiness, uploadsRouter);
 
+  router.get(
+    '/businesses/:businessId/products/:productId/units',
+    authorizeBusiness,
+    controller.listProductUnits,
+  );
+
   return router;
 }

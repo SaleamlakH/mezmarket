@@ -18,6 +18,14 @@ import {
   validateCreateUpload,
   type CreateUploadClientInput,
   type ValidationResult,
+  createBatchSchema,
+  updateBatchSchema,
+  createBatchLineSchema,
+  updateBatchLineSchema,
+  validateCreateBatch,
+  validateUpdateBatch,
+  validateBatchLine,
+  validateUpdateBatchLine,
 } from '../index.js';
 
 describe('index', () => {
@@ -87,6 +95,38 @@ describe('index', () => {
 
   it('exports UpdateOwnerFormValues', () => {
     expectTypeOf<UpdateOwnerFormValues>().toBeObject();
+  });
+
+  it('exports createBatchSchema', () => {
+    expect(createBatchSchema).toBeDefined();
+  });
+
+  it('exports updateBatchSchema', () => {
+    expect(updateBatchSchema).toBeDefined();
+  });
+
+  it('exports validateCreateBatch', () => {
+    expect(validateCreateBatch).toBeDefined();
+  });
+
+  it('exports validateUpdateBatch', () => {
+    expect(validateUpdateBatch).toBeDefined();
+  });
+
+  it('exports createBatchLineSchema', () => {
+    expect(createBatchLineSchema).toBeDefined();
+  });
+
+  it('exports updateBatchLineSchema', () => {
+    expect(updateBatchLineSchema).toBeDefined();
+  });
+
+  it('exports validateBatchLine', () => {
+    expect(validateBatchLine).toBeDefined();
+  });
+
+  it('exports validateUpdateBatchLine', () => {
+    expect(validateUpdateBatchLine).toBeDefined();
   });
 
   it('exports FieldErrors', () => {

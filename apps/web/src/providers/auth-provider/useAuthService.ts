@@ -19,8 +19,14 @@ export function useAuthService(authService: AuthService): AuthContextValue {
         setSession({ user: null, status: 'guest' });
       });
 
+    const unsubscribe = authService.onAuthStateChange((session) => {
+      if (cancelled) return;
+      setSession(session);
+    });
+
     return () => {
       cancelled = true;
+      unsubscribe();
     };
   }, [authService]);
 

@@ -1,4 +1,4 @@
-type RequireAllKeys<Source, T extends Record<keyof Source, unknown>> = T;
+import type { RequireAllKeys } from '../shared/require-all-keys.js';
 
 export interface Owner {
   id: string;

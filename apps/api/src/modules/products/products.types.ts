@@ -2,6 +2,8 @@ import type {
   Product,
   ProductUnit,
   ProductWithUnits,
+  ProductSummary,
+  ProductUnitOption,
   CreateProductInput,
   CreateBaseUnitInput,
   CreateMouInput,
@@ -24,6 +26,8 @@ export type {
   CreateProductResult,
   ProductRecord,
   ProductUnitRecord,
+  ProductSummary,
+  ProductUnitOption,
   AttachmentRecord,
 };
 
@@ -31,9 +35,21 @@ export type ProductRecordWithAttachments = ProductRecord & {
   attachments: AttachmentRecord[];
   productUnits?: ProductUnitRecord[];
 };
+export type ProductRecordWithBaseUnit = ProductRecord & {
+  productUnits: ProductUnitRecord[];
+};
 
 export type ProductRecordWithUnits = ProductRecord & {
   productUnits: ProductUnitRecord[];
+};
+
+/**
+ * The scope the business module's authorize middleware resolved onto the
+ * request by the time a controller runs.
+ */
+export type ProductScope = {
+  businessId: string;
+  branchId: string;
 };
 
 export type CreateProductRepoResult = ProductRecord & {
@@ -42,8 +58,8 @@ export type CreateProductRepoResult = ProductRecord & {
 };
 
 export type ProductRepository = {
-  list(businessId: string, branchId: string): Promise<ProductRecordWithUnits[]>;
-  getById(id: string, businessId: string): Promise<ProductRecordWithUnits | null>;
+  listForBusiness(businessId: string, branchId: string): Promise<ProductRecordWithBaseUnit[]>;
+  getByIdWithUnits(id: string, businessId: string): Promise<ProductRecordWithUnits | null>;
   createForBusiness(
     businessId: string,
     branchId: string,
@@ -54,10 +70,8 @@ export type ProductRepository = {
 };
 
 export type ProductService = {
-  listProducts(
-    businessId: string | undefined,
-    branchId: string | undefined,
-  ): Promise<ProductWithUnits[]>;
+  listProducts(scope: ProductScope): Promise<ProductSummary[]>;
+  listProductUnits(scope: ProductScope, productId: string): Promise<ProductUnitOption[]>;
   getProduct(
     id: string | undefined,
     businessId: string | undefined,

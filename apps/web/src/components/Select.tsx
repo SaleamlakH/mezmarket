@@ -1,4 +1,4 @@
-import type { SelectHTMLAttributes } from 'react';
+import type { ComponentPropsWithRef } from 'react';
 import { ChevronDown } from 'lucide-react';
 
 export interface SelectOption {
@@ -11,8 +11,8 @@ export interface SelectGroup {
   options: SelectOption[];
 }
 
-export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
-  error?: boolean;
+export interface SelectProps extends ComponentPropsWithRef<'select'> {
+  error?: boolean | undefined;
   placeholder?: string;
   options?: SelectOption[];
   groups?: SelectGroup[];

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { CreateProductResponse, UnitsResponse } from '@mez/types';
+import type { CreateProductResponse, ProductSummaryResponse, UnitsResponse } from '@mez/types';
 import { MAX_UPLOAD_SIZE_BYTES, type CreateProductFormValues } from '@mez/validation';
 import { useCreateProductForm } from '../useCreateProductForm';
 import { productsService } from '@/features/products/api/productsService';
@@ -77,6 +77,17 @@ const created: CreateProductResponse = {
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
   units: [],
+};
+
+const createdSummary: ProductSummaryResponse = {
+  id: 'p-1',
+  name: 'Honey',
+  brand: null,
+  currentSealedStock: 0,
+  lowStockThreshold: null,
+  active: true,
+  baseUnitLabel: '',
+  uploadId: null,
 };
 
 function createClient() {
@@ -654,7 +665,7 @@ describe('useCreateProductForm', () => {
     fillBaseUnit(result.current);
     await submit(result.current);
 
-    await waitFor(() => expect(client.getQueryData(['products', 'b-1'])).toEqual([created]));
+    await waitFor(() => expect(client.getQueryData(['products', 'b-1'])).toEqual([createdSummary]));
   });
 
   it('prepends to the existing cache entries rather than replacing them', async () => {
@@ -670,7 +681,7 @@ describe('useCreateProductForm', () => {
     await submit(result.current);
 
     await waitFor(() =>
-      expect(client.getQueryData(['products', 'b-1'])).toEqual([created, existing]),
+      expect(client.getQueryData(['products', 'b-1'])).toEqual([createdSummary, existing]),
     );
   });
 

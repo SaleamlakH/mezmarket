@@ -1,8 +1,8 @@
-import type { InputHTMLAttributes } from 'react';
+import type { ComponentPropsWithRef } from 'react';
 
-export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
-  state?: 'default' | 'focus' | 'error';
-  error?: string;
+export interface InputProps extends ComponentPropsWithRef<'input'> {
+  state?: 'default' | 'focus' | 'error' | undefined;
+  error?: string | undefined;
 }
 
 export function Input({ id, state = 'default', error, className, ...rest }: InputProps) {

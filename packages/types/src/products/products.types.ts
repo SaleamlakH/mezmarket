@@ -1,22 +1,16 @@
+import type { RequireAllKeys } from '../shared/require-all-keys.js';
+
 /**
- * What a product's unit row represents. `BASE` is the unit stock is tracked in,
- * `MOU` is the measurable content one base unit holds, `STANDARD` is a
- * same-dimension standard unit deliberately added to the product, and `CUSTOM` is
- * an owner-defined portion or label (`shot = 25 ml`, `bottle = 1 pc`).
+ * How a ProductUnit relates to its product's unit hierarchy.
+ * Mirrors the `UnitRole` Prisma enum.
  */
 export type UnitRole = 'BASE' | 'MOU' | 'STANDARD' | 'CUSTOM';
 
 /**
- * What a unit's conversion rate is measured against. Only the product's own base
- * and content units can be depended on — no other unit in the catalog.
+ * Which unit a ProductUnit's `conversionRate` is relative to.
+ * Mirrors the `UnitDependsOn` Prisma enum.
  */
 export type UnitDependsOn = 'BASE' | 'MOU';
-
-/**
- * Constrains `T` so every key of `Source` must be present, forcing derived
- * response types to mirror the source type's keys.
- */
-type RequireAllKeys<Source, T extends Record<keyof Source, unknown>> = T;
 
 /**
  * Domain shape of a Product as stored in the database.
@@ -39,17 +33,6 @@ export interface Product {
 }
 
 /**
- * JSON-serialized form sent to the frontend.
- */
-export type ProductResponse = RequireAllKeys<
-  Product,
-  Omit<Product, 'createdAt' | 'updatedAt'> & {
-    createdAt: string;
-    updatedAt: string;
-  }
->;
-
-/**
  * Domain shape of a ProductUnit as stored in the database.
  */
 export interface ProductUnit {
@@ -70,6 +53,55 @@ export interface ProductUnit {
 /**
  * JSON-serialized form sent to the frontend.
  */
+export type ProductResponse = RequireAllKeys<
+  Product,
+  Omit<Product, 'createdAt' | 'updatedAt'> & {
+    createdAt: string;
+    updatedAt: string;
+  }
+>;
+
+export type ProductSummary = Pick<
+  Product,
+  'id' | 'name' | 'brand' | 'currentSealedStock' | 'lowStockThreshold' | 'active' | 'uploadId'
+> & {
+  baseUnitLabel: string;
+};
+
+export type ProductSummaryResponse = ProductSummary;
+
+export type StockStatus = 'OUT_OF_STOCK' | 'LOW_STOCK' | 'IN_STOCK';
+
+/**
+ * Summarized inventory information for a product. Quantities are expressed in
+ * the product's Base Unit unless stated otherwise.
+ */
+
+export type ProductInventorySummary = ProductSummary & {
+  currentSealedStock: number;
+  baseUnitLabel: string;
+  totalCost: number;
+  earliestExpiry: Date | null;
+  expiryCount: number;
+  numberOfBatches: number;
+  stockStatus: StockStatus;
+};
+
+/** JSON-serialized inventory summary sent to the frontend. Dates are serialized
+ * to ISO 8601 strings.
+ */
+export type ProductInventorySummaryResponse = RequireAllKeys<
+  ProductInventorySummary,
+  Omit<ProductInventorySummary, 'createdAt' | 'updatedAt' | 'earliestExpiry'> & {
+    createdAt: string;
+    updatedAt: string;
+    earliestExpiry: string | null;
+  }
+>;
+
+/**
+ * JSON-serialized form sent to the frontend.
+ */
 export type ProductUnitResponse = RequireAllKeys<
   ProductUnit,
   Omit<ProductUnit, 'createdAt' | 'updatedAt'> & {
@@ -77,6 +109,30 @@ export type ProductUnitResponse = RequireAllKeys<
     updatedAt: string;
   }
 >;
+
+/**
+ * A transactable unit of a product, as returned by the per-product units
+ * endpoint, projected off the domain shape down to what a unit picker row
+ * renders.
+ */
+export type ProductUnitOption = Pick<
+  ProductUnit,
+  | 'id'
+  | 'productId'
+  | 'name'
+  | 'purchaseCapable'
+  | 'sellCapable'
+  | 'unitRole'
+  | 'dependsOn'
+  | 'conversionRate'
+>;
+
+/**
+ * JSON-serialized form of a ProductUnitOption sent to the frontend. It carries
+ * no timestamps, so it needs no conversion. A list of these is the per-product
+ * units endpoint's payload.
+ */
+export type ProductUnitOptionResponse = ProductUnitOption;
 
 export type ProductWithUnits = Product & {
   units: ProductUnit[];

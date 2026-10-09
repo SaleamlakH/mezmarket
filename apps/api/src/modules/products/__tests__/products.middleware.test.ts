@@ -7,6 +7,7 @@ import type { ProductService } from '../products.types.js';
 function mockService(): ProductService {
   return {
     listProducts: vi.fn(),
+    listProductUnits: vi.fn(),
     getProduct: vi.fn(),
     createProduct: vi.fn(),
     resolveUploadId: vi.fn(),

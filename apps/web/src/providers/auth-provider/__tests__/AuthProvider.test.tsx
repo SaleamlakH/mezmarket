@@ -8,6 +8,7 @@ import type { AuthService, AuthSession } from '@mez/types';
 function createFakeAuthService(overrides: Partial<AuthService> = {}): AuthService {
   return {
     getSession: vi.fn().mockResolvedValue({ status: 'guest', user: null } satisfies AuthSession),
+    onAuthStateChange: vi.fn().mockReturnValue(vi.fn()),
     signInWithEmail: vi.fn().mockResolvedValue(undefined),
     signUpWithEmail: vi.fn().mockResolvedValue(undefined),
     ...overrides,

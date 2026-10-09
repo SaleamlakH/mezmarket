@@ -7,7 +7,7 @@ import type {
   CreateProductInput,
   CreateProductResponse,
   DimensionResponse,
-  ProductWithUnitsResponse,
+  ProductSummaryResponse,
 } from '@mez/types';
 import {
   createProductFormSchema,
@@ -60,6 +60,22 @@ function buildUnitIndex(dimensions: DimensionResponse[]) {
     }
   }
   return { dimensionByUnitId, unitNames, unitSymbols };
+}
+
+/** The catalog list answers with summaries, so a freshly created product is
+ * projected down to that shape before it is written into the list cache. */
+function toProductSummary(product: CreateProductResponse): ProductSummaryResponse {
+  const baseUnit = product.units.find((unit) => unit.unitRole === 'BASE');
+  return {
+    id: product.id,
+    name: product.name,
+    brand: product.brand,
+    currentSealedStock: product.currentSealedStock,
+    lowStockThreshold: product.lowStockThreshold,
+    active: product.active,
+    baseUnitLabel: baseUnit?.name ?? '',
+    uploadId: product.uploadId,
+  };
 }
 
 function validateProductImage(file: File | null): { file: File | null; error: string | null } {
@@ -222,8 +238,8 @@ export function useCreateProductForm({
         ...(prepared ? { uploadId: prepared.uploadId } : undefined),
       });
 
-      queryClient.setQueryData<ProductWithUnitsResponse[]>(['products', businessId], (old) => [
-        created,
+      queryClient.setQueryData<ProductSummaryResponse[]>(['products', businessId], (old) => [
+        toProductSummary(created),
         ...(old ?? []),
       ]);
       void queryClient.invalidateQueries({ queryKey: ['products', businessId] });

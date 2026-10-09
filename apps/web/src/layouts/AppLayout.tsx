@@ -3,21 +3,28 @@ import { ArrowLeft, Settings } from 'lucide-react';
 import { Brand } from '@/components/Brand';
 import { Sidebar } from '@/components/Sidebar';
 import { BottomTabBar } from '@/components/BottomTabBar';
-import { SIDEBAR_WIDTH_STYLE, NAV_TABS } from '@/layouts/navigation';
+import {
+  SETTINGS_PATH,
+  PROFILE_PATH,
+  BATCHES_PATH,
+  INVENTORY_PATH,
+  SIDEBAR_WIDTH_STYLE,
+  NAV_TABS,
+} from '@/layouts/navigation';
 
-const SETTINGS_PATH = '/settings';
-
-const SETTINGS_HEADER_TITLES: Record<string, string> = {
-  [SETTINGS_PATH]: 'Settings',
-  [`${SETTINGS_PATH}/profile`]: 'Profile',
-  [`${SETTINGS_PATH}/business`]: 'Business profile',
-};
+/**
+ * Routes that replace the app header with a back arrow and their own title,
+ * since they sit below a tab rather than alongside the others.
+ */
+const SUB_ROUTES = [
+  { path: SETTINGS_PATH, title: 'Settings', backTo: '/' },
+  { path: PROFILE_PATH, title: 'Profile', backTo: SETTINGS_PATH },
+  { path: BATCHES_PATH, title: 'Batches', backTo: INVENTORY_PATH },
+];
 
 export function AppLayout() {
   const { pathname } = useLocation();
-  const onSettings = pathname === SETTINGS_PATH || pathname.startsWith(`${SETTINGS_PATH}/`);
-  const settingsSubpage = pathname !== SETTINGS_PATH && onSettings;
-  const headerTitle = SETTINGS_HEADER_TITLES[pathname] ?? 'Settings';
+  const subRoute = SUB_ROUTES.find((route) => route.path === pathname);
 
   return (
     <div className="self-start flex h-full w-full">
@@ -30,10 +37,10 @@ export function AppLayout() {
       <div style={SIDEBAR_WIDTH_STYLE} className="hidden lg:block" />
       <div className="flex h-full min-w-0 flex-1 flex-col">
         <header className="flex shrink-0 items-center justify-between gap-4 px-4 py-3 lg:hidden">
-          {onSettings ? (
+          {subRoute ? (
             <>
               <Link
-                to={settingsSubpage ? SETTINGS_PATH : '/'}
+                to={subRoute.backTo}
                 aria-label="Back"
                 title="Back"
                 className="focus-ring inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-(--text) hover:bg-(--surface-secondary)"
@@ -41,7 +48,7 @@ export function AppLayout() {
                 <ArrowLeft aria-hidden className="h-5 w-5" />
               </Link>
               <span className="flex-1 truncate text-center text-base font-semibold text-(--text)">
-                {headerTitle}
+                {subRoute.title}
               </span>
               <span aria-hidden className="h-10 w-10 shrink-0" />
             </>
@@ -61,13 +68,13 @@ export function AppLayout() {
         </header>
 
         <main
-          className={`flex-1 overflow-y-auto px-4 sm:pt-6 lg:px-6 ${onSettings ? 'pb-6' : 'pb-24 lg:pb-6'}`}
+          className={`flex-1 overflow-y-auto px-4 sm:pt-6 lg:px-6 ${subRoute ? 'pb-6' : 'pb-24 lg:pb-6'}`}
         >
           <Outlet />
         </main>
       </div>
 
-      {!onSettings && <BottomTabBar tabs={NAV_TABS} />}
+      {!subRoute && <BottomTabBar tabs={NAV_TABS} />}
     </div>
   );
 }

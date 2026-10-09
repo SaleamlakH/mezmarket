@@ -3,13 +3,15 @@ import type {
   CreateProductResponse,
   CreateUploadResponse,
   DownloadUrlsResponse,
-  ProductWithUnitsResponse,
+  ProductSummaryResponse,
+  ProductUnitOptionResponse,
 } from '@mez/types';
 import type { CreateUploadClientInput } from '@mez/validation';
 import { apiClient, type ApiClient } from '@/lib/apiClient';
 
 export interface ProductsService {
-  listProducts(businessId: string): Promise<ProductWithUnitsResponse[]>;
+  listProducts(businessId: string): Promise<ProductSummaryResponse[]>;
+  getProductUnits(businessId: string, productId: string): Promise<ProductUnitOptionResponse[]>;
   createProduct(businessId: string, input: CreateProductInput): Promise<CreateProductResponse>;
   createProductUpload(
     businessId: string,
@@ -34,7 +36,13 @@ function productUploadUrlsPath(businessId: string) {
 export function createProductsService(client: ApiClient): ProductsService {
   return {
     async listProducts(businessId) {
-      return client.get<ProductWithUnitsResponse[]>(productsPath(businessId));
+      return client.get<ProductSummaryResponse[]>(productsPath(businessId));
+    },
+
+    async getProductUnits(businessId, productId) {
+      return client.get<ProductUnitOptionResponse[]>(
+        `${productsPath(businessId)}/${productId}/units`,
+      );
     },
 
     async createProduct(businessId, input) {
