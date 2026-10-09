@@ -6,13 +6,7 @@ import path from 'path';
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  const apiUrl = env.VITE_API_PROXY;
-
-  console.log(apiUrl);
-
-  if (!apiUrl) {
-    throw new Error('VITE_API_URL is not set');
-  }
+  const apiProxy = env.VITE_API_PROXY;
 
   return {
     plugins: [react(), tailwindcss()],
@@ -23,13 +17,15 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       host: true,
-      proxy: {
-        '/api': {
-          target: apiUrl,
-          changeOrigin: false,
-          secure: false,
+      ...(apiProxy && {
+        proxy: {
+          '/api': {
+            target: apiProxy,
+            changeOrigin: false,
+            secure: false,
+          },
         },
-      },
+      }),
     },
   };
 });
