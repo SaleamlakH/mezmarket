@@ -83,6 +83,8 @@ Client -> GET /api/units
 
 ### GET /api/businesses/:businessId/products
 
+Lists a business' active products, newest first, each with its units.
+
 ```
 Client -> Authorization: Bearer <jwt>
    -> auth middleware resolves the owner
@@ -99,6 +101,8 @@ An empty catalog is a `200` with an empty list, not a `404`. The grid lists the
 names of every unit a product can be sold in, custom ones included.
 
 ### POST /api/businesses/:businessId/products
+
+Creates one product with its units and image claim, in a single transaction.
 
 ```
 Client -> Authorization: Bearer <jwt> + JSON body
@@ -134,6 +138,8 @@ which unit it was.
 
 ### GET /api/businesses/:businessId/products/:productId
 
+Reads one product with its units and image claim.
+
 ```
 Client -> Authorization: Bearer <jwt>
    -> auth middleware resolves the owner
@@ -142,6 +148,61 @@ Client -> Authorization: Bearer <jwt>
    -> service attaches the units and the live image claim
    -> 200 { product, units, uploadId }
 ```
+
+### GET /api/businesses/:businessId/products/:productId/units
+
+Returns one product's transactable units, ordered by role.
+
+```
+Client -> Authorization: Bearer <jwt>
+   -> auth middleware resolves the owner
+   -> business middleware resolves the scope
+   -> repository loads the product by id, scoped to the business
+   -> service returns its units as options, ordered by role —
+      Base, MOU, Standard, Custom — then by name
+   -> 200 [ { id, productId, name, purchaseCapable, sellCapable,
+             unitRole, dependsOn, conversionRate }, ... ]
+```
+
+The options carry the role and rate a caller needs to resolve the unit to a
+standard one later. Inventory consumes this for a batch line's "bought in" field;
+see [inventory.md](inventory.md).
+
+### POST /api/businesses/:businessId/products/uploads
+
+Authorizes one image upload and returns where to send it.
+
+```
+Client -> Authorization: Bearer <jwt> + JSON body
+   -> auth middleware resolves the owner
+   -> business middleware resolves the scope
+   -> validation applies the shared create-upload rules
+   -> service mints an upload id and a storage key, records the upload,
+      and returns a presigned write link
+   -> 201 { upload, uploadUrl }
+```
+
+The record starts unclaimed: nothing ties it to a product until a create request
+names its id. The client sends the bytes straight to `uploadUrl`, so they never
+pass through the server.
+
+### GET /api/businesses/:businessId/products/uploads/urls
+
+Signs a read link for every image in the business.
+
+```
+Client -> Authorization: Bearer <jwt>
+   -> auth middleware resolves the owner
+   -> business middleware resolves the scope
+   -> middleware collects the branch's claimed image ids
+   -> service, per upload: skips a failed one; re-checks an unconfirmed one
+      against storage, marking it failed when missing; then signs a link
+   -> 200 [ { uploadId, url }, ... ]
+```
+
+A failed or missing upload is dropped from the list rather than failing the whole
+read, so one broken image never blanks the grid. The client holds the signed
+links for the life of the page.
 
 ## How a product's image is attached
 
@@ -156,6 +217,11 @@ links for a business's images and each card fetches its own. A replaced or
 cleared selection abandons its authorization, a failed one shows why, and the
 product is still created without the image. The architecture's reconciliation
 pass is not implemented — see below.
+
+Reading is shared beyond this page. The image download and its session cache
+live outside this feature, so any surface that shows a product photo reuses the
+same fetch, and other features read the catalog through a service the app injects
+rather than importing this one.
 
 ## Limitations — image handling
 
@@ -189,17 +255,12 @@ pass is not implemented — see below.
   `box = 12 pc` once per product. Names are matched case-insensitively by the
   application, while the database's own index is case-sensitive.
 
-- **Nothing consumes these units yet.** Sales, inventory and the dashboard are
-  placeholders, so a rate is validated, stored, and never applied; the only
-  reader is the catalog card listing a product's sellable units. Nothing resolves
-  a rate to a standard quantity either.
-
 - **`track-as-partial` is a switch with nothing behind it.** The PRD conditions
   it on having a content unit and a sell-capable unit smaller than one base unit;
   nothing checks that, and a custom unit is exactly what would qualify one.
 
 - **Unit order is not stable.** Creation answers in submission order, reads sort
-  by role then by creation — harmless only as long as nothing depends on it.
+  by role then name — harmless only as long as nothing depends on it.
 
 ## Error concepts
 
