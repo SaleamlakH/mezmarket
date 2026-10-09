@@ -1,5 +1,6 @@
 import type { ProductInventorySummaryResponse, StockStatus } from '@mez/types';
 import { Badge, type BadgeTone } from '@/components/Badge';
+import { RailCard } from '@/components/RailCard';
 import {
   Table,
   TableBody,
@@ -9,7 +10,6 @@ import {
   TableRow,
 } from '@/components/Table';
 import { formatDate, formatMoney, formatQuantity } from '@/lib/format';
-import { ProductImage } from './ProductImage';
 
 const STATUS_PRESENTATION: Record<StockStatus, { label: string; tone: BadgeTone }> = {
   OUT_OF_STOCK: { label: 'Out of stock', tone: 'danger' },
@@ -129,36 +129,28 @@ export function ProductStockList({ products, currency }: ProductStockListProps) 
 
       <div className="grid grid-cols-2 gap-2.5 min-[480px]:grid-cols-3 min-[640px]:grid-cols-4 md:hidden">
         {products.map((product) => (
-          <article
+          <RailCard
             key={product.id}
-            className="relative flex flex-col overflow-hidden rounded-xl border border-(--border) bg-(--surface-primary)"
-          >
-            <div className="flex aspect-square items-center justify-center bg-(--surface-secondary)">
-              <ProductImage size={40} />
-            </div>
-
-            <div className="absolute top-2 right-2">
-              <StatusBadge product={product} />
-            </div>
-
-            <div className="flex flex-1 flex-col p-3">
-              <p className="m-0 line-clamp-2 text-balance text-sm leading-5 font-semibold text-(--text)">
-                {product.name}
-              </p>
-              <p className="m-0 mt-0.5 truncate text-xs text-(--text-muted)">
-                {product.brand ?? 'No brand'}
-              </p>
-
-              <div className="mt-auto pt-3">
-                <p className="m-0 truncate font-mono text-sm font-semibold tabular-nums text-(--text)">
+            variant="thumbnail"
+            className="shadow-(--shadow-md)"
+            badge={<StatusBadge product={product} />}
+            badgePosition="overlay"
+            footer={
+              <>
+                <p className="m-0 truncate font-mono text-[13px] font-semibold tabular-nums text-(--text)">
                   {formatMoney(product.totalCost, currency)}
                 </p>
-                <div className="mt-1 text-xs text-(--text-muted)">
+                <p className="m-0 truncate font-mono text-[11px] text-(--text-muted)">
                   <OnHand product={product} />
-                </div>
-              </div>
-            </div>
-          </article>
+                </p>
+              </>
+            }
+          >
+            <p className="m-0 truncate text-[15px] font-semibold text-(--text)">{product.name}</p>
+            <p className="m-0 truncate font-mono text-[11px] text-(--text-muted)">
+              {product.brand ?? 'No brand'}
+            </p>
+          </RailCard>
         ))}
       </div>
     </>

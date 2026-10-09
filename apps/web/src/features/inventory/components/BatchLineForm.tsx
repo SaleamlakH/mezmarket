@@ -3,6 +3,7 @@ import { Controller } from 'react-hook-form';
 import { Button } from '@/components/Button';
 import { Field } from '@/components/Field';
 import { Input } from '@/components/Input';
+import { ListCard } from '@/components/ListCard';
 import { Loader } from '@/components/Loader';
 import { Select } from '@/components/Select';
 import {
@@ -13,7 +14,6 @@ import {
 } from '@/lib/format';
 import { useBatchLineForm } from '../hooks/useBatchLineForm';
 import { useProductUnits } from '../hooks/useInventoryApi';
-import { ProductImage } from './ProductImage';
 
 export interface BatchLineFormProps {
   product: ProductSummaryResponse;
@@ -51,16 +51,11 @@ export function BatchLineForm({
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
-      <div className="flex items-center gap-3 rounded-xl border border-(--border) bg-(--field) px-3 py-2.5">
-        <ProductImage size={40} />
-        <div className="min-w-0">
-          <p className="m-0 truncate text-sm font-semibold text-(--text)">{product.name}</p>
-          <p className="m-0 mt-1 truncate text-xs text-(--text-muted)">
-            {product.brand ?? 'No brand'} · {formatQuantity(product.currentSealedStock)}{' '}
-            {product.baseUnitLabel} on hand
-          </p>
-        </div>
-      </div>
+      <ListCard
+        title={product.name}
+        meta={`${product.brand ?? 'No brand'} · ${formatQuantity(product.currentSealedStock)} ${product.baseUnitLabel} on hand`}
+        className="shadow-(--shadow-md)"
+      />
 
       <div className="grid grid-cols-2 gap-3">
         <Field

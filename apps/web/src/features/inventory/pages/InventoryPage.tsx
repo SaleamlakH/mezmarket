@@ -17,11 +17,12 @@ import { useInventoryBatches, useInventoryProducts } from '../hooks/useInventory
 const BATCH_PREVIEW_COUNT = 4;
 
 /**
- * Which of those tiles each width has room for. The section stays a single row
- * at every size — two tiles on a phone, three from `sm`, four from `lg` — so
- * the remaining tiles are hidden rather than left to wrap onto a second row.
+ * Which of those tiles each width has room for. Below `sm` the rail scrolls
+ * horizontally, so every preview tile shows; from `sm` it becomes a single-row
+ * grid — three tiles, four from `lg` — hiding the overflow rather than letting
+ * it wrap onto a second row.
  */
-const TILE_VISIBILITY = ['block', 'block', 'hidden sm:block', 'hidden lg:block'];
+const TILE_VISIBILITY = ['block', 'block', 'block', 'block sm:hidden lg:block'];
 
 export function InventoryPage() {
   const {
@@ -77,13 +78,13 @@ export function InventoryPage() {
           }
         />
       ) : (
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4">
+        <div className="scrollbar-none flex gap-2.5 overflow-x-auto pb-1.5 md:grid md:grid-cols-3 md:gap-3 md:overflow-visible md:pb-0 lg:grid-cols-4">
           {previewBatches.map((batch, index) => (
             <BatchSummaryCard
               key={batch.id}
               batch={batch}
               currency={currency}
-              className={TILE_VISIBILITY[index]}
+              className={`w-[150px] shrink-0 md:w-full ${TILE_VISIBILITY[index]}`}
             />
           ))}
         </div>

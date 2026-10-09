@@ -2,10 +2,10 @@ import type { ProductSummaryResponse } from '@mez/types';
 import { ChevronRight } from 'lucide-react';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState } from '@/components/ErrorState';
+import { ListCard } from '@/components/ListCard';
 import { LoadingState } from '@/components/LoadingState';
 import { formatQuantity } from '@/lib/format';
 import { useBusinessProducts } from '../hooks/useInventoryApi';
-import { ProductImage } from './ProductImage';
 
 export interface ProductPickerListProps {
   onSelect: (product: ProductSummaryResponse) => void;
@@ -48,21 +48,21 @@ export function ProductPickerList({ onSelect }: ProductPickerListProps) {
           <button
             type="button"
             onClick={() => onSelect(product)}
-            className="focus-ring flex w-full cursor-pointer items-center gap-3 rounded-xl border border-(--border) bg-(--field) px-3 py-2.5 text-left transition-colors hover:border-(--text-muted)"
+            className="focus-ring block w-full cursor-pointer rounded-xl text-left"
           >
-            <ProductImage size={36} />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-semibold text-(--text)">
-                {product.name}
-              </span>
-              <span className="mt-1 block truncate text-xs text-(--text-muted)">
-                {product.brand ?? 'No brand'}
-              </span>
-            </span>
-            <span className="shrink-0 font-mono text-xs whitespace-nowrap text-(--text-muted)">
-              {formatQuantity(product.currentSealedStock)} {product.baseUnitLabel}
-            </span>
-            <ChevronRight size={15} aria-hidden className="shrink-0 text-(--text-muted)" />
+            <ListCard
+              title={product.name}
+              meta={product.brand ?? 'No brand'}
+              className="shadow-(--shadow-md)"
+              trailing={
+                <span className="flex items-center gap-1">
+                  <span className="font-mono text-xs whitespace-nowrap text-(--text-muted)">
+                    {formatQuantity(product.currentSealedStock)} {product.baseUnitLabel}
+                  </span>
+                  <ChevronRight size={15} aria-hidden className="text-(--text-muted)" />
+                </span>
+              }
+            />
           </button>
         </li>
       ))}
