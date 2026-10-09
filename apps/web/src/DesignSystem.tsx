@@ -425,7 +425,7 @@ function CardsPanel() {
         <>
           Cards{' '}
           <span className="font-normal normal-case tracking-normal text-(--text-muted)">
-            — list &amp; horizontal scroll, one card family
+            — rail card primitive (product/grid style)
           </span>
         </>
       }
@@ -433,56 +433,109 @@ function CardsPanel() {
       <SectionHeader icon={<FileText size={15} />} title="Invoices" onSeeMore={() => {}} />
       <div className="scrollbar-none flex gap-2.5 overflow-x-auto pb-1.5">
         <RailCard
-          title="INV-2042"
-          meta="Jul 21 · 2:34 PM · Almaz"
+          fixedWidth="130px"
+          className="shadow-(--shadow-md)"
           badge={<Badge tone="warning">Pending</Badge>}
-        />
+          badgePosition="inline"
+        >
+          <p className="m-0 text-xs font-bold text-(--text)">INV-2042</p>
+          <p className="m-0 mt-0.5 text-[10px] text-(--text-muted)">
+            Jul 21 · 2:34 PM <br /> Almaz
+          </p>
+        </RailCard>
         <RailCard
-          title="INV-2041"
-          meta="Jul 21 · 1:10 PM · Almaz"
+          fixedWidth="130px"
+          className="shadow-(--shadow-md)"
           badge={<Badge tone="positive">Paid</Badge>}
-        />
+          badgePosition="inline"
+        >
+          <p className="m-0 text-xs font-bold text-(--text)">INV-2041</p>
+          <p className="m-0 mt-0.5 text-[10px] text-(--text-muted)">
+            Jul 21 · 1:10 PM <br /> Almaz
+          </p>
+        </RailCard>
         <RailCard
-          title="INV-2040"
-          meta="Jul 20 · 5:02 PM · Sena"
+          fixedWidth="130px"
+          className="shadow-(--shadow-md)"
           badge={<Badge tone="danger">Overdue</Badge>}
-        />
+          badgePosition="inline"
+        >
+          <p className="m-0 text-xs font-bold text-(--text)">INV-2040</p>
+          <p className="m-0 mt-0.5 text-[10px] text-(--text-muted)">
+            Jul 20 · 5:02 PM <br /> sena
+          </p>
+        </RailCard>
       </div>
 
       <SectionHeader icon={<PackageOpen size={15} />} title="Open" onSeeMore={() => {}} />
-      <div className="scrollbar-none flex gap-2.5 overflow-x-auto pb-1.5">
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
         <RailCard
-          thumb={
-            <div className="flex h-full w-full items-center justify-center text-(--text-muted)">
-              <PackageOpen size={24} />
+          variant="thumbnail"
+          className="shadow-(--shadow-md)"
+          badge={<Badge tone="warning">Low</Badge>}
+          badgePosition="overlay"
+          footer={
+            <div className="flex items-baseline justify-between gap-2">
+              <p className="m-0 font-mono text-[13px] font-bold text-(--warning)">4 cases</p>
+              <p className="m-0 font-mono text-[11px] text-(--text-muted)">$10/u</p>
             </div>
           }
-          title="Product Name"
-        />
+        >
+          <p className="m-0 truncate text-[15px] font-semibold text-(--text)">Product Name</p>
+          <p className="m-0 truncate font-mono text-[11px] text-(--text-muted)">Brand</p>
+        </RailCard>
         <RailCard
-          thumb={
-            <div className="flex h-full w-full items-center justify-center text-(--text-muted)">
-              <PackageOpen size={24} />
+          variant="thumbnail"
+          className="shadow-(--shadow-md)"
+          badge={<Badge tone="positive">New</Badge>}
+          badgePosition="overlay"
+          footer={
+            <div className="flex items-baseline justify-between gap-2">
+              <p className="m-0 font-mono text-[13px] font-bold text-(--text)">20 pcs</p>
+              <p className="m-0 font-mono text-[11px] text-(--text-muted)">$10/u</p>
             </div>
           }
-          title="Product Name"
-        />
+        >
+          <p className="m-0 truncate text-[15px] font-semibold text-(--text)">Product Name</p>
+          <p className="m-0 truncate font-mono text-[11px] text-(--text-muted)">Brand</p>
+        </RailCard>
         <RailCard
-          thumb={
-            <div className="flex h-full w-full items-center justify-center text-(--text-muted)">
-              <PackageOpen size={24} />
+          variant="thumbnail"
+          className="shadow-(--shadow-md)"
+          footer={
+            <div className="flex items-baseline justify-between gap-2">
+              <p className="m-0 font-mono text-[13px] font-bold text-(--text)">12 pcs</p>
+              <p className="m-0 font-mono text-[11px] text-(--text-muted)">$10/u</p>
             </div>
           }
-          title="Product Name"
-        />
+        >
+          <p className="m-0 truncate text-[15px] font-semibold text-(--text)">Product Name</p>
+          <p className="m-0 truncate font-mono text-[11px] text-(--text-muted)">Brand</p>
+        </RailCard>
       </div>
 
-      <SectionHeader icon={<Package size={15} />} title="Products" />
-      <ListCard title="Product Name" meta="20 pcs left · 1 open" price="$10/u" />
+      <SectionHeader icon={<Package size={15} />} title="List" />
+      <div className="flex flex-col gap-2">
+        <ListCard
+          title="Product Name"
+          meta="20 pcs left · 1 open"
+          className="shadow-(--shadow-md)"
+          trailing={<p className="m-0 font-mono text-[13px] font-semibold text-(--text)">$10/u</p>}
+        />
+        <ListCard
+          icon={<Package size={20} />}
+          title="Business profile"
+          meta="Name, currency, tax and stock preferences"
+          trailing={<ChevronRight size={16} className="text-(--text-muted)" />}
+        />
+      </div>
       <p className="mt-3 font-mono text-[11px] text-(--text-muted)">
-        Invoices &amp; Open use the horizontal <span className="font-mono">.scroll-card</span>;
-        Products stays a vertical <span className="font-mono">.list-card</span> — same underlying
-        slots (icon/thumb, title, meta, price, status), different container.
+        RailCard is the vertical rail primitive — <span className="font-mono">card</span> variant is
+        compact and image-free (invoices); <span className="font-mono">thumbnail</span> variant
+        shows the product image and can carry a badge and dashed footer. ListCard is its horizontal
+        sibling: optional icon/thumb leading, title + meta body, and a flexible trailing slot. Both
+        are flat by default — add elevation with a utility class, e.g.{' '}
+        <span className="font-mono">className=&quot;shadow-(--shadow-md)&quot;</span>.
       </p>
     </Panel>
   );
@@ -541,7 +594,14 @@ function LoadingErrorPanel() {
         />
       )}
       {state === 'ready' && (
-        <ListCard title="Product Name" meta="24 cases left · 3 batches" price="ETB 31,200" />
+        <ListCard
+          title="Product Name"
+          meta="24 cases left · 3 batches"
+          className="shadow-(--shadow-md)"
+          trailing={
+            <p className="m-0 font-mono text-[13px] font-semibold text-(--text)">ETB 31,200</p>
+          }
+        />
       )}
       <p className="mt-3.5 font-mono text-[11px] text-(--text-muted)">
         The switcher is dev scaffolding — it previews each state by hand until query status drives
