@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionHeader } from '@/components/SectionHeader';
+import { Toast } from '@/components/Toast';
 import { BATCHES_PATH } from '@/layouts/navigation';
 import { ErrorState } from '@/components/ErrorState';
 import { LoadingState } from '@/components/LoadingState';
@@ -40,6 +41,7 @@ export function InventoryPage() {
   const currency = useCurrency();
   const navigate = useNavigate();
   const [isAddingBatch, setIsAddingBatch] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const previewBatches = batches.slice(0, BATCH_PREVIEW_COUNT);
 
@@ -109,7 +111,21 @@ export function InventoryPage() {
         <ProductStockList products={products} currency={currency} />
       )}
 
-      <AddBatchSheet open={isAddingBatch} onClose={() => setIsAddingBatch(false)} />
+      <AddBatchSheet
+        open={isAddingBatch}
+        onClose={() => setIsAddingBatch(false)}
+        onRecorded={() => setSuccessMessage('Batch recorded')}
+      />
+
+      {successMessage && (
+        <Toast
+          message={successMessage}
+          variant="success"
+          duration={3000}
+          position="top-center"
+          onDismiss={() => setSuccessMessage(null)}
+        />
+      )}
     </div>
   );
 }

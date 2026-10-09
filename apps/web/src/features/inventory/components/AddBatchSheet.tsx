@@ -7,7 +7,6 @@ import { Button } from '@/components/Button';
 import { Dialog } from '@/components/Dialog';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionHeader } from '@/components/SectionHeader';
-import { Toast } from '@/components/Toast';
 import { ApiError } from '@/lib/apiClient';
 import { formatMoney } from '@/lib/format';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
@@ -30,6 +29,7 @@ const STEP_TITLES: Record<Step, string> = {
 export interface AddBatchSheetProps {
   open: boolean;
   onClose: () => void;
+  onRecorded?: () => void;
 }
 
 /**
@@ -41,7 +41,7 @@ export interface AddBatchSheetProps {
  * render them, so nothing is fetched until those steps are opened. The only
  * request made here is recording the batch.
  */
-export function AddBatchSheet({ open, onClose }: AddBatchSheetProps) {
+export function AddBatchSheet({ open, onClose, onRecorded }: AddBatchSheetProps) {
   const currency = useCurrency();
   const { form, linesError, lines, totalAmount, reset, addLine, updateLine, removeLine } =
     useAddBatch();
@@ -55,7 +55,6 @@ export function AddBatchSheet({ open, onClose }: AddBatchSheetProps) {
   const [step, setStep] = useState<Step>('batch');
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [activeProduct, setActiveProduct] = useState<ProductSummaryResponse | null>(null);
-  const [isConfirmed, setIsConfirmed] = useState(false);
 
   const editingLine = editingIndex === null ? undefined : lines[editingIndex];
   const title = step === 'line' && editingIndex !== null ? 'Edit product line' : STEP_TITLES[step];
@@ -94,11 +93,22 @@ export function AddBatchSheet({ open, onClose }: AddBatchSheetProps) {
     backToBatch();
   };
 
+  const close = () => {
+    backToBatch();
+    reset();
+    resetCreateBatch();
+    // The catalog and unit caches exist only for an open sheet's session,
+    if (businessId) {
+      queryClient.removeQueries({ queryKey: inventoryKeys.products(businessId) });
+    }
+    onClose();
+  };
+
   const confirm = form.handleSubmit(async (values) => {
     try {
       await createBatchAsync(values);
-      setIsConfirmed(true);
-      reset();
+      close();
+      onRecorded?.();
     } catch {
       // The failure is surfaced through `confirmError`.
     }
@@ -111,30 +121,8 @@ export function AddBatchSheet({ open, onClose }: AddBatchSheetProps) {
     confirmDescription = undefined;
   }
 
-  const close = () => {
-    backToBatch();
-    reset();
-    resetCreateBatch();
-    setIsConfirmed(false);
-    // The catalog and unit caches exist only for an open sheet's session,
-    if (businessId) {
-      queryClient.removeQueries({ queryKey: inventoryKeys.products(businessId) });
-    }
-    onClose();
-  };
-
   return (
     <Dialog open={open} title={title} onClose={close} size="md">
-      {isConfirmed && (
-        <Toast
-          message="Batch recorded"
-          variant="success"
-          duration={3000}
-          position="top-center"
-          onDismiss={() => setIsConfirmed(false)}
-        />
-      )}
-
       {step === 'batch' && (
         <form onSubmit={confirm} className="flex flex-col gap-5 pb-1">
           <div>

@@ -132,14 +132,14 @@ describe('AddBatchSheet', () => {
     expect(inventoryService.getProductUnits).toHaveBeenCalledTimes(1);
   }, 15_000);
 
-  it('confirms a batch that has a product line and shows the confirmation', async () => {
+  it('confirms a batch and closes the sheet', async () => {
     const user = userEvent.setup();
-    renderSheet();
+    const { onClose } = renderSheet();
 
     await addTequilaLine(user);
     await user.click(screen.getByRole('button', { name: 'Confirm batch' }));
 
-    expect(screen.getByText('Batch recorded')).toBeInTheDocument();
+    expect(onClose).toHaveBeenCalledTimes(1);
     expect(inventoryService.createBatch).toHaveBeenCalledTimes(1);
     expect(inventoryService.createBatch).toHaveBeenCalledWith(
       'b1',
