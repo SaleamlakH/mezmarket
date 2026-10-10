@@ -1,4 +1,5 @@
 import type { BusinessMemberSummaryResponse } from '../business/business.types.js';
+import type { ProductSummary } from '../products/products.types.js';
 import type { RequireAllKeys } from '../shared/require-all-keys.js';
 
 /**
@@ -83,6 +84,38 @@ export type StockBatchDetailResponse = StockBatchResponse & {
   lines: StockBatchLineDetailResponse[];
   receivedBy: BusinessMemberSummaryResponse | null;
 };
+
+/**
+ * Which side of its low-stock threshold a product's on-hand stock falls.
+ */
+export type StockStatus = 'OUT_OF_STOCK' | 'LOW_STOCK' | 'IN_STOCK';
+
+/**
+ * Summarized inventory information for a product. Quantities are expressed in
+ * the product's Base Unit unless stated otherwise.
+ */
+export type ProductInventorySummary = ProductSummary & {
+  currentSealedStock: number;
+  baseUnitLabel: string;
+  totalCost: number;
+  earliestExpiry: Date | null;
+  expiryCount: number;
+  numberOfBatches: number;
+  stockStatus: StockStatus;
+};
+
+/**
+ * JSON-serialized inventory summary sent to the frontend. Dates are serialized
+ * to ISO 8601 strings.
+ */
+export type ProductInventorySummaryResponse = RequireAllKeys<
+  ProductInventorySummary,
+  Omit<ProductInventorySummary, 'createdAt' | 'updatedAt' | 'earliestExpiry'> & {
+    createdAt: string;
+    updatedAt: string;
+    earliestExpiry: string | null;
+  }
+>;
 
 /**
  * Response aliases for create and update operations.
