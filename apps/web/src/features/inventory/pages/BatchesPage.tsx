@@ -5,7 +5,7 @@ import { INVENTORY_PATH } from '@/layouts/navigation';
 import { ErrorState } from '@/components/ErrorState';
 import { LoadingState } from '@/components/LoadingState';
 import { BatchSummaryCard } from '../components/BatchSummaryCard';
-import { useCurrency } from '../hooks/useCurrency';
+import { useCurrency } from '@/hooks/useCurrency';
 import { useInventoryBatches } from '../hooks/useInventoryApi';
 
 export function BatchesPage() {

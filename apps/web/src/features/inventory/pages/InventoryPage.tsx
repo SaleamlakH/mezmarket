@@ -13,7 +13,7 @@ import { useBusinessContext } from '@/providers/business/useBusinessContext';
 import { AddBatchSheet } from '../components/AddBatchSheet';
 import { BatchSummaryCard } from '../components/BatchSummaryCard';
 import { ProductStockList } from '../components/ProductStockList';
-import { useCurrency } from '../hooks/useCurrency';
+import { useCurrency } from '@/hooks/useCurrency';
 import { useInventoryBatches, useInventoryProducts } from '../hooks/useInventoryApi';
 
 /** How many batches the page leads with before "See all" takes over. */

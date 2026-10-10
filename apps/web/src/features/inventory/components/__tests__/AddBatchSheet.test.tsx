@@ -37,7 +37,7 @@ const catalogService = {
   getProductUploadUrls: vi.fn(),
 } satisfies CatalogService;
 
-vi.mock('../../hooks/useCurrency', () => ({ useCurrency: () => 'ETB' }));
+vi.mock('@/hooks/useCurrency', () => ({ useCurrency: () => 'ETB' }));
 
 beforeAll(() => {
   window.HTMLDialogElement.prototype.showModal = function showModal(this: HTMLDialogElement) {
