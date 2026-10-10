@@ -9,8 +9,10 @@ import { LoadingState } from '@/components/LoadingState';
 import { RailCard } from '@/components/RailCard';
 import { SectionHeader } from '@/components/SectionHeader';
 import { StateSwitcher, type SectionState } from '@/components/StateSwitcher';
+import { Toast } from '@/components/Toast';
 import { formatDate, formatMoney, pluralize } from '@/lib/format';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
+import { NewSaleSheet } from '../components/NewSaleSheet';
 import { sales } from '../__tests__/fixtures';
 
 const PAYMENT_LABELS: Record<SaleSummaryResponse['paymentStatus'], string> = {
@@ -34,12 +36,14 @@ export function SalesPage() {
   const { currentBusiness } = useBusinessContext();
   const currency = currentBusiness?.currencyCode ?? 'ETB';
   const [state, setState] = useState<SectionState>('ready');
+  const [isNewSaleOpen, setIsNewSaleOpen] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   return (
     <div className="mx-auto max-w-5xl pb-4">
       <div className="flex items-center justify-between gap-3 pt-1">
         <h2 className="m-0 text-lg font-bold text-(--text)">Sales</h2>
-        <Button type="button">
+        <Button type="button" onClick={() => setIsNewSaleOpen(true)}>
           <Plus size={14} aria-hidden /> New sale
         </Button>
       </div>
@@ -102,6 +106,22 @@ export function SalesPage() {
             );
           })}
         </div>
+      )}
+
+      <NewSaleSheet
+        open={isNewSaleOpen}
+        onClose={() => setIsNewSaleOpen(false)}
+        onRecorded={() => setSuccessMessage('Sale recorded')}
+      />
+
+      {successMessage && (
+        <Toast
+          message={successMessage}
+          variant="success"
+          duration={3000}
+          position="top-center"
+          onDismiss={() => setSuccessMessage(null)}
+        />
       )}
     </div>
   );
