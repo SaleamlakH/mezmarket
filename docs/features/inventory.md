@@ -80,12 +80,29 @@ Client -> Authorization: Bearer <jwt>
       and resolves the business's default branch
    -> repository returns that scope's batches,
       newest batch date first, each with its lines and receiver
-   -> service narrows the stored decimals to plain numbers and
-      flattens each product's name and brand onto its line
-   -> 200 [ { batch, lines, receivedBy }, ... ]
+   -> service flattens each product's name and brand onto its line
+   -> 200 StockBatchDetailResponse[]
 ```
 
 An empty history is a `200` with an empty list, not a `404`.
+
+### GET /api/businesses/:businessId/inventory/batches/:batchId
+
+Reads one recorded batch, in the same shape the list returns for it.
+
+```
+Client -> Authorization: Bearer <jwt>
+   -> auth middleware resolves the owner
+   -> business middleware checks the caller belongs to :businessId
+      and resolves the business's default branch
+   -> repository returns that scope's batch by id, with its lines
+      and receiver
+   -> service flattens each product's name and brand onto its line
+   -> 200 StockBatchDetailResponse
+```
+
+An unknown id, or one outside the caller's business or branch, is a `404`, so
+the endpoint never reveals a batch the caller could not already list.
 
 ### POST /api/businesses/:businessId/inventory/batches
 
@@ -108,7 +125,7 @@ Client -> Authorization: Bearer <jwt> + JSON body
          2. insert one line per product line
          3. increment each product's sealed stock by the sum of its
             lines' base-unit quantities
-   -> 201 { batch, lines, receivedBy }
+   -> 201 StockBatchDetailResponse
 ```
 
 The whole thing is one transaction: a batch never exists without its lines, and
@@ -131,14 +148,34 @@ Client -> Authorization: Bearer <jwt>
          - the remaining cost of the stock still held
          - the nearest expiry and how many lines carry one
          - how many batches still hold stock of it
-   -> 200 [ { id, name, brand, currentSealedStock, baseUnitLabel,
-             lowStockThreshold, stockStatus, totalCost, earliestExpiry,
-             expiryCount, numberOfBatches, uploadId, active }, ... ]
+   -> 200 ProductInventorySummaryResponse[]
 ```
 
 Status reads the threshold the product was configured with: zero or less is out
 of stock, below the threshold is low, anything else is in stock. A product with
 no threshold has no level to be low against and is never reported low.
+
+### GET /api/businesses/:businessId/inventory/products/:productId
+
+Reads one product's stock position and the full history of batches it appeared
+in, newest batch date first.
+
+```
+Client -> Authorization: Bearer <jwt>
+   -> auth middleware resolves the owner
+   -> business middleware resolves the scope
+   -> repository returns the product of that scope and branch with its
+      base unit and every line of it, each carrying the batch it belongs to
+   -> service attaches the live image of the product, computes the same
+      summary figures as the product list, and groups the lines under the
+      batch that carried them, newest first
+   -> 200 ProductInventoryDetailResponse
+```
+
+Unlike the product list, the header is returned for an inactive product too, and
+a batch is listed whether or not its line still holds stock, so a product's
+purchase history stays complete. An unknown id, or one outside the caller's
+business or branch, is a `404`.
 
 ### GET /api/businesses/:businessId/products
 
@@ -150,8 +187,7 @@ Client -> Authorization: Bearer <jwt>
    -> business middleware resolves the business and default branch
    -> repository returns the scope's products, ordered by name
    -> service attaches the base unit label and the live image of each
-   -> 200 [ { id, name, brand, currentSealedStock, baseUnitLabel,
-             lowStockThreshold, active, uploadId }, ... ]
+   -> 200 ProductSummaryResponse[]
 ```
 
 This belongs to the products feature (see [products.md](products.md)), but the
@@ -173,8 +209,7 @@ Client -> Authorization: Bearer <jwt>
    -> repository loads the product by id, scoped to the business
    -> service returns its units as options, ordered by role —
       Base, MOU, Standard, Custom — then by name
-   -> 200 [ { id, productId, name, purchaseCapable, sellCapable,
-             unitRole, dependsOn, conversionRate }, ... ]
+   -> 200 ProductUnitOptionResponse[]
 ```
 
 Also part of the products feature, called here through the injected catalog
