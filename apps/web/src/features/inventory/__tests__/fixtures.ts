@@ -63,6 +63,7 @@ export const purchasableUnitsByProductId: Record<string, PurchasableUnit[]> = {
       conversionRate: null,
       purchaseCapable: true,
       sellCapable: true,
+      price: 850,
     },
     {
       id: 'unit_tequila_case',
@@ -73,6 +74,7 @@ export const purchasableUnitsByProductId: Record<string, PurchasableUnit[]> = {
       conversionRate: 12,
       purchaseCapable: true,
       sellCapable: false,
+      price: null,
     },
   ],
   prod_oil: [
@@ -85,6 +87,7 @@ export const purchasableUnitsByProductId: Record<string, PurchasableUnit[]> = {
       conversionRate: null,
       purchaseCapable: true,
       sellCapable: true,
+      price: 400,
     },
     {
       id: 'unit_oil_liter',
@@ -95,6 +98,7 @@ export const purchasableUnitsByProductId: Record<string, PurchasableUnit[]> = {
       conversionRate: 1000,
       purchaseCapable: true,
       sellCapable: true,
+      price: 85,
     },
   ],
 };
