@@ -26,6 +26,23 @@ import {
   validateUpdateBatch,
   validateBatchLine,
   validateUpdateBatchLine,
+  PAYMENT_METHODS,
+  createSaleSchema,
+  updateSaleSchema,
+  createSaleLineSchema,
+  updateSaleLineSchema,
+  recordPaymentSchema,
+  voidSaleSchema,
+  refundSaleSchema,
+  refundSaleLineSchema,
+  validateCreateSale,
+  validateUpdateSale,
+  validateSaleLine,
+  validateUpdateSaleLine,
+  validatePayment,
+  validateVoidSale,
+  validateRefundSale,
+  validateRefundSaleLine,
 } from '../index.js';
 
 describe('index', () => {
@@ -127,6 +144,74 @@ describe('index', () => {
 
   it('exports validateUpdateBatchLine', () => {
     expect(validateUpdateBatchLine).toBeDefined();
+  });
+
+  it('exports PAYMENT_METHODS', () => {
+    expect(PAYMENT_METHODS).toContain('CASH');
+  });
+
+  it('exports createSaleSchema', () => {
+    expect(createSaleSchema).toBeDefined();
+  });
+
+  it('exports updateSaleSchema', () => {
+    expect(updateSaleSchema).toBeDefined();
+  });
+
+  it('exports createSaleLineSchema', () => {
+    expect(createSaleLineSchema).toBeDefined();
+  });
+
+  it('exports updateSaleLineSchema', () => {
+    expect(updateSaleLineSchema).toBeDefined();
+  });
+
+  it('exports recordPaymentSchema', () => {
+    expect(recordPaymentSchema).toBeDefined();
+  });
+
+  it('exports voidSaleSchema', () => {
+    expect(voidSaleSchema).toBeDefined();
+  });
+
+  it('exports refundSaleSchema', () => {
+    expect(refundSaleSchema).toBeDefined();
+  });
+
+  it('exports refundSaleLineSchema', () => {
+    expect(refundSaleLineSchema).toBeDefined();
+  });
+
+  it('exports validateCreateSale', () => {
+    expect(validateCreateSale).toBeDefined();
+  });
+
+  it('exports validateUpdateSale', () => {
+    expect(validateUpdateSale).toBeDefined();
+  });
+
+  it('exports validateSaleLine', () => {
+    expect(validateSaleLine).toBeDefined();
+  });
+
+  it('exports validateUpdateSaleLine', () => {
+    expect(validateUpdateSaleLine).toBeDefined();
+  });
+
+  it('exports validatePayment', () => {
+    expect(validatePayment).toBeDefined();
+  });
+
+  it('exports validateVoidSale', () => {
+    expect(validateVoidSale).toBeDefined();
+  });
+
+  it('exports validateRefundSale', () => {
+    expect(validateRefundSale).toBeDefined();
+  });
+
+  it('exports validateRefundSaleLine', () => {
+    expect(validateRefundSaleLine).toBeDefined();
   });
 
   it('exports FieldErrors', () => {

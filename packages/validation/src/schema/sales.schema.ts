@@ -1,0 +1,214 @@
+import type { ZodType } from 'zod';
+import z from 'zod';
+import type {
+  CreateSaleInput,
+  CreateSaleLineInput,
+  PaymentFormValues,
+  PaymentInput,
+  PaymentMethod,
+  RecordPaymentInput,
+  RefundSaleFormValues,
+  RefundSaleInput,
+  RefundSaleLineFormValues,
+  RefundSaleLineInput,
+  SaleFormValues,
+  SaleLineFormValues,
+  UpdateSaleFormValues,
+  UpdateSaleInput,
+  UpdateSaleLineFormValues,
+  UpdateSaleLineInput,
+  VoidSaleFormValues,
+  VoidSaleInput,
+} from '@mez/types';
+import {
+  blankIsUnset,
+  numberFromString,
+  optionalDateFromString,
+  optionalEnum,
+  optionalText,
+  requiredText,
+  withoutUnset,
+} from './helpers.js';
+
+/** `Decimal(12, 4)` — the precision a quantity is stored at. */
+const QUANTITY_DECIMALS = 4;
+/** `Decimal(10, 2)` — the precision an amount is stored at. */
+const MONEY_DECIMALS = 2;
+
+/**
+ * Mirrors `PaymentMethod` in @mez/types, so the two cannot drift. Exported for
+ * the forms that offer the choices.
+ */
+export const PAYMENT_METHODS = [
+  'CASH',
+  'CARD',
+  'BANK_TRANSFER',
+  'MOBILE_MONEY',
+  'OTHER',
+] as const satisfies readonly PaymentMethod[];
+
+const saleLineFields = {
+  productId: requiredText('Select a product'),
+  productUnitId: requiredText('Select the unit it is sold in'),
+  quantity: numberFromString('Quantity', QUANTITY_DECIMALS).pipe(
+    z.number().positive('Quantity must be greater than 0'),
+  ),
+};
+
+const saleLines = <T extends ZodType>(line: T) =>
+  z.array(line).min(1, 'Add at least one product line');
+
+/**
+ * One product line as entered in the new-sale form. The parsed output is the
+ * API's `CreateSaleLineInput`.
+ */
+export const createSaleLineSchema = z.object(saleLineFields) satisfies ZodType<
+  CreateSaleLineInput,
+  SaleLineFormValues
+>;
+
+/**
+ * One product line as entered in the edit-sale form. A line carrying an `id`
+ * updates that existing line, a line without one is inserted.
+ */
+export const updateSaleLineSchema = z
+  .strictObject({
+    ...saleLineFields,
+    /** A line row that names no line to update is a newly added line. */
+    id: z.string().trim().transform(blankIsUnset).optional(),
+  })
+  .transform(withoutUnset) satisfies ZodType<UpdateSaleLineInput, UpdateSaleLineFormValues>;
+
+const paymentFields = {
+  amount: numberFromString('Amount', MONEY_DECIMALS).pipe(
+    z.number().positive('Amount must be greater than 0'),
+  ),
+  method: optionalEnum(PAYMENT_METHODS, 'Select a valid payment method'),
+  methodDetail: optionalText(200, 'Payment detail must be 200 characters or less'),
+};
+
+/**
+ * A payment as submitted. The form holds the amount as text and the wire
+ * carries it as a number; both parse to the same `PaymentInput`.
+ *
+ * Zod's `.optional()` types an omitted field as `x | undefined`, which
+ * `exactOptionalPropertyTypes` will not accept against the published
+ * `PaymentInput`'s plain `?:`. The runtime shape is exactly the form's — a
+ * blank select arrives as unset — so the input is asserted here rather than
+ * widening the shared contract.
+ */
+const paymentSchema = z.strictObject(paymentFields).transform(withoutUnset) as unknown as ZodType<
+  PaymentInput,
+  PaymentFormValues
+>;
+
+/**
+ * A payment recorded against an existing sale. The target sale is named by the
+ * route, not the payload — see `RecordPaymentInput`.
+ */
+export const recordPaymentSchema = paymentSchema satisfies ZodType<
+  RecordPaymentInput,
+  PaymentFormValues
+>;
+
+/**
+ * A blank payment block arrives when the new-sale form's payment section is
+ * left untouched. Dropping it here keeps the optional payment out of both
+ * validation and the payload, instead of reporting a required error for a
+ * payment nobody entered.
+ *
+ * This is the one place a `z.preprocess` earns its keep: dropping a block can
+ * only be decided before the block is parsed, and `preprocess` widens the input
+ * to `unknown`. The cast below pins the form shape back on so the create
+ * schema's `satisfies` guard stays meaningful.
+ */
+const dropUnselectedPayment = (value: unknown) => {
+  if (
+    value &&
+    typeof value === 'object' &&
+    !String((value as { amount?: unknown }).amount ?? '').trim()
+  ) {
+    return undefined;
+  }
+  return value;
+};
+
+const initialPaymentSchema = z.preprocess(
+  dropUnselectedPayment,
+  paymentSchema.optional(),
+) as unknown as z.ZodOptional<ZodType<PaymentInput, PaymentFormValues>>;
+
+/**
+ * Records a sale and confirms it in one action. The parsed output is the API's
+ * `CreateSaleInput`.
+ */
+export const createSaleSchema = z
+  .object({
+    saleDatetime: optionalDateFromString,
+    lines: saleLines(createSaleLineSchema),
+    initialPayment: initialPaymentSchema,
+  })
+  .transform(withoutUnset) satisfies ZodType<CreateSaleInput, SaleFormValues>;
+
+/**
+ * Edits a recorded sale in place. A line carrying an `id` updates that existing
+ * line, a line without one is inserted, and existing lines absent from the
+ * payload are removed. The parsed output is the API's `UpdateSaleInput`.
+ */
+export const updateSaleSchema = z
+  .object({
+    saleDatetime: optionalDateFromString,
+    lines: saleLines(updateSaleLineSchema),
+  })
+  .strict()
+  .refine(
+    (data) => {
+      const ids = data.lines.flatMap((line) => (line.id === undefined ? [] : [line.id]));
+      return new Set(ids).size === ids.length;
+    },
+    { error: 'A product line can only appear once', path: ['lines'] },
+  )
+  .transform(withoutUnset) satisfies ZodType<UpdateSaleInput, UpdateSaleFormValues>;
+
+const reasonSchema = requiredText('A reason is required').max(
+  500,
+  'Reason must be 500 characters or less',
+);
+
+/**
+ * Reverses a sale that shouldn't have happened. The parsed output is the API's
+ * `VoidSaleInput`.
+ */
+export const voidSaleSchema = z.object({
+  reason: reasonSchema,
+}) satisfies ZodType<VoidSaleInput, VoidSaleFormValues>;
+
+/**
+ * One line's restock choice in a refund. The parsed output is the API's
+ * `RefundSaleLineInput`.
+ */
+export const refundSaleLineSchema = z.strictObject({
+  lineId: requiredText('Select a line'),
+  restock: z.boolean(),
+}) satisfies ZodType<RefundSaleLineInput, RefundSaleLineFormValues>;
+
+/**
+ * Refunds a sale that did happen. A line left out follows its product's default
+ * restock behavior. The parsed output is the API's `RefundSaleInput`.
+ *
+ * Same `optional`/`exactOptionalPropertyTypes` mismatch as the payment above:
+ * `lines` is asserted so an omitted list reads as the API's plain `?:`.
+ */
+export const refundSaleSchema = z
+  .object({
+    reason: reasonSchema,
+    lines: z.array(refundSaleLineSchema).optional(),
+  })
+  .refine(
+    (data) => {
+      const ids = (data.lines ?? []).map((line) => line.lineId);
+      return new Set(ids).size === ids.length;
+    },
+    { error: 'A line can only appear once', path: ['lines'] },
+  )
+  .transform(withoutUnset) as unknown as ZodType<RefundSaleInput, RefundSaleFormValues>;

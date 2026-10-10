@@ -7,8 +7,16 @@ import type {
   BatchLineFormValues,
   CreateProductInput,
   CreateUploadInput,
+  PaymentFormValues,
+  RefundSaleFormValues,
+  RefundSaleLineFormValues,
+  SaleFormValues,
+  SaleLineFormValues,
   UpdateBatchFormValues,
   UpdateBatchLineFormValues,
+  UpdateSaleFormValues,
+  UpdateSaleLineFormValues,
+  VoidSaleFormValues,
 } from '@mez/types';
 import {
   loginSchema,
@@ -29,6 +37,16 @@ import {
   type UpdateBusinessFormValues,
 } from './schema/business.schema.js';
 import { createProductSchema } from './schema/product.schema.js';
+import {
+  createSaleLineSchema,
+  createSaleSchema,
+  recordPaymentSchema,
+  refundSaleLineSchema,
+  refundSaleSchema,
+  updateSaleLineSchema,
+  updateSaleSchema,
+  voidSaleSchema,
+} from './schema/sales.schema.js';
 
 /**
  * Parses `input` against `schema` and flattens any failure into one
@@ -92,4 +110,36 @@ export function validateBatchLine(values: BatchLineFormValues) {
 
 export function validateUpdateBatchLine(values: UpdateBatchLineFormValues) {
   return validateInput(updateBatchLineSchema, values);
+}
+
+export function validateCreateSale(values: SaleFormValues) {
+  return validateInput(createSaleSchema, values);
+}
+
+export function validateSaleLine(values: SaleLineFormValues) {
+  return validateInput(createSaleLineSchema, values);
+}
+
+export function validateUpdateSale(values: UpdateSaleFormValues) {
+  return validateInput(updateSaleSchema, values);
+}
+
+export function validateUpdateSaleLine(values: UpdateSaleLineFormValues) {
+  return validateInput(updateSaleLineSchema, values);
+}
+
+export function validatePayment(values: PaymentFormValues) {
+  return validateInput(recordPaymentSchema, values);
+}
+
+export function validateVoidSale(values: VoidSaleFormValues) {
+  return validateInput(voidSaleSchema, values);
+}
+
+export function validateRefundSale(values: RefundSaleFormValues) {
+  return validateInput(refundSaleSchema, values);
+}
+
+export function validateRefundSaleLine(values: RefundSaleLineFormValues) {
+  return validateInput(refundSaleLineSchema, values);
 }
