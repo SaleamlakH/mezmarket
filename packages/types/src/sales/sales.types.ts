@@ -322,6 +322,10 @@ export interface RefundSaleInput {
  */
 export type SaleLineFormValues = Omit<CreateSaleLineInput, 'quantity'> & {
   quantity: string;
+  /**
+   * for Fast-forward check only: whether the chosen unit can be sold
+   */
+  sellCapable?: boolean | undefined;
 };
 
 /**
