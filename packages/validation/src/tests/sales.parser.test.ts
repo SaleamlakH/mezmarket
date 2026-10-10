@@ -144,6 +144,25 @@ describe('validateCreateSale', () => {
     });
   });
 
+  it('rejects a line whose unit cannot be sold', () => {
+    const result = validateCreateSale(sale({ lines: [line({ sellCapable: false })] }));
+
+    expect(result.data).toBeNull();
+    expect(result.errors).toEqual({ 'lines.0.productUnitId': expect.any(String) });
+  });
+
+  it('accepts a sellable unit and drops the fast-forward flag from the payload', () => {
+    const result = validateCreateSale(sale({ lines: [line({ sellCapable: true })] }));
+
+    expect(result.errors).toBeNull();
+    expect(result.data?.lines[0]).toEqual({
+      productId: 'product-1',
+      productUnitId: 'unit-1',
+      quantity: 2,
+    });
+    expect(result.data?.lines[0]).not.toHaveProperty('sellCapable');
+  });
+
   it('rejects a quantity that is not a number', () => {
     expect(validateCreateSale(sale({ lines: [line({ quantity: 'abc' })] })).errors).toEqual({
       'lines.0.quantity': expect.any(String),
@@ -203,6 +222,19 @@ describe('validateUpdateSale', () => {
     const result = validateUpdateSale({ lines: [line({ id: 'line-1' }), line({ id: 'line-1' })] });
 
     expect(result.errors).toEqual({ lines: expect.any(String) });
+  });
+
+  it('rejects an edit line whose unit cannot be sold', () => {
+    const result = validateUpdateSale({ lines: [line({ id: 'line-1', sellCapable: false })] });
+
+    expect(result.errors).toEqual({ 'lines.0.productUnitId': expect.any(String) });
+  });
+
+  it('strips the fast-forward flag from an edit line', () => {
+    const result = validateUpdateSale({ lines: [line({ id: 'line-1', sellCapable: true })] });
+
+    expect(result.errors).toBeNull();
+    expect(result.data?.lines[0]).not.toHaveProperty('sellCapable');
   });
 
   it('rejects an unrecognized key on the sale', () => {
@@ -392,6 +424,25 @@ describe('sale line and refund line validators', () => {
     });
   });
 
+  it('rejects a sale line whose unit cannot be sold', () => {
+    expect(validateSaleLine(line({ sellCapable: false })).errors).toEqual({
+      productUnitId: expect.any(String),
+    });
+  });
+
+  it('rejects an edit line whose unit cannot be sold', () => {
+    expect(validateUpdateSaleLine(line({ sellCapable: false })).errors).toEqual({
+      productUnitId: expect.any(String),
+    });
+  });
+
+  it('strips the fast-forward flag from a sale line', () => {
+    const result = validateSaleLine(line({ sellCapable: true }));
+
+    expect(result.errors).toBeNull();
+    expect(result.data).not.toHaveProperty('sellCapable');
+  });
+
   it('reports a quantity that is not a number on a sale line', () => {
     expect(validateSaleLine(line({ quantity: 'abc' })).errors).toEqual({
       quantity: expect.any(String),
@@ -440,6 +491,12 @@ describe('sale schemas', () => {
     expectTypeOf<input<typeof refundSaleSchema>>().toExtend<RefundSaleFormValues>();
     expectTypeOf<RefundSaleLineFormValues>().toExtend<input<typeof refundSaleLineSchema>>();
     expectTypeOf<input<typeof refundSaleLineSchema>>().toExtend<RefundSaleLineFormValues>();
+  });
+
+  it('keeps the fast-forward flag on the form and off the parsed line', () => {
+    expectTypeOf<SaleLineFormValues>().toHaveProperty('sellCapable');
+    expectTypeOf<output<typeof createSaleLineSchema>>().not.toHaveProperty('sellCapable');
+    expectTypeOf<output<typeof updateSaleLineSchema>>().not.toHaveProperty('sellCapable');
   });
 
   it('parse the quantity and amount to numbers, the date to a Date, the method to the enum', () => {

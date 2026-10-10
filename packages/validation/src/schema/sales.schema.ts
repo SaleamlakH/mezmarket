@@ -53,6 +53,28 @@ const saleLineFields = {
   quantity: numberFromString('Quantity', QUANTITY_DECIMALS).pipe(
     z.number().positive('Quantity must be greater than 0'),
   ),
+  sellCapable: z.boolean().optional(),
+};
+
+/**
+ * Refuses a line whose chosen unit the form flagged as not sellable. The error
+ * lands on `productUnitId` so it points at the unit selector a user changes.
+ */
+const checkSellableUnit = (line: { sellCapable?: boolean | undefined }, ctx: z.RefinementCtx) => {
+  if (line.sellCapable === false) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['productUnitId'],
+      message: 'This unit cannot be sold',
+    });
+  }
+};
+
+/** Drops the fast-forward field, which is the form's own and no business of the payload. */
+const withoutFastForward = <T extends { sellCapable?: boolean | undefined }>(value: T) => {
+  const payload = { ...value };
+  delete payload.sellCapable;
+  return payload as Omit<T, 'sellCapable'>;
 };
 
 const saleLines = <T extends ZodType>(line: T) =>
@@ -62,10 +84,10 @@ const saleLines = <T extends ZodType>(line: T) =>
  * One product line as entered in the new-sale form. The parsed output is the
  * API's `CreateSaleLineInput`.
  */
-export const createSaleLineSchema = z.object(saleLineFields) satisfies ZodType<
-  CreateSaleLineInput,
-  SaleLineFormValues
->;
+export const createSaleLineSchema = z
+  .object(saleLineFields)
+  .superRefine(checkSellableUnit)
+  .transform(withoutFastForward) satisfies ZodType<CreateSaleLineInput, SaleLineFormValues>;
 
 /**
  * One product line as entered in the edit-sale form. A line carrying an `id`
@@ -77,7 +99,11 @@ export const updateSaleLineSchema = z
     /** A line row that names no line to update is a newly added line. */
     id: z.string().trim().transform(blankIsUnset).optional(),
   })
-  .transform(withoutUnset) satisfies ZodType<UpdateSaleLineInput, UpdateSaleLineFormValues>;
+  .superRefine(checkSellableUnit)
+  .transform((line) => withoutUnset(withoutFastForward(line))) satisfies ZodType<
+  UpdateSaleLineInput,
+  UpdateSaleLineFormValues
+>;
 
 const paymentFields = {
   amount: numberFromString('Amount', MONEY_DECIMALS).pipe(
