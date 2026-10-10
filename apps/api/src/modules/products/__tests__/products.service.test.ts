@@ -251,6 +251,7 @@ describe('products.service', () => {
           unitRole: 'MOU',
           dependsOn: 'BASE',
           conversionRate: 12,
+          price: 950,
         },
       ]);
     });

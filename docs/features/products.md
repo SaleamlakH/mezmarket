@@ -161,12 +161,14 @@ Client -> Authorization: Bearer <jwt>
    -> service returns its units as options, ordered by role —
       Base, MOU, Standard, Custom — then by name
    -> 200 [ { id, productId, name, purchaseCapable, sellCapable,
-             unitRole, dependsOn, conversionRate }, ... ]
+             unitRole, dependsOn, conversionRate, price }, ... ]
 ```
 
 The options carry the role and rate a caller needs to resolve the unit to a
-standard one later. Inventory consumes this for a batch line's "bought in" field;
-see [inventory.md](inventory.md).
+standard one later, plus the selling `price` so a sale line can show its unit
+price before submitting. A unit that cannot be sold gives `null`. Inventory
+consumes this for a batch line's "bought in" field; see
+[inventory.md](inventory.md).
 
 ### POST /api/businesses/:businessId/products/uploads
 

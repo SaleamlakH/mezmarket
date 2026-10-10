@@ -31,6 +31,7 @@ function toUnitOption(unit: ProductUnitRecord): ProductUnitOption {
     unitRole: unit.unitRole,
     dependsOn: unit.dependsOn,
     conversionRate: unit.conversionRate?.toNumber() ?? null,
+    price: unit.price?.toNumber() ?? null,
   };
 }
 
