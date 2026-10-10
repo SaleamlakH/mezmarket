@@ -118,6 +118,73 @@ export type ProductInventorySummaryResponse = RequireAllKeys<
 >;
 
 /**
+ * One batch line as the product inventory history reads it: the line's own
+ * purchase figures, without the parent batch it is grouped under.
+ */
+export type ProductInventoryBatchLine = Pick<
+  StockBatchLine,
+  | 'id'
+  | 'purchaseQuantity'
+  | 'purchaseUnit'
+  | 'purchaseUnitCost'
+  | 'standardQuantity'
+  | 'standardUnit'
+  | 'quantityRemaining'
+  | 'expiryDate'
+>;
+
+/**
+ * JSON-serialized form sent to the frontend.
+ */
+export type ProductInventoryBatchLineResponse = RequireAllKeys<
+  ProductInventoryBatchLine,
+  Omit<ProductInventoryBatchLine, 'expiryDate'> & {
+    expiryDate: string | null;
+  }
+>;
+
+/**
+ * One batch a product appeared in: the header the history can link back by,
+ * plus that product's lines in it. Other products in the batch are excluded.
+ */
+export type ProductInventoryBatch = Pick<
+  StockBatch,
+  'id' | 'batchDate' | 'supplierName' | 'referenceNumber'
+> & {
+  lines: ProductInventoryBatchLine[];
+};
+
+/**
+ * JSON-serialized form sent to the frontend.
+ */
+export type ProductInventoryBatchResponse = RequireAllKeys<
+  ProductInventoryBatch,
+  Omit<ProductInventoryBatch, 'batchDate' | 'lines'> & {
+    batchDate: string;
+    lines: ProductInventoryBatchLineResponse[];
+  }
+>;
+
+/**
+ * A product's inventory detail: its stock summary, plus every batch it
+ * appeared in, newest batch first, each carrying that product's lines.
+ */
+export type ProductInventoryDetail = ProductInventorySummary & {
+  batches: ProductInventoryBatch[];
+};
+
+/**
+ * JSON-serialized form sent to the frontend.
+ */
+export type ProductInventoryDetailResponse = RequireAllKeys<
+  ProductInventoryDetail,
+  Omit<ProductInventoryDetail, 'earliestExpiry' | 'batches'> & {
+    earliestExpiry: string | null;
+    batches: ProductInventoryBatchResponse[];
+  }
+>;
+
+/**
  * Response aliases for create and update operations.
  */
 export type CreateBatchResponse = StockBatchDetailResponse;
