@@ -70,35 +70,6 @@ export type ProductSummary = Pick<
 
 export type ProductSummaryResponse = ProductSummary;
 
-export type StockStatus = 'OUT_OF_STOCK' | 'LOW_STOCK' | 'IN_STOCK';
-
-/**
- * Summarized inventory information for a product. Quantities are expressed in
- * the product's Base Unit unless stated otherwise.
- */
-
-export type ProductInventorySummary = ProductSummary & {
-  currentSealedStock: number;
-  baseUnitLabel: string;
-  totalCost: number;
-  earliestExpiry: Date | null;
-  expiryCount: number;
-  numberOfBatches: number;
-  stockStatus: StockStatus;
-};
-
-/** JSON-serialized inventory summary sent to the frontend. Dates are serialized
- * to ISO 8601 strings.
- */
-export type ProductInventorySummaryResponse = RequireAllKeys<
-  ProductInventorySummary,
-  Omit<ProductInventorySummary, 'createdAt' | 'updatedAt' | 'earliestExpiry'> & {
-    createdAt: string;
-    updatedAt: string;
-    earliestExpiry: string | null;
-  }
->;
-
 /**
  * JSON-serialized form sent to the frontend.
  */
