@@ -668,6 +668,9 @@ model SaleLine {
   productId String
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
+  // --- Snapshot: product identity at the moment of sale (a later rename never rewrites a past line) ---
+  productName String
+
   // --- Snapshot: as sold ---
   soldUnit String
   quantity Decimal @db.Decimal(12, 4)
