@@ -8,12 +8,11 @@ import { ErrorState } from '@/components/ErrorState';
 import { LoadingState } from '@/components/LoadingState';
 import { RailCard } from '@/components/RailCard';
 import { SectionHeader } from '@/components/SectionHeader';
-import { StateSwitcher, type SectionState } from '@/components/StateSwitcher';
 import { Toast } from '@/components/Toast';
+import { useCurrency } from '@/hooks/useCurrency';
 import { formatDate, formatMoney, pluralize } from '@/lib/format';
-import { useBusinessContext } from '@/providers/business/useBusinessContext';
 import { NewSaleSheet } from '../components/NewSaleSheet';
-import { sales } from '../__tests__/fixtures';
+import { useSales } from '../hooks/useSalesApi';
 
 const PAYMENT_LABELS: Record<SaleSummaryResponse['paymentStatus'], string> = {
   PAID: 'Paid',
@@ -33,9 +32,8 @@ function statusFor(sale: SaleSummaryResponse): { label: string; tone: BadgeTone 
 }
 
 export function SalesPage() {
-  const { currentBusiness } = useBusinessContext();
-  const currency = currentBusiness?.currencyCode ?? 'ETB';
-  const [state, setState] = useState<SectionState>('ready');
+  const { isPending, isError, refetch, data: sales = [] } = useSales();
+  const currency = useCurrency();
   const [isNewSaleOpen, setIsNewSaleOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -50,28 +48,20 @@ export function SalesPage() {
 
       <SectionHeader icon={<ShoppingCart size={14} aria-hidden />} title="Recent sales" />
 
-      <div className="mb-3">
-        <StateSwitcher value={state} onChange={setState} label="Sales list state" />
-      </div>
-
-      {state === 'loading' && <LoadingState label="Loading sales…" />}
-
-      {state === 'error' && (
+      {isPending ? (
+        <LoadingState label="Loading sales…" />
+      ) : isError ? (
         <ErrorState
           title="Could not load sales"
           description="Something went wrong while fetching your recent sales."
-          onRetry={() => setState('ready')}
+          onRetry={() => void refetch()}
         />
-      )}
-
-      {state === 'empty' && (
+      ) : sales.length === 0 ? (
         <EmptyState
           title="No sales recorded yet"
           description="Start a new sale and it will show up here."
         />
-      )}
-
-      {state === 'ready' && (
+      ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {sales.map((sale) => {
             const status = statusFor(sale);

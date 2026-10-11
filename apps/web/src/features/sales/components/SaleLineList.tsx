@@ -1,4 +1,4 @@
-import type { SaleLineFormValues } from '@mez/types';
+import type { ProductSummaryResponse, SaleLineFormValues } from '@mez/types';
 import { X } from 'lucide-react';
 import { IconButton } from '@/components/IconButton';
 import { formatMoney } from '@/lib/format';
@@ -7,7 +7,7 @@ import { useSaleLineList } from '../hooks/useSaleLineList';
 export interface SaleLineListProps {
   lines: SaleLineFormValues[];
   currency: string;
-  onEdit: (index: number) => void;
+  onEdit: (index: number, product: ProductSummaryResponse) => void;
   onRemove: (index: number) => void;
 }
 
@@ -29,7 +29,9 @@ export function SaleLineList({ lines, currency, onEdit, onRemove }: SaleLineList
           >
             <button
               type="button"
-              onClick={() => onEdit(index)}
+              onClick={() => {
+                if (row.product) onEdit(index, row.product);
+              }}
               className="focus-ring flex min-w-0 flex-1 cursor-pointer items-center justify-between gap-3 py-3 text-left"
             >
               <span className="min-w-0">

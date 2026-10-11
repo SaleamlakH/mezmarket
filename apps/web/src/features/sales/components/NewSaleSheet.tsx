@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import type { ProductSummaryResponse, SaleLineFormValues } from '@mez/types';
 import { Banner } from '@/components/Banner';
@@ -6,11 +7,13 @@ import { Button } from '@/components/Button';
 import { Dialog } from '@/components/Dialog';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionHeader } from '@/components/SectionHeader';
-import { products, sellableUnitsByProductId } from '../__tests__/fixtures';
+import { catalogKeys } from '@/hooks/useCatalogApi';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useProductUploadUrls } from '@/hooks/useProductUploadUrls';
+import { ApiError } from '@/lib/apiClient';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
 import { useNewSale } from '../hooks/useNewSale';
+import { useCreateSale } from '../hooks/useSalesApi';
 import { useSaleTotals } from '../hooks/useSaleTotals';
 import { ProductPickerList } from './ProductPickerList';
 import { SaleLineForm } from './SaleLineForm';
@@ -31,19 +34,21 @@ export interface NewSaleSheetProps {
   onRecorded?: () => void;
 }
 
-/** The units a product can actually be sold in. */
-function sellableUnitsFor(product: ProductSummaryResponse) {
-  return (sellableUnitsByProductId[product.id] ?? []).filter((unit) => unit.sellCapable);
-}
-
 /** Records a sale in one sheet across three steps: the sale, the product picker, and a line. */
 export function NewSaleSheet({ open, onClose, onRecorded }: NewSaleSheetProps) {
   const currency = useCurrency();
   const { currentBusiness } = useBusinessContext();
   const businessId = currentBusiness?.id;
   const { data: uploadUrls } = useProductUploadUrls(businessId);
+  const queryClient = useQueryClient();
   const { form, lines, linesError, addLine, updateLine, removeLine, reset } = useNewSale();
   const totals = useSaleTotals(lines);
+  const {
+    isPending: isRecording,
+    error: recordError,
+    mutateAsync: createSaleAsync,
+    reset: resetCreateSale,
+  } = useCreateSale();
 
   const [step, setStep] = useState<Step>('sale');
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -70,13 +75,7 @@ export function NewSaleSheet({ open, onClose, onRecorded }: NewSaleSheetProps) {
     setStep('line');
   };
 
-  const editLine = (index: number) => {
-    const line = lines[index];
-    if (!line) return;
-
-    const product = products.find((entry) => entry.id === line.productId);
-    if (!product) return;
-
+  const editLine = (index: number, product: ProductSummaryResponse) => {
     setEditingIndex(index);
     setActiveProduct(product);
     setStep('line');
@@ -91,18 +90,35 @@ export function NewSaleSheet({ open, onClose, onRecorded }: NewSaleSheetProps) {
   const close = () => {
     backToSale();
     reset();
+    resetCreateSale();
+    // The catalog and unit caches exist only for an open sheet's session.
+    if (businessId) {
+      queryClient.removeQueries({ queryKey: catalogKeys.products(businessId) });
+    }
     onClose();
   };
 
-  const record = () => {
-    close();
-    onRecorded?.();
-  };
+  const record = form.handleSubmit(async (values) => {
+    try {
+      await createSaleAsync(values);
+      close();
+      onRecorded?.();
+    } catch {
+      // The failure is surfaced through `recordError`.
+    }
+  });
+
+  let recordTitle = 'Could not record the sale';
+  let recordDescription: string | undefined = 'Check your connection and try again.';
+  if (recordError instanceof ApiError) {
+    recordTitle = recordError.message;
+    recordDescription = undefined;
+  }
 
   return (
     <Dialog open={open} title={title} onClose={close} size="md">
       {step === 'sale' && (
-        <form onSubmit={form.handleSubmit(record)} className="flex flex-col gap-5 pb-1">
+        <form onSubmit={record} className="flex flex-col gap-5 pb-1">
           <div>
             <SectionHeader
               title={lines.length === 0 ? 'Sale lines' : `Sale lines (${lines.length})`}
@@ -136,10 +152,17 @@ export function NewSaleSheet({ open, onClose, onRecorded }: NewSaleSheetProps) {
 
           {lines.length > 0 && <SaleTotalsCard totals={totals} currency={currency} />}
 
-          {linesError && <Banner tone="danger" title={linesError} />}
+          {(linesError || recordError) && (
+            <div className="flex flex-col gap-2">
+              {linesError && <Banner tone="danger" title={linesError} />}
+              {recordError && (
+                <Banner tone="danger" title={recordTitle} description={recordDescription} />
+              )}
+            </div>
+          )}
 
-          <Button type="submit" className="w-full">
-            Record sale
+          <Button type="submit" className="w-full" disabled={isRecording}>
+            {isRecording ? 'Recording…' : 'Record sale'}
           </Button>
         </form>
       )}
@@ -151,7 +174,6 @@ export function NewSaleSheet({ open, onClose, onRecorded }: NewSaleSheetProps) {
       {step === 'line' && activeProduct && (
         <SaleLineForm
           product={activeProduct}
-          units={sellableUnitsFor(activeProduct)}
           currency={currency}
           businessId={businessId}
           uploadUrls={uploadUrls}

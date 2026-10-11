@@ -1,9 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
 import type { BusinessResponse, SaleLineFormValues } from '@mez/types';
 import type { BusinessContextValue } from '@/providers/business/types';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
+import { catalogKeys } from '@/hooks/useCatalogApi';
 import { useSaleTotals } from '../useSaleTotals';
+import { products, sellableUnitsByProductId } from '../../__tests__/fixtures';
 
 vi.mock('@/providers/business/useBusinessContext', () => ({
   useBusinessContext: vi.fn(),
@@ -35,6 +39,20 @@ function setBusiness(business: BusinessResponse | null) {
   } satisfies BusinessContextValue);
 }
 
+let queryClient: QueryClient;
+
+const wrapper = ({ children }: { children: ReactNode }) => (
+  <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+);
+
+/** Seeds the cache the way opening the picker and the line form would. */
+function seedCatalog() {
+  queryClient.setQueryData(catalogKeys.products('b1'), products);
+  for (const [productId, units] of Object.entries(sellableUnitsByProductId)) {
+    queryClient.setQueryData(catalogKeys.productUnits('b1', productId), units);
+  }
+}
+
 const tequilaLine: SaleLineFormValues = {
   productId: 'prod_tequila',
   productUnitId: 'unit_tequila_bottle',
@@ -44,12 +62,14 @@ const tequilaLine: SaleLineFormValues = {
 describe('useSaleTotals', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   });
 
   it('adds no tax when the business has no rate', () => {
     setBusiness(businessFixture());
+    seedCatalog();
 
-    const { result } = renderHook(() => useSaleTotals([tequilaLine]));
+    const { result } = renderHook(() => useSaleTotals([tequilaLine]), { wrapper });
 
     expect(result.current.subtotal).toBe(1700);
     expect(result.current.taxAmount).toBe(0);
@@ -59,8 +79,9 @@ describe('useSaleTotals', () => {
 
   it('computes tax on top under an exclusive display', () => {
     setBusiness(businessFixture({ defaultTaxRate: 0.15, taxDisplayMode: 'EXCLUSIVE' }));
+    seedCatalog();
 
-    const { result } = renderHook(() => useSaleTotals([tequilaLine]));
+    const { result } = renderHook(() => useSaleTotals([tequilaLine]), { wrapper });
 
     expect(result.current.subtotal).toBe(1700);
     expect(result.current.taxAmount).toBeCloseTo(255);
@@ -69,8 +90,9 @@ describe('useSaleTotals', () => {
 
   it('backs tax out of the total under an inclusive display', () => {
     setBusiness(businessFixture({ defaultTaxRate: 0.15, taxDisplayMode: 'INCLUSIVE' }));
+    seedCatalog();
 
-    const { result } = renderHook(() => useSaleTotals([tequilaLine]));
+    const { result } = renderHook(() => useSaleTotals([tequilaLine]), { wrapper });
 
     expect(result.current.total).toBe(1700);
     expect(result.current.subtotal).toBeCloseTo(1700 / 1.15);
@@ -80,15 +102,16 @@ describe('useSaleTotals', () => {
   it('falls back to no tax and an exclusive display without a business', () => {
     setBusiness(null);
 
-    const { result } = renderHook(() => useSaleTotals([tequilaLine]));
+    const { result } = renderHook(() => useSaleTotals([tequilaLine]), { wrapper });
 
     expect(result.current.taxRate).toBe(0);
     expect(result.current.taxDisplayMode).toBe('EXCLUSIVE');
-    expect(result.current.total).toBe(1700);
+    expect(result.current.total).toBe(0);
   });
 
   it('counts only the lines whose unit price is known', () => {
     setBusiness(businessFixture());
+    seedCatalog();
 
     const unknown: SaleLineFormValues = {
       productId: 'prod_missing',
@@ -96,7 +119,7 @@ describe('useSaleTotals', () => {
       quantity: '5',
     };
 
-    const { result } = renderHook(() => useSaleTotals([tequilaLine, unknown]));
+    const { result } = renderHook(() => useSaleTotals([tequilaLine, unknown]), { wrapper });
 
     expect(result.current.subtotal).toBe(1700);
   });
