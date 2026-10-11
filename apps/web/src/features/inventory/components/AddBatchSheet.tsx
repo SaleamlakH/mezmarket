@@ -7,13 +7,14 @@ import { Button } from '@/components/Button';
 import { Dialog } from '@/components/Dialog';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionHeader } from '@/components/SectionHeader';
+import { catalogKeys } from '@/hooks/useCatalogApi';
 import { useProductUploadUrls } from '@/hooks/useProductUploadUrls';
 import { ApiError } from '@/lib/apiClient';
 import { formatMoney } from '@/lib/format';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useAddBatch } from '../hooks/useAddBatch';
-import { inventoryKeys, useCreateBatch } from '../hooks/useInventoryApi';
+import { useCreateBatch } from '../hooks/useInventoryApi';
 import { BatchHeaderForm } from './BatchHeaderForm';
 import { BatchLineForm } from './BatchLineForm';
 import { BatchLineList } from './BatchLineList';
@@ -101,7 +102,7 @@ export function AddBatchSheet({ open, onClose, onRecorded }: AddBatchSheetProps)
     resetCreateBatch();
     // The catalog and unit caches exist only for an open sheet's session,
     if (businessId) {
-      queryClient.removeQueries({ queryKey: inventoryKeys.products(businessId) });
+      queryClient.removeQueries({ queryKey: catalogKeys.products(businessId) });
     }
     onClose();
   };

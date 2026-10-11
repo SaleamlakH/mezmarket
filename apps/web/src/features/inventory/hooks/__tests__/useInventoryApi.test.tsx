@@ -4,19 +4,16 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import type { BusinessResponse, CreateBatchInput, StockBatchDetailResponse } from '@mez/types';
 import type { BusinessContextValue } from '@/providers/business/types';
-import type { CatalogService } from '@/providers/catalog/types';
 import { inventoryService } from '../../api/inventoryService';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
-import { useCatalogService } from '@/providers/catalog/useCatalogService';
+import { catalogKeys } from '@/hooks/useCatalogApi';
 import {
   inventoryKeys,
-  useBusinessProducts,
   useCreateBatch,
   useInventoryBatches,
   useInventoryProducts,
-  useProductUnits,
 } from '../useInventoryApi';
-import { batches, products, purchasableUnitsByProductId } from '../../__tests__/fixtures';
+import { batches, products } from '../../__tests__/fixtures';
 
 vi.mock('../../api/inventoryService', () => ({
   inventoryService: {
@@ -29,16 +26,6 @@ vi.mock('../../api/inventoryService', () => ({
 vi.mock('@/providers/business/useBusinessContext', () => ({
   useBusinessContext: vi.fn(),
 }));
-
-vi.mock('@/providers/catalog/useCatalogService', () => ({
-  useCatalogService: vi.fn(),
-}));
-
-const catalogService = {
-  listProducts: vi.fn(),
-  getProductUnits: vi.fn(),
-  getProductUploadUrls: vi.fn(),
-} satisfies CatalogService;
 
 function businessFixture(id: string): BusinessResponse {
   return {
@@ -95,7 +82,6 @@ describe('useInventoryApi', () => {
       },
     });
     setBusiness('b1');
-    vi.mocked(useCatalogService).mockReturnValue(catalogService);
   });
 
   describe('useInventoryBatches', () => {
@@ -145,68 +131,6 @@ describe('useInventoryApi', () => {
     });
   });
 
-  describe('useBusinessProducts', () => {
-    it('fetches the catalog products of the current business', async () => {
-      catalogService.listProducts.mockResolvedValue(products);
-
-      const { result } = renderHook(() => useBusinessProducts(), { wrapper });
-
-      await waitFor(() => expect(result.current.isSuccess).toBe(true));
-
-      expect(catalogService.listProducts).toHaveBeenCalledWith('b1');
-      expect(result.current.data).toEqual(products);
-      expect(queryClient.getQueryData(inventoryKeys.products('b1'))).toEqual(products);
-    });
-
-    it('stays idle without a selected business', () => {
-      setBusiness(null);
-
-      renderHook(() => useBusinessProducts(), { wrapper });
-
-      expect(catalogService.listProducts).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('useProductUnits', () => {
-    it('fetches the units of the given product', async () => {
-      const units = purchasableUnitsByProductId['prod_tequila'] ?? [];
-      catalogService.getProductUnits.mockResolvedValue(units);
-
-      const { result } = renderHook(() => useProductUnits('prod_tequila'), { wrapper });
-
-      await waitFor(() => expect(result.current.isSuccess).toBe(true));
-
-      expect(catalogService.getProductUnits).toHaveBeenCalledWith('b1', 'prod_tequila');
-      expect(result.current.data).toEqual(units);
-      expect(queryClient.getQueryData(inventoryKeys.productUnits('b1', 'prod_tequila'))).toEqual(
-        units,
-      );
-    });
-
-    it('stays idle without a product to load', () => {
-      const { result } = renderHook(() => useProductUnits(undefined), { wrapper });
-
-      expect(result.current.isPending).toBe(true);
-      expect(result.current.fetchStatus).toBe('idle');
-      expect(catalogService.getProductUnits).not.toHaveBeenCalled();
-    });
-
-    it('serves already fetched units from the cache without refetching', async () => {
-      const units = purchasableUnitsByProductId['prod_tequila'] ?? [];
-      catalogService.getProductUnits.mockResolvedValue(units);
-
-      const first = renderHook(() => useProductUnits('prod_tequila'), { wrapper });
-      await waitFor(() => expect(first.result.current.isSuccess).toBe(true));
-      first.unmount();
-
-      const second = renderHook(() => useProductUnits('prod_tequila'), { wrapper });
-
-      expect(second.result.current.data).toEqual(units);
-      expect(second.result.current.fetchStatus).toBe('idle');
-      expect(catalogService.getProductUnits).toHaveBeenCalledTimes(1);
-    });
-  });
-
   describe('useCreateBatch', () => {
     it('creates the batch for the current business and refreshes the lists', async () => {
       const created = batches[0] as StockBatchDetailResponse;
@@ -223,7 +147,7 @@ describe('useInventoryApi', () => {
       await waitFor(() => expect(result.current.data).toEqual(created));
       expect(invalidate).toHaveBeenCalledWith({ queryKey: inventoryKeys.batches('b1') });
       expect(invalidate).toHaveBeenCalledWith({ queryKey: inventoryKeys.inventoryProducts('b1') });
-      expect(invalidate).toHaveBeenCalledWith({ queryKey: inventoryKeys.products('b1') });
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: catalogKeys.products('b1') });
     });
 
     it('rejects without calling the service when no business is selected', async () => {

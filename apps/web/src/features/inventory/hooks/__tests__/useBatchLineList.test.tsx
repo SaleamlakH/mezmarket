@@ -5,8 +5,8 @@ import type { ReactNode } from 'react';
 import type { BatchLineFormValues, BusinessResponse } from '@mez/types';
 import type { BusinessContextValue } from '@/providers/business/types';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
+import { catalogKeys } from '@/hooks/useCatalogApi';
 import { useBatchLineList } from '../useBatchLineList';
-import { inventoryKeys } from '../useInventoryApi';
 import { products, purchasableUnitsByProductId } from '../../__tests__/fixtures';
 
 vi.mock('@/providers/business/useBusinessContext', () => ({
@@ -70,8 +70,8 @@ describe('useBatchLineList', () => {
 
   it('reads the cached products and units of the given lines', () => {
     const tequilaUnits = purchasableUnitsByProductId['prod_tequila'] ?? [];
-    queryClient.setQueryData(inventoryKeys.products('b1'), products);
-    queryClient.setQueryData(inventoryKeys.productUnits('b1', 'prod_tequila'), tequilaUnits);
+    queryClient.setQueryData(catalogKeys.products('b1'), products);
+    queryClient.setQueryData(catalogKeys.productUnits('b1', 'prod_tequila'), tequilaUnits);
 
     const { result } = renderHook(() => useBatchLineList([tequilaLine]), { wrapper });
 
@@ -82,9 +82,9 @@ describe('useBatchLineList', () => {
   it('reads the units of only the products the lines reference', () => {
     const tequilaUnits = purchasableUnitsByProductId['prod_tequila'] ?? [];
     const oilUnits = purchasableUnitsByProductId['prod_oil'] ?? [];
-    queryClient.setQueryData(inventoryKeys.products('b1'), products);
-    queryClient.setQueryData(inventoryKeys.productUnits('b1', 'prod_tequila'), tequilaUnits);
-    queryClient.setQueryData(inventoryKeys.productUnits('b1', 'prod_oil'), oilUnits);
+    queryClient.setQueryData(catalogKeys.products('b1'), products);
+    queryClient.setQueryData(catalogKeys.productUnits('b1', 'prod_tequila'), tequilaUnits);
+    queryClient.setQueryData(catalogKeys.productUnits('b1', 'prod_oil'), oilUnits);
 
     const { result } = renderHook(() => useBatchLineList([tequilaLine]), { wrapper });
 
@@ -99,7 +99,7 @@ describe('useBatchLineList', () => {
   });
 
   it('returns nothing without a selected business', () => {
-    queryClient.setQueryData(inventoryKeys.products('b1'), products);
+    queryClient.setQueryData(catalogKeys.products('b1'), products);
     setBusiness(null);
 
     const { result } = renderHook(() => useBatchLineList([tequilaLine]), { wrapper });

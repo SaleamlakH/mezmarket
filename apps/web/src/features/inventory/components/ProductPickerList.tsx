@@ -4,9 +4,9 @@ import { EmptyState } from '@/components/EmptyState';
 import { ErrorState } from '@/components/ErrorState';
 import { ListCard } from '@/components/ListCard';
 import { LoadingState } from '@/components/LoadingState';
+import { useBusinessProducts } from '@/hooks/useCatalogApi';
 import { useProductImage } from '@/hooks/useProductImage';
 import { formatQuantity } from '@/lib/format';
-import { useBusinessProducts } from '../hooks/useInventoryApi';
 
 export interface ProductPickerListProps {
   onSelect: (product: ProductSummaryResponse) => void;

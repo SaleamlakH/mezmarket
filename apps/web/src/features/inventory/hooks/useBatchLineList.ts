@@ -4,8 +4,8 @@ import type {
   ProductUnitOptionResponse,
 } from '@mez/types';
 import { useQueryClient } from '@tanstack/react-query';
+import { catalogKeys } from '@/hooks/useCatalogApi';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
-import { inventoryKeys } from './useInventoryApi';
 
 /**
  * The add-batch session's catalog entries for the lines on screen. Product
@@ -18,14 +18,14 @@ export function useBatchLineList(lines: BatchLineFormValues[]) {
   const businessId = currentBusiness?.id;
 
   const cachedProducts = businessId
-    ? queryClient.getQueryData<ProductSummaryResponse[]>(inventoryKeys.products(businessId))
+    ? queryClient.getQueryData<ProductSummaryResponse[]>(catalogKeys.products(businessId))
     : undefined;
 
   const unitsByProductId: Record<string, ProductUnitOptionResponse[]> = {};
   if (businessId) {
     for (const productId of new Set(lines.map((line) => line.productId))) {
       const units = queryClient.getQueryData<ProductUnitOptionResponse[]>(
-        inventoryKeys.productUnits(businessId, productId),
+        catalogKeys.productUnits(businessId, productId),
       );
       if (units) unitsByProductId[productId] = units;
     }

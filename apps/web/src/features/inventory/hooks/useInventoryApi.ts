@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CreateBatchInput } from '@mez/types';
+import { catalogKeys } from '@/hooks/useCatalogApi';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
-import { useCatalogService } from '@/providers/catalog/useCatalogService';
 import { inventoryService } from '../api/inventoryService';
 
 export const inventoryKeys = {
@@ -9,9 +9,6 @@ export const inventoryKeys = {
   batches: (businessId: string) => [...inventoryKeys.all(businessId), 'batches'] as const,
   inventoryProducts: (businessId: string) =>
     [...inventoryKeys.all(businessId), 'inventory-products'] as const,
-  products: (businessId: string) => [...inventoryKeys.all(businessId), 'products'] as const,
-  productUnits: (businessId: string, productId: string) =>
-    [...inventoryKeys.products(businessId), 'units', productId] as const,
 } as const;
 
 export function useInventoryBatches() {
@@ -48,52 +45,6 @@ export function useInventoryProducts() {
   });
 }
 
-export function useBusinessProducts() {
-  const { currentBusiness } = useBusinessContext();
-  const catalogService = useCatalogService();
-  const businessId = currentBusiness?.id;
-
-  return useQuery({
-    queryKey: businessId
-      ? inventoryKeys.products(businessId)
-      : ['inventory', 'products', 'disabled'],
-    queryFn: () => {
-      if (!businessId) {
-        throw new Error('No business selected');
-      }
-      return catalogService.listProducts(businessId);
-    },
-    enabled: Boolean(businessId),
-    // Reference data: kept for the whole add-batch session so row names can
-    // be read back from the cache; expired in AddBatchSheet's close().
-    staleTime: Infinity,
-    gcTime: Infinity,
-  });
-}
-
-export function useProductUnits(productId: string | undefined) {
-  const { currentBusiness } = useBusinessContext();
-  const catalogService = useCatalogService();
-  const businessId = currentBusiness?.id;
-
-  return useQuery({
-    queryKey:
-      businessId && productId
-        ? inventoryKeys.productUnits(businessId, productId)
-        : ['inventory', 'units', 'disabled'],
-    queryFn: () => {
-      if (!businessId || !productId) {
-        throw new Error('No business or product selected');
-      }
-      return catalogService.getProductUnits(businessId, productId);
-    },
-    enabled: Boolean(businessId && productId),
-    // Reference data: always read from cache, never re-requested or evicted.
-    staleTime: Infinity,
-    gcTime: Infinity,
-  });
-}
-
 export function useCreateBatch() {
   const { currentBusiness } = useBusinessContext();
   const businessId = currentBusiness?.id;
@@ -112,7 +63,7 @@ export function useCreateBatch() {
       void queryClient.invalidateQueries({
         queryKey: inventoryKeys.inventoryProducts(businessId),
       });
-      void queryClient.invalidateQueries({ queryKey: inventoryKeys.products(businessId) });
+      void queryClient.invalidateQueries({ queryKey: catalogKeys.products(businessId) });
     },
   });
 }

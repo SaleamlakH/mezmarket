@@ -6,6 +6,7 @@ import { Input } from '@/components/Input';
 import { ListCard } from '@/components/ListCard';
 import { Loader } from '@/components/Loader';
 import { Select } from '@/components/Select';
+import { useProductUnits } from '@/hooks/useCatalogApi';
 import {
   dateInputToInstant,
   formatMoney,
@@ -13,7 +14,6 @@ import {
   instantToDateInputValue,
 } from '@/lib/format';
 import { useBatchLineForm } from '../hooks/useBatchLineForm';
-import { useProductUnits } from '../hooks/useInventoryApi';
 
 export interface BatchLineFormProps {
   product: ProductSummaryResponse;
