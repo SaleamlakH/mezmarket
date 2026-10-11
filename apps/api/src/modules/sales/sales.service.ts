@@ -4,9 +4,11 @@ import type {
   ProductUnitSellContext,
   ResolvedSaleLine,
   SaleDetailResult,
+  SaleRecordSummary,
   SaleRecordWithDetail,
   SaleRepository,
   SaleService,
+  SaleSummaryResult,
 } from './sales.types.js';
 import type { Actor, Scope } from '../../shared/types/session.types.js';
 import { AppError, ERROR_CODES } from '../../shared/errors/app-error.js';
@@ -65,7 +67,7 @@ export function createSaleService(repository: SaleRepository): SaleService {
 
     async listSales({ businessId, branchId }: Scope) {
       const records = await repository.listSales(businessId, branchId);
-      return records.map(toSaleDetail);
+      return records.map(toSaleSummary);
     },
   };
 }
@@ -167,6 +169,27 @@ function toSaleDetail(record: SaleRecordWithDetail): SaleDetailResult {
     })),
     processedBy: processedByMember,
     servedBy: serverMember,
-    customer,
+    customer: customer ? { id: customer.id, name: customer.name } : null,
+  };
+}
+
+/**
+ * A stored sale narrowed to a history row: the header fields, the number of
+ * lines it holds, and the distinct products it sold. It is deliberately not a
+ * detail read — no lines, payments or unit prices travel with it.
+ */
+function toSaleSummary(record: SaleRecordSummary): SaleSummaryResult {
+  return {
+    id: record.id,
+    invoiceNumber: record.invoiceNumber,
+    saleDatetime: record.saleDatetime,
+    total: record.total.toNumber(),
+    paymentStatus: record.paymentStatus,
+    voidStatus: record.voidStatus,
+    itemCount: record.lines.length,
+    productNames: [...new Set(record.lines.map((line) => line.productName))],
+    processedBy: record.processedByMember,
+    servedBy: record.serverMember,
+    customer: record.customer ? { id: record.customer.id, name: record.customer.name } : null,
   };
 }

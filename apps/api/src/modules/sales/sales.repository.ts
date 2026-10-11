@@ -3,17 +3,6 @@ import type { CreateSaleCommand, SaleRecordWithDetail, SaleRepository } from './
 
 const memberSummarySelect = { id: true, name: true, role: true } as const;
 
-const saleDetailInclude = {
-  lines: {
-    include: { product: { select: { brand: true } } },
-    orderBy: { createdAt: 'asc' },
-  },
-  payments: { orderBy: { paidAt: 'asc' } },
-  processedByMember: { select: memberSummarySelect },
-  serverMember: { select: memberSummarySelect },
-  customer: { select: { id: true, name: true } },
-} as const;
-
 /** How many times a create is reattempted when a concurrent write took the invoice number. */
 const MAX_INVOICE_ATTEMPTS = 3;
 
@@ -80,7 +69,12 @@ export function createSaleRepository(prisma: PrismaClient): SaleRepository {
     async listSales(businessId, branchId) {
       return prisma.sale.findMany({
         where: { businessId, branchId },
-        include: saleDetailInclude,
+        include: {
+          lines: true,
+          processedByMember: true,
+          serverMember: true,
+          customer: true,
+        },
         orderBy: { saleDatetime: 'desc' },
       });
     },
@@ -116,7 +110,7 @@ async function writeSale(
     include: {
       processedByMember: { select: memberSummarySelect },
       serverMember: { select: memberSummarySelect },
-      customer: { select: { id: true, name: true } },
+      customer: true,
     },
   });
 

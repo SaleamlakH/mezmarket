@@ -361,7 +361,7 @@ describe('sales.service', () => {
       expect(mockRepo.listSales).toHaveBeenCalledWith('b-1', 'br-1');
     });
 
-    it('maps each stored sale to the wire shape', async () => {
+    it('maps each stored sale to a summary row rather than its detail', async () => {
       vi.mocked(mockRepo.listSales).mockResolvedValue([
         saleRecord(),
         saleRecord({ id: 'sale-2', invoiceNumber: '2' }),
@@ -370,10 +370,39 @@ describe('sales.service', () => {
       const result = await service.listSales({ businessId: 'b-1', branchId: 'br-1' });
 
       expect(result).toHaveLength(2);
-      expect(result[0]?.id).toBe('sale-1');
-      expect(result[0]?.total).toBe(2185);
-      expect(result[0]?.lines[0]?.unitPrice).toBe(950);
+      expect(result[0]).toMatchObject({
+        id: 'sale-1',
+        invoiceNumber: '1',
+        total: 2185,
+        paymentStatus: 'PENDING',
+        voidStatus: 'NONE',
+        itemCount: 1,
+        productNames: ['Sierra Tequila 350 ml'],
+        processedBy: { id: 'm-1', name: 'me', role: 'OWNER' },
+        servedBy: null,
+        customer: null,
+      });
+      expect(result[0]).not.toHaveProperty('lines');
+      expect(result[0]).not.toHaveProperty('payments');
       expect(result[1]?.id).toBe('sale-2');
+    });
+
+    it('counts every line but names each product once', async () => {
+      const baseLine = saleRecord().lines[0] as SaleRecordWithDetail['lines'][number];
+      vi.mocked(mockRepo.listSales).mockResolvedValue([
+        saleRecord({
+          lines: [
+            { ...baseLine, id: 'sl-1' },
+            { ...baseLine, id: 'sl-2', productName: 'Cooking Oil 5 L' },
+            { ...baseLine, id: 'sl-3', productUnitId: 'pu-case' },
+          ],
+        }),
+      ]);
+
+      const [row] = await service.listSales({ businessId: 'b-1', branchId: 'br-1' });
+
+      expect(row?.itemCount).toBe(3);
+      expect(row?.productNames).toEqual(['Sierra Tequila 350 ml', 'Cooking Oil 5 L']);
     });
   });
 });

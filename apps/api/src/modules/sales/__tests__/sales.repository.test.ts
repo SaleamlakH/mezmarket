@@ -13,17 +13,6 @@ type MockTx = {
   auditLog: { create: ReturnType<typeof vi.fn> };
 };
 
-const SALE_INCLUDE = {
-  lines: {
-    include: { product: { select: { brand: true } } },
-    orderBy: { createdAt: 'asc' },
-  },
-  payments: { orderBy: { paidAt: 'asc' } },
-  processedByMember: { select: { id: true, name: true, role: true } },
-  serverMember: { select: { id: true, name: true, role: true } },
-  customer: { select: { id: true, name: true } },
-};
-
 function createPrismaStub() {
   const tx: MockTx = {
     sale: { count: vi.fn(), create: vi.fn(), findUniqueOrThrow: vi.fn() },
@@ -124,12 +113,19 @@ const CREATED_LINE = {
   product: { brand: 'Sierra' },
 };
 
-/** What `findMany` hands back on a list read: each sale with its lines. */
+/** What `findMany` hands back on a history read: header fields plus a light line preview. */
 function listedSale(overrides: Record<string, unknown> = {}) {
   return {
-    ...createdSale(),
-    lines: [{ ...CREATED_LINE }],
-    payments: [],
+    id: 'sale-1',
+    invoiceNumber: '1',
+    saleDatetime: new Date('2026-02-01T09:00:00.000Z'),
+    total: 2185,
+    paymentStatus: 'PENDING',
+    voidStatus: 'NONE',
+    lines: [{ productName: 'Sierra Tequila 350 ml' }],
+    processedByMember: { id: 'm-1', name: 'me', role: 'OWNER' },
+    serverMember: null,
+    customer: null,
     ...overrides,
   };
 }
@@ -256,7 +252,7 @@ describe('sales.repository', () => {
         include: {
           processedByMember: { select: { id: true, name: true, role: true } },
           serverMember: { select: { id: true, name: true, role: true } },
-          customer: { select: { id: true, name: true } },
+          customer: true,
         },
       });
     });
@@ -326,7 +322,7 @@ describe('sales.repository', () => {
   });
 
   describe('listSales', () => {
-    it('reads the branch sales newest first with the full report include', async () => {
+    it('reads the branch sales newest first with the relations included', async () => {
       const { prisma, sale } = createPrismaStub();
       const repo = createSaleRepository(prisma);
       sale.findMany.mockResolvedValue([]);
@@ -335,7 +331,12 @@ describe('sales.repository', () => {
 
       expect(sale.findMany).toHaveBeenCalledWith({
         where: { businessId: 'b-1', branchId: 'br-1' },
-        include: SALE_INCLUDE,
+        include: {
+          lines: true,
+          processedByMember: true,
+          serverMember: true,
+          customer: true,
+        },
         orderBy: { saleDatetime: 'desc' },
       });
     });

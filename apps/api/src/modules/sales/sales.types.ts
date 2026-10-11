@@ -1,9 +1,10 @@
-import type { CreateSaleInput, SaleDetailResult } from '@mez/types';
+import type { CreateSaleInput, SaleDetailResult, SaleSummaryResult } from '@mez/types';
 
 import type {
   Payment as PaymentRecord,
   Sale as SaleRecord,
   SaleLine as SaleLineRecord,
+  Customer as CustomerRecord,
 } from '../../../generated/prisma/client.js';
 
 import type { StoredDecimal } from '../../shared/types/decimal.types.js';
@@ -19,6 +20,8 @@ export type {
   SaleLineResponse,
   SaleResponse,
   PaymentResponse,
+  SaleSummaryResponse,
+  SaleSummaryResult,
 } from '@mez/types';
 
 /**
@@ -93,17 +96,29 @@ export type SaleRecordWithDetail = SaleRecord & {
   payments: PaymentRecord[];
   processedByMember: MemberSummary;
   serverMember: MemberSummary | null;
-  customer: { id: string; name: string } | null;
+  customer: CustomerRecord | null;
+};
+
+/**
+ * A sale as a history read returns it: the whole sale row with its lines and
+ * relations included. The service narrows it down to the summary the client
+ * sees; the read itself carries no projection.
+ */
+export type SaleRecordSummary = SaleRecord & {
+  lines: SaleLineRecord[];
+  processedByMember: MemberSummary;
+  serverMember: MemberSummary | null;
+  customer: CustomerRecord | null;
 };
 
 export type SaleRepository = {
   getBusinessTaxConfig(businessId: string): Promise<BusinessTaxConfig | null>;
   getProductSellContext(businessId: string, productIds: string[]): Promise<ProductSellContext[]>;
   createSale(command: CreateSaleCommand): Promise<SaleRecordWithDetail>;
-  listSales(businessId: string, branchId: string): Promise<SaleRecordWithDetail[]>;
+  listSales(businessId: string, branchId: string): Promise<SaleRecordSummary[]>;
 };
 
 export type SaleService = {
   createSale(actor: Actor, input: CreateSaleInput): Promise<SaleDetailResult>;
-  listSales(scope: Scope): Promise<SaleDetailResult[]>;
+  listSales(scope: Scope): Promise<SaleSummaryResult[]>;
 };
