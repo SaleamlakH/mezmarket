@@ -1,35 +1,20 @@
 import { useState } from 'react';
-import { Plus, ShoppingCart } from 'lucide-react';
-import type { SaleSummaryResponse } from '@mez/types';
-import { Badge, type BadgeTone } from '@/components/Badge';
+import { Package, Plus, ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState } from '@/components/ErrorState';
 import { LoadingState } from '@/components/LoadingState';
-import { RailCard } from '@/components/RailCard';
 import { SectionHeader } from '@/components/SectionHeader';
 import { Toast } from '@/components/Toast';
 import { useCurrency } from '@/hooks/useCurrency';
-import { formatDate, formatMoney, formatTime, pluralize } from '@/lib/format';
 import { NewSaleSheet } from '../components/NewSaleSheet';
+import { ProductSaleCard } from '../components/ProductSaleCard';
+import { SaleSummaryCard } from '../components/SaleSummaryCard';
+import { saleProductsFixture } from '../fixtures/saleFlow';
 import { useSales } from '../hooks/useSalesApi';
 
-const PAYMENT_LABELS: Record<SaleSummaryResponse['paymentStatus'], string> = {
-  PAID: 'Paid',
-  PENDING: 'Pending',
-  PARTIALLY_PAID: 'Partially paid',
-};
-
-const PAYMENT_TONES: Record<SaleSummaryResponse['paymentStatus'], BadgeTone> = {
-  PAID: 'positive',
-  PENDING: 'neutral',
-  PARTIALLY_PAID: 'warning',
-};
-
-function statusFor(sale: SaleSummaryResponse): { label: string; tone: BadgeTone } {
-  if (sale.voidStatus === 'VOIDED') return { label: 'Voided', tone: 'danger' };
-  return { label: PAYMENT_LABELS[sale.paymentStatus], tone: PAYMENT_TONES[sale.paymentStatus] };
-}
+type ProductsStatus = 'loading' | 'error' | 'empty' | 'ready';
+const PRODUCTS_STATUS: ProductsStatus = 'ready';
 
 export function SalesPage() {
   const { isPending, isError, refetch, data: sales = [] } = useSales();
@@ -62,40 +47,37 @@ export function SalesPage() {
           description="Start a new sale and it will show up here."
         />
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {sales.map((sale) => {
-            const status = statusFor(sale);
+        <div className="scrollbar-none flex gap-2.5 overflow-x-auto pb-1.5">
+          {sales.map((sale) => (
+            <SaleSummaryCard
+              key={sale.id}
+              sale={sale}
+              currency={currency}
+              className="w-[150px] shrink-0"
+            />
+          ))}
+        </div>
+      )}
 
-            return (
-              <RailCard
-                key={sale.id}
-                className="shadow-(--shadow-md)"
-                badge={<Badge tone={status.tone}>{status.label}</Badge>}
-                badgePosition="inline"
-                footer={
-                  <>
-                    <p className="m-0 truncate text-xs text-(--text-muted)">
-                      {sale.processedBy.name}
-                    </p>
-                  </>
-                }
-              >
-                <p className="m-0 pt-1 text-xs font-bold text-(--text)"># {sale.invoiceNumber}</p>
-                <div className="mt-0.5">
-                  <p className="m-0 font-mono text-base font-semibold whitespace-nowrap tabular-nums text-(--text)">
-                    {formatMoney(sale.total, currency)}
-                  </p>
-                  <p className="m-0 text-xs font-semibold text-(--text)">
-                    {sale.itemCount} {pluralize(sale.itemCount, 'item')}
-                  </p>
-                </div>
-                <div className="mt-1 space-y-0.5 text-xs leading-tight text-(--text-muted)">
-                  <p className="m-0">{formatDate(sale.saleDatetime)}</p>
-                  <p className="m-0 tabular-nums">{formatTime(sale.saleDatetime)}</p>
-                </div>
-              </RailCard>
-            );
-          })}
+      <SectionHeader icon={<Package size={14} aria-hidden />} title="Products" />
+
+      {PRODUCTS_STATUS === 'loading' ? (
+        <LoadingState label="Loading products…" />
+      ) : PRODUCTS_STATUS === 'error' ? (
+        <ErrorState
+          title="Could not load products"
+          description="Something went wrong while fetching your products."
+        />
+      ) : PRODUCTS_STATUS === 'empty' || saleProductsFixture.length === 0 ? (
+        <EmptyState
+          title="No products yet"
+          description="Add a product to your catalog to sell it here."
+        />
+      ) : (
+        <div className="grid grid-cols-2 gap-2.5 min-[480px]:grid-cols-3 min-[640px]:grid-cols-4 md:gap-3.5">
+          {saleProductsFixture.map((product) => (
+            <ProductSaleCard key={product.id} product={product} />
+          ))}
         </div>
       )}
 
