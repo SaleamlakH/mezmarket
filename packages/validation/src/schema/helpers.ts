@@ -19,21 +19,33 @@ export const requiredText = (message: string) =>
 export const optionalText = (max: number, message: string) =>
   z.string().trim().max(max, message).transform(blankIsUnset).optional();
 
-/** A UTC ISO 8601 instant, the shape a date picker hands over, as a `Date`. */
+/**
+ * A universal instant: a full ISO 8601 date, time and zone — `Z` or an
+ * explicit `±HH:MM` offset, both naming the same absolute moment. A date-only
+ * value or a naive clock carries no instant and is refused, never guessed at.
+ */
 export const instant = (error: string) =>
-  z.iso.datetime({ error }).transform((value) => new Date(value));
+  z.iso.datetime({ offset: true, error }).transform((value) => new Date(value));
 
-/** Required date input: text in, `Date` out. */
-export const dateFromString = (label: string) =>
-  requiredText(`${label} is required`).pipe(instant('Enter a valid date'));
+/** Required instant input: text in, `Date` out. */
+export const requiredInstant = (label: string) =>
+  requiredText(`${label} is required`).pipe(
+    instant('Enter a valid date and time with a time zone'),
+  );
 
-/** Optional date input: blank becomes `undefined`. */
-export const optionalDateFromString = z
+/** Optional instant input: blank becomes `undefined`. */
+export const optionalInstant = z
   .string()
   .trim()
   .transform(blankIsUnset)
   .optional()
-  .pipe(instant('Enter a valid date').optional());
+  .pipe(instant('Enter a valid date and time with a time zone').optional());
+
+/** Refuses an instant later than the current moment; an unset value passes. */
+export const notAfterNow = <T extends ZodType>(schema: T, message: string) =>
+  schema.refine((value) => value === undefined || (value as Date).getTime() <= Date.now(), {
+    error: message,
+  });
 
 /** Rounds a number to the decimal places a column keeps. */
 export const toStoredPrecision = (decimals: number) => (value: number) =>

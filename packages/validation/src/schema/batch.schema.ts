@@ -12,10 +12,11 @@ import type {
 } from '@mez/types';
 import {
   blankIsUnset,
-  dateFromString,
+  notAfterNow,
   numberFromString,
-  optionalDateFromString,
+  optionalInstant,
   optionalText,
+  requiredInstant,
   requiredText,
   withoutUnset,
 } from './helpers.js';
@@ -32,11 +33,11 @@ const batchLineFields = {
     z.number().positive('Quantity must be greater than 0'),
   ),
   purchaseUnitCost: numberFromString('Unit cost', COST_DECIMALS),
-  expiryDate: optionalDateFromString,
+  expiryDate: optionalInstant,
 };
 
 const batchHeaderShape = {
-  batchDate: dateFromString('Batch date'),
+  batchDate: notAfterNow(requiredInstant('Batch date'), 'Batch date cannot be in the future'),
   supplierName: optionalText(80, 'Supplier name must be 80 characters or less'),
   referenceNumber: optionalText(60, 'Reference number must be 60 characters or less'),
 };

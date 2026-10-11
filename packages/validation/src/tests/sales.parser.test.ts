@@ -181,6 +181,31 @@ describe('validateCreateSale', () => {
     });
   });
 
+  it('reads an explicit zone offset as the same instant', () => {
+    const result = validateCreateSale(sale({ saleDatetime: '2026-01-05T12:00:00+03:00' }));
+
+    expect(result.errors).toBeNull();
+    expect(result.data?.saleDatetime).toEqual(new Date('2026-01-05T09:00:00.000Z'));
+  });
+
+  it('rejects a date-only value, which names no instant', () => {
+    expect(validateCreateSale(sale({ saleDatetime: '2026-01-05' })).errors).toEqual({
+      saleDatetime: expect.any(String),
+    });
+  });
+
+  it('rejects a naive clock, which names no instant', () => {
+    expect(validateCreateSale(sale({ saleDatetime: '2026-01-05T09:00:00' })).errors).toEqual({
+      saleDatetime: expect.any(String),
+    });
+  });
+
+  it('rejects a sale date in the future', () => {
+    expect(validateCreateSale(sale({ saleDatetime: '2999-01-01T00:00:00.000Z' })).errors).toEqual({
+      saleDatetime: expect.any(String),
+    });
+  });
+
   it('rejects a payment amount that is not a number', () => {
     const result = validateInput(createSaleSchema, {
       lines: [line()],

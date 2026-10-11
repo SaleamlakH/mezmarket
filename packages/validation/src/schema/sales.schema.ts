@@ -22,9 +22,10 @@ import type {
 } from '@mez/types';
 import {
   blankIsUnset,
+  notAfterNow,
   numberFromString,
-  optionalDateFromString,
   optionalEnum,
+  optionalInstant,
   optionalText,
   requiredText,
   withoutUnset,
@@ -170,7 +171,7 @@ const initialPaymentSchema = z.preprocess(
  */
 export const createSaleSchema = z
   .object({
-    saleDatetime: optionalDateFromString,
+    saleDatetime: notAfterNow(optionalInstant, 'Sale date cannot be in the future'),
     lines: saleLines(createSaleLineSchema),
     initialPayment: initialPaymentSchema,
   })
@@ -183,7 +184,7 @@ export const createSaleSchema = z
  */
 export const updateSaleSchema = z
   .object({
-    saleDatetime: optionalDateFromString,
+    saleDatetime: notAfterNow(optionalInstant, 'Sale date cannot be in the future'),
     lines: saleLines(updateSaleLineSchema),
   })
   .strict()

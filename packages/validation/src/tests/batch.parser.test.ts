@@ -152,6 +152,18 @@ describe('validateCreateBatch', () => {
       });
     });
 
+    it('rejects a date-only value, which names no instant', () => {
+      expect(validateCreateBatch(batch({ batchDate: '2026-01-05' })).errors).toEqual({
+        batchDate: expect.any(String),
+      });
+    });
+
+    it('rejects a batch date in the future', () => {
+      expect(validateCreateBatch(batch({ batchDate: '2999-01-01T00:00:00.000Z' })).errors).toEqual({
+        batchDate: expect.any(String),
+      });
+    });
+
     it('caps the supplier name length', () => {
       expect(validateCreateBatch(batch({ supplierName: 's'.repeat(81) })).errors).toEqual({
         supplierName: expect.any(String),
@@ -193,6 +205,15 @@ describe('validateCreateBatch', () => {
         'lines.2.purchaseUnitCost': expect.any(String),
         'lines.3.expiryDate': expect.any(String),
       });
+    });
+
+    it('allows an expiry in the future, unlike a batch date', () => {
+      const result = validateCreateBatch(
+        batch({ lines: [line({ expiryDate: '2999-01-01T00:00:00.000Z' })] }),
+      );
+
+      expect(result.errors).toBeNull();
+      expect(result.data?.lines[0]?.expiryDate).toEqual(new Date('2999-01-01T00:00:00.000Z'));
     });
   });
 });
@@ -335,10 +356,17 @@ describe('typed fields accept text input', () => {
   });
 
   it('parses a UTC instant written as text', () => {
-    const result = validateCreateBatch(batch({ batchDate: '2026-12-31T00:00:00.000Z' }));
+    const result = validateCreateBatch(batch({ batchDate: '2026-01-05T12:00:00.000Z' }));
 
     expect(result.errors).toBeNull();
-    expect(result.data?.batchDate).toEqual(new Date('2026-12-31T00:00:00.000Z'));
+    expect(result.data?.batchDate).toEqual(new Date('2026-01-05T12:00:00.000Z'));
+  });
+
+  it('reads an explicit zone offset as the same instant', () => {
+    const result = validateCreateBatch(batch({ batchDate: '2026-01-05T12:00:00+03:00' }));
+
+    expect(result.errors).toBeNull();
+    expect(result.data?.batchDate).toEqual(new Date('2026-01-05T09:00:00.000Z'));
   });
 
   it('still reports a value the number rule cannot use', () => {
