@@ -1,0 +1,379 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { createSaleService } from '../sales.service.js';
+import type {
+  CreateSaleCommand,
+  CreateSaleInput,
+  ProductSellContext,
+  ProductUnitSellContext,
+  SaleRecordWithDetail,
+  SaleRepository,
+  SaleService,
+} from '../sales.types.js';
+import type { Prisma } from '../../../../generated/prisma/client.js';
+import { ERROR_CODES } from '../../../shared/errors/app-error.js';
+
+function mockRepository(): SaleRepository {
+  return {
+    getBusinessTaxConfig: vi.fn(),
+    getProductSellContext: vi.fn(),
+    createSale: vi.fn(),
+    listSales: vi.fn(),
+  };
+}
+
+/** Stands in for a `Decimal` column: the service only ever calls toNumber. */
+function decimal(value: number): Prisma.Decimal {
+  return { toNumber: () => value } as unknown as Prisma.Decimal;
+}
+
+function unit(overrides: Partial<ProductUnitSellContext> = {}): ProductUnitSellContext {
+  return {
+    id: 'pu-bottle',
+    productId: 'p-tequila',
+    unitRole: 'BASE',
+    standardUnitId: 'su-pc',
+    standardUnit: { id: 'su-pc', name: 'Piece', symbol: 'pc' },
+    name: 'Bottle',
+    dependsOn: null,
+    conversionRate: null,
+    purchaseCapable: true,
+    sellCapable: true,
+    price: decimal(950),
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+    ...overrides,
+  };
+}
+
+const TEQUILA: ProductSellContext = {
+  id: 'p-tequila',
+  businessId: 'b-1',
+  name: 'Sierra Tequila 350 ml',
+  productUnits: [
+    unit(),
+    unit({
+      id: 'pu-case',
+      unitRole: 'CUSTOM',
+      standardUnitId: null,
+      standardUnit: null,
+      name: 'Case (12 bottles)',
+      dependsOn: 'BASE',
+      conversionRate: decimal(12),
+      price: decimal(10800),
+    }),
+    unit({
+      id: 'pu-notsellable',
+      unitRole: 'STANDARD',
+      standardUnitId: 'su-l',
+      standardUnit: { id: 'su-l', name: 'Liter', symbol: 'L' },
+      name: 'Liter',
+      dependsOn: 'BASE',
+      conversionRate: decimal(1),
+      sellCapable: false,
+      price: decimal(50),
+    }),
+    unit({ id: 'pu-noprice', name: 'Unpriced', price: null }),
+  ],
+};
+
+const CATALOG = [TEQUILA];
+
+function line(overrides: Partial<CreateSaleInput['lines'][number]> = {}) {
+  return {
+    productId: 'p-tequila',
+    productUnitId: 'pu-bottle',
+    quantity: 2,
+    ...overrides,
+  };
+}
+
+function input(overrides: Partial<CreateSaleInput> = {}): CreateSaleInput {
+  return {
+    lines: [line()],
+    ...overrides,
+  };
+}
+
+function saleRecord(overrides: Partial<SaleRecordWithDetail> = {}): SaleRecordWithDetail {
+  return {
+    id: 'sale-1',
+    businessId: 'b-1',
+    branchId: 'br-1',
+    invoiceNumber: '1',
+    processedByMemberId: 'm-1',
+    serverMemberId: null,
+    customerId: null,
+    saleDatetime: new Date('2026-02-01T09:00:00.000Z'),
+    discount: null,
+    taxRateApplied: decimal(0.15),
+    subtotal: decimal(1900),
+    taxAmount: decimal(285),
+    total: decimal(2185),
+    paymentStatus: 'PENDING',
+    amountPaid: decimal(0),
+    balanceDue: decimal(2185),
+    voidStatus: 'NONE',
+    voidReason: null,
+    createdAt: new Date('2026-02-01T10:00:00.000Z'),
+    updatedAt: new Date('2026-02-01T10:00:00.000Z'),
+    lines: [
+      {
+        id: 'sl-1',
+        saleId: 'sale-1',
+        productId: 'p-tequila',
+        productName: 'Sierra Tequila 350 ml',
+        productUnitId: 'pu-bottle',
+        soldUnit: 'Bottle',
+        quantity: decimal(2),
+        standardUnit: 'pc',
+        quantityInStandardUnit: decimal(2),
+        resolvedStandardUnitId: 'su-pc',
+        unitPrice: decimal(950),
+        containerId: null,
+        refunded: false,
+        refundRestocked: false,
+        createdAt: new Date('2026-02-01T10:00:00.000Z'),
+        updatedAt: new Date('2026-02-01T10:00:00.000Z'),
+        product: { brand: 'Sierra' },
+      },
+    ],
+    payments: [],
+    processedByMember: { id: 'm-1', name: 'me', role: 'OWNER' },
+    serverMember: null,
+    customer: null,
+    ...overrides,
+  };
+}
+
+function actor() {
+  return { businessId: 'b-1', branchId: 'br-1', memberId: 'm-1' };
+}
+
+/** The command the service handed the repository, as it was given. */
+function written(): CreateSaleCommand {
+  const call = vi.mocked(mockRepo.createSale).mock.calls.at(0);
+
+  if (!call) {
+    throw new Error('createSale was never called');
+  }
+
+  return call[0];
+}
+
+/** A thrown AppError pinned by code and status only. */
+function appError(code: string, statusCode: number) {
+  return expect.objectContaining({ code, statusCode, message: expect.any(String) });
+}
+
+let mockRepo: SaleRepository;
+let service: SaleService;
+
+describe('sales.service', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRepo = mockRepository();
+    service = createSaleService(mockRepo);
+    vi.mocked(mockRepo.getBusinessTaxConfig).mockResolvedValue({
+      defaultTaxRate: decimal(0.15),
+    });
+    vi.mocked(mockRepo.getProductSellContext).mockResolvedValue(CATALOG);
+    vi.mocked(mockRepo.createSale).mockResolvedValue(saleRecord());
+  });
+
+  describe('createSale', () => {
+    it('reads the catalog of the products named, once per distinct product', async () => {
+      await service.createSale(
+        actor(),
+        input({ lines: [line(), line({ productUnitId: 'pu-case' })] }),
+      );
+
+      expect(mockRepo.getProductSellContext).toHaveBeenCalledWith('b-1', ['p-tequila']);
+    });
+
+    it('writes the sale against the acting member and scope', async () => {
+      await service.createSale({ businessId: 'b-1', branchId: 'br-9', memberId: 'm-9' }, input());
+
+      expect(written()).toMatchObject({
+        businessId: 'b-1',
+        branchId: 'br-9',
+        memberId: 'm-9',
+      });
+    });
+
+    it('computes subtotal, tax and total from the lines and the business tax rate', async () => {
+      await service.createSale(actor(), input({ lines: [line({ quantity: 2 })] }));
+
+      // 2 x 950 = 1900; tax 15% = 285; total = 2185
+      expect(written()).toMatchObject({
+        subtotal: 1900,
+        taxRateApplied: 0.15,
+        taxAmount: 285,
+        total: 2185,
+      });
+    });
+
+    it('charges no tax when the business has no rate set', async () => {
+      vi.mocked(mockRepo.getBusinessTaxConfig).mockResolvedValue({ defaultTaxRate: null });
+
+      await service.createSale(actor(), input());
+
+      expect(written()).toMatchObject({ taxRateApplied: 0, taxAmount: 0, total: 1900 });
+    });
+
+    it('rounds money to the precision the columns store', async () => {
+      vi.mocked(mockRepo.getBusinessTaxConfig).mockResolvedValue({
+        defaultTaxRate: decimal(0.075),
+      });
+
+      await service.createSale(actor(), input({ lines: [line({ quantity: 3 })] }));
+
+      // 3 x 950 = 2850; 7.5% = 213.75; total = 3063.75
+      expect(written()).toMatchObject({ subtotal: 2850, taxAmount: 213.75, total: 3063.75 });
+    });
+
+    it('leaves the discount empty', async () => {
+      await service.createSale(actor(), input());
+
+      expect(written().discount).toBeNull();
+    });
+
+    it('defaults the sale datetime to now when none was given', async () => {
+      const before = Date.now();
+      await service.createSale(actor(), input());
+      const after = Date.now();
+
+      const writtenAt = written().saleDatetime.getTime();
+      expect(writtenAt).toBeGreaterThanOrEqual(before);
+      expect(writtenAt).toBeLessThanOrEqual(after);
+    });
+
+    it('honours an explicit sale datetime', async () => {
+      const saleDatetime = new Date('2026-01-10T08:30:00.000Z');
+      await service.createSale(actor(), input({ saleDatetime }));
+
+      expect(written().saleDatetime).toEqual(saleDatetime);
+    });
+
+    it('hands the snapshotted lines to the write, computed before it runs', async () => {
+      await service.createSale(actor(), input({ lines: [line({ quantity: 2 })] }));
+
+      expect(written().lines).toEqual([
+        expect.objectContaining({
+          productName: 'Sierra Tequila 350 ml',
+          soldUnit: 'Bottle',
+          quantity: 2,
+          quantityInStandardUnit: 2,
+          unitPrice: 950,
+        }),
+      ]);
+    });
+
+    it('snapshots each sold unit price from the unit that was chosen', async () => {
+      await service.createSale(actor(), input({ lines: [line({ productUnitId: 'pu-case' })] }));
+
+      expect(written().lines).toEqual([
+        expect.objectContaining({
+          soldUnit: 'Case (12 bottles)',
+          quantity: 2,
+          quantityInStandardUnit: 24,
+          unitPrice: 10800,
+        }),
+      ]);
+    });
+
+    it('rejects a unit that is not one of that product units', async () => {
+      await expect(
+        service.createSale(actor(), input({ lines: [line({ productUnitId: 'pu-elsewhere' })] })),
+      ).rejects.toEqual(appError(ERROR_CODES.BAD_REQUEST, 400));
+      expect(mockRepo.createSale).not.toHaveBeenCalled();
+    });
+
+    it('rejects a unit the product cannot be sold in', async () => {
+      await expect(
+        service.createSale(actor(), input({ lines: [line({ productUnitId: 'pu-notsellable' })] })),
+      ).rejects.toEqual(appError(ERROR_CODES.BAD_REQUEST, 400));
+      expect(mockRepo.createSale).not.toHaveBeenCalled();
+    });
+
+    it('rejects a sellable unit that carries no price', async () => {
+      await expect(
+        service.createSale(actor(), input({ lines: [line({ productUnitId: 'pu-noprice' })] })),
+      ).rejects.toEqual(appError(ERROR_CODES.BAD_REQUEST, 400));
+      expect(mockRepo.createSale).not.toHaveBeenCalled();
+    });
+
+    it('does not write the sale when a line cannot be snapshotted', async () => {
+      await expect(
+        service.createSale(actor(), input({ lines: [line({ productId: 'p-unknown' })] })),
+      ).rejects.toEqual(appError(ERROR_CODES.NOT_FOUND, 404));
+      expect(mockRepo.createSale).not.toHaveBeenCalled();
+    });
+
+    it('rejects an initial payment, which this flow does not record yet', async () => {
+      await expect(
+        service.createSale(actor(), input({ initialPayment: { amount: 500 } })),
+      ).rejects.toEqual(appError(ERROR_CODES.BAD_REQUEST, 400));
+      expect(mockRepo.createSale).not.toHaveBeenCalled();
+    });
+
+    it('answers 404 when the business has vanished', async () => {
+      vi.mocked(mockRepo.getBusinessTaxConfig).mockResolvedValue(null);
+
+      await expect(service.createSale(actor(), input())).rejects.toEqual(
+        appError(ERROR_CODES.NOT_FOUND, 404),
+      );
+      expect(mockRepo.createSale).not.toHaveBeenCalled();
+    });
+
+    it('returns the created sale with its lines, brand and processing member', async () => {
+      const result = await service.createSale(actor(), input());
+
+      expect(result).toMatchObject({
+        id: 'sale-1',
+        invoiceNumber: '1',
+        subtotal: 1900,
+        taxAmount: 285,
+        total: 2185,
+        paymentStatus: 'PENDING',
+        discount: null,
+        processedBy: { id: 'm-1', name: 'me', role: 'OWNER' },
+        servedBy: null,
+        customer: null,
+        payments: [],
+      });
+      expect(result.lines[0]).toMatchObject({
+        productName: 'Sierra Tequila 350 ml',
+        productBrand: 'Sierra',
+        quantity: 2,
+        unitPrice: 950,
+        quantityInStandardUnit: 2,
+      });
+      expect(result.lines[0]?.quantity).toBe(2);
+    });
+  });
+
+  describe('listSales', () => {
+    it('reads the sales of the resolved business and branch', async () => {
+      vi.mocked(mockRepo.listSales).mockResolvedValue([]);
+
+      await service.listSales({ businessId: 'b-1', branchId: 'br-1' });
+
+      expect(mockRepo.listSales).toHaveBeenCalledWith('b-1', 'br-1');
+    });
+
+    it('maps each stored sale to the wire shape', async () => {
+      vi.mocked(mockRepo.listSales).mockResolvedValue([
+        saleRecord(),
+        saleRecord({ id: 'sale-2', invoiceNumber: '2' }),
+      ]);
+
+      const result = await service.listSales({ businessId: 'b-1', branchId: 'br-1' });
+
+      expect(result).toHaveLength(2);
+      expect(result[0]?.id).toBe('sale-1');
+      expect(result[0]?.total).toBe(2185);
+      expect(result[0]?.lines[0]?.unitPrice).toBe(950);
+      expect(result[1]?.id).toBe('sale-2');
+    });
+  });
+});

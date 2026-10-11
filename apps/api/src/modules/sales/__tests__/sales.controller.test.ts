@@ -1,0 +1,109 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { Request, Response } from 'express';
+import { createSaleController } from '../sales.controller.js';
+import type { CreateSaleInput, SaleService } from '../sales.types.js';
+
+const AUTH = {
+  ownerId: 'owner-1',
+  businessId: 'b-1',
+  branchId: 'br-1',
+  memberId: 'm-1',
+  role: 'OWNER',
+} as const;
+
+function input(): CreateSaleInput {
+  return {
+    lines: [{ productId: 'p-tequila', productUnitId: 'pu-bottle', quantity: 2 }],
+  };
+}
+
+const CREATED = { id: 'sale-1', lines: [{ id: 'sl-1' }] };
+
+function mockService(): SaleService {
+  return {
+    createSale: vi.fn(),
+    listSales: vi.fn(),
+  };
+}
+
+describe('sales.controller', () => {
+  let service: SaleService;
+  let controller: ReturnType<typeof createSaleController>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    service = mockService();
+    controller = createSaleController(service);
+  });
+
+  function call(auth: Partial<Request['auth']> | undefined, validBody?: unknown) {
+    const req = { auth, validBody } as unknown as Request;
+    const res = {
+      locals: {},
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn().mockReturnThis(),
+    } as unknown as Response;
+    return { req, res };
+  }
+
+  describe('createSale', () => {
+    it('answers 201 with the sale the service created', async () => {
+      vi.mocked(service.createSale).mockResolvedValue(CREATED as never);
+      const { req, res } = call(AUTH, input());
+
+      await controller.createSale(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith(CREATED);
+    });
+
+    it('hands the service the resolved scope and the body the validation middleware stored', async () => {
+      vi.mocked(service.createSale).mockResolvedValue(CREATED as never);
+      const { req, res } = call(AUTH, input());
+
+      await controller.createSale(req, res);
+
+      expect(service.createSale).toHaveBeenCalledWith(
+        { businessId: 'b-1', branchId: 'br-1', memberId: 'm-1' },
+        input(),
+      );
+    });
+
+    it('lets a rejected service call propagate to the error handler', async () => {
+      vi.mocked(service.createSale).mockRejectedValue(new Error('db down'));
+      const { req, res } = call(AUTH, input());
+
+      await expect(controller.createSale(req, res)).rejects.toThrow('db down');
+      expect(res.json).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('listSales', () => {
+    it('answers 200 with the sales the service listed', async () => {
+      vi.mocked(service.listSales).mockResolvedValue([]);
+      const { req, res } = call(AUTH);
+
+      await controller.listSales(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith([]);
+    });
+
+    it('lists the resolved business and branch', async () => {
+      vi.mocked(service.listSales).mockResolvedValue([]);
+      const { req, res } = call(AUTH);
+
+      await controller.listSales(req, res);
+
+      expect(service.listSales).toHaveBeenCalledWith({ businessId: 'b-1', branchId: 'br-1' });
+    });
+
+    it('lets a rejected service call propagate to the error handler', async () => {
+      vi.mocked(service.listSales).mockRejectedValue(new Error('db down'));
+      const { req, res } = call(AUTH);
+
+      await expect(controller.listSales(req, res)).rejects.toThrow('db down');
+      expect(res.json).not.toHaveBeenCalled();
+    });
+  });
+});

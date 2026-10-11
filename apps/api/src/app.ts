@@ -9,6 +9,7 @@ import {
   productsRoutes,
   unitsRoutes,
   batchRoutes,
+  salesRoutes,
 } from './composition.js';
 
 const app: Express = express();
@@ -38,6 +39,7 @@ app.use('/api', batchRoutes);
 app.use('/api', businessRoutes);
 app.use('/api', ownerRoutes);
 app.use('/api', productsRoutes);
+app.use('/api', salesRoutes);
 
 app.use(errorHandler);
 
