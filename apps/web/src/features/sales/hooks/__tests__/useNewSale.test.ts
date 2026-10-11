@@ -5,6 +5,8 @@ import { useNewSale } from '../useNewSale';
 
 const setup = () => renderHook(() => useNewSale());
 
+const today = () => new Date().toISOString().slice(0, 10);
+
 function line(overrides: Partial<SaleLineFormValues> = {}): SaleLineFormValues {
   return {
     productId: 'prod_tequila',
@@ -15,11 +17,12 @@ function line(overrides: Partial<SaleLineFormValues> = {}): SaleLineFormValues {
 }
 
 describe('useNewSale', () => {
-  it('starts with an empty draft', () => {
+  it('starts with an empty draft dated today', () => {
     const { result } = setup();
 
     expect(result.current.lines).toEqual([]);
     expect(result.current.linesError).toBeUndefined();
+    expect(result.current.form.getValues('saleDatetime')?.slice(0, 10)).toBe(today());
   });
 
   it('adds a sale line', () => {
@@ -52,13 +55,15 @@ describe('useNewSale', () => {
     expect(result.current.lines[0]?.productId).toBe('prod_oil');
   });
 
-  it('resets back to an empty draft', () => {
+  it('resets back to an empty draft dated today', () => {
     const { result } = setup();
 
     act(() => result.current.addLine(line()));
+    act(() => result.current.form.setValue('saleDatetime', '2026-01-01T00:00:00.000Z'));
     act(() => result.current.reset());
 
     expect(result.current.lines).toEqual([]);
+    expect(result.current.form.getValues('saleDatetime')?.slice(0, 10)).toBe(today());
   });
 
   it('reports a form-level error when the sale has no lines', async () => {

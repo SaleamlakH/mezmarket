@@ -4,6 +4,7 @@ import type { CreateSaleInput, SaleFormValues, SaleLineFormValues } from '@mez/t
 import { createSaleSchema } from '@mez/validation';
 
 const freshDraft = (): SaleFormValues => ({
+  saleDatetime: new Date().toISOString(),
   lines: [],
 });
 

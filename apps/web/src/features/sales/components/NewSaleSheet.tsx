@@ -2,15 +2,19 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import type { ProductSummaryResponse, SaleLineFormValues } from '@mez/types';
+import { Controller } from 'react-hook-form';
 import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
 import { Dialog } from '@/components/Dialog';
 import { EmptyState } from '@/components/EmptyState';
+import { Field } from '@/components/Field';
+import { Input } from '@/components/Input';
 import { SectionHeader } from '@/components/SectionHeader';
 import { catalogKeys } from '@/hooks/useCatalogApi';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useProductUploadUrls } from '@/hooks/useProductUploadUrls';
 import { ApiError } from '@/lib/apiClient';
+import { dateInputToInstant, instantToDateInputValue } from '@/lib/format';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
 import { useNewSale } from '../hooks/useNewSale';
 import { useCreateSale } from '../hooks/useSalesApi';
@@ -151,6 +155,29 @@ export function NewSaleSheet({ open, onClose, onRecorded }: NewSaleSheetProps) {
           </div>
 
           {lines.length > 0 && <SaleTotalsCard totals={totals} currency={currency} />}
+
+          <Controller
+            control={form.control}
+            name="saleDatetime"
+            render={({ field, fieldState }) => (
+              <Field
+                id="saleDatetime"
+                label="Sale date"
+                hint="The day this sale happened"
+                error={fieldState.error?.message}
+              >
+                <Input
+                  id="saleDatetime"
+                  type="date"
+                  ref={field.ref}
+                  value={field.value ? instantToDateInputValue(field.value) : ''}
+                  onChange={(event) => field.onChange(dateInputToInstant(event.target.value))}
+                  onBlur={field.onBlur}
+                  error={fieldState.error?.message}
+                />
+              </Field>
+            )}
+          />
 
           {(linesError || recordError) && (
             <div className="flex flex-col gap-2">

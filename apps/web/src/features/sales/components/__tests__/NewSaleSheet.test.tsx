@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { UserEvent } from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -165,6 +165,26 @@ describe('NewSaleSheet', () => {
           }),
         ],
       }),
+    );
+  }, 15_000);
+
+  it('prefills the sale date with today', () => {
+    renderSheet();
+
+    expect(screen.getByLabelText('Sale date')).toHaveValue(new Date().toISOString().slice(0, 10));
+  });
+
+  it('records the sale with the date the user picked', async () => {
+    const user = userEvent.setup();
+    renderSheet();
+
+    await addTequilaLine(user);
+    fireEvent.change(screen.getByLabelText('Sale date'), { target: { value: '2026-01-05' } });
+    await user.click(screen.getByRole('button', { name: 'Record sale' }));
+
+    expect(salesService.createSale).toHaveBeenCalledWith(
+      'b1',
+      expect.objectContaining({ saleDatetime: new Date('2026-01-05T00:00:00.000Z') }),
     );
   }, 15_000);
 
