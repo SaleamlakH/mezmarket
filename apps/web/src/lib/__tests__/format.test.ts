@@ -3,6 +3,7 @@ import {
   datetimeLocalToInstant,
   formatDateTime,
   formatMoney,
+  formatTime,
   instantToDatetimeLocalValue,
   pluralize,
 } from '@/lib/format';
@@ -59,6 +60,15 @@ describe('formatDateTime', () => {
 
     expect(formatted).toMatch(/2026/);
     expect(formatted).toMatch(/\d{1,2}:\d{2}/);
+  });
+});
+
+describe('formatTime', () => {
+  it('renders only the clock time, for a card to stack under the day', () => {
+    const formatted = formatTime('2026-01-05T09:30:00.000Z');
+
+    expect(formatted).toMatch(/\d{1,2}:\d{2}/);
+    expect(formatted).not.toMatch(/2026/);
   });
 });
 

@@ -62,6 +62,18 @@ export function formatDateTime(value: string | Date): string {
 }
 
 /**
+ * Formats a stored instant as the clock time in the viewer's own zone, e.g.
+ * `12:00`. The day is left to `formatDate`, so a card can stack the two.
+ */
+export function formatTime(value: string | Date): string {
+  const date = typeof value === 'string' ? new Date(value) : value;
+  return new Intl.DateTimeFormat(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
+/**
  * Formats a stored ISO 8601 instant as the `YYYY-MM-DDTHH:mm` value a
  * `datetime-local` input expects, in the viewer's own zone — the picker works
  * in local wall clock, so the instant is shown in local terms to be edited.

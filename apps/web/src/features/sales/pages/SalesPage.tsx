@@ -10,7 +10,7 @@ import { RailCard } from '@/components/RailCard';
 import { SectionHeader } from '@/components/SectionHeader';
 import { Toast } from '@/components/Toast';
 import { useCurrency } from '@/hooks/useCurrency';
-import { formatDateTime, formatMoney, pluralize } from '@/lib/format';
+import { formatDate, formatMoney, formatTime, pluralize } from '@/lib/format';
 import { NewSaleSheet } from '../components/NewSaleSheet';
 import { useSales } from '../hooks/useSalesApi';
 
@@ -89,9 +89,10 @@ export function SalesPage() {
                     {sale.itemCount} {pluralize(sale.itemCount, 'item')}
                   </p>
                 </div>
-                <p className="m-0 mt-1 text-xs text-(--text-muted)">
-                  {formatDateTime(sale.saleDatetime)}
-                </p>
+                <div className="mt-1 space-y-0.5 text-xs leading-tight text-(--text-muted)">
+                  <p className="m-0">{formatDate(sale.saleDatetime)}</p>
+                  <p className="m-0 tabular-nums">{formatTime(sale.saleDatetime)}</p>
+                </div>
               </RailCard>
             );
           })}
