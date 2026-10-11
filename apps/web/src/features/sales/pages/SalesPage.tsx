@@ -80,7 +80,7 @@ export function SalesPage() {
                   </>
                 }
               >
-                <p className="m-0 pt-1 text-xs font-bold text-(--text)">{sale.invoiceNumber}</p>
+                <p className="m-0 pt-1 text-xs font-bold text-(--text)"># {sale.invoiceNumber}</p>
                 <div className="mt-0.5">
                   <p className="m-0 font-mono text-base font-semibold whitespace-nowrap tabular-nums text-(--text)">
                     {formatMoney(sale.total, currency)}
