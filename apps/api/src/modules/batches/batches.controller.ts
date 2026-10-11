@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
-import type { BatchActor, BatchScope, BatchService, CreateBatchInput } from './batches.types.js';
+import type { BatchService, CreateBatchInput } from './batches.types.js';
+import type { Actor, Scope } from '../../shared/types/session.types.js';
 
 export type BatchController = {
   createBatch(req: Request, res: Response): Promise<void>;
@@ -8,7 +9,7 @@ export type BatchController = {
 };
 
 /** The scope the authorize middleware resolved onto the request. */
-function actorOf(req: Request): BatchActor {
+function actorOf(req: Request): Actor {
   return {
     businessId: req.auth?.businessId as string,
     branchId: req.auth?.branchId as string,
@@ -16,7 +17,7 @@ function actorOf(req: Request): BatchActor {
   };
 }
 
-function scopeOf(req: Request): BatchScope {
+function scopeOf(req: Request): Scope {
   const { businessId, branchId } = actorOf(req);
   return { businessId, branchId };
 }
