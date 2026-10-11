@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import type { ProductSummaryResponse, SaleLineFormValues } from '@mez/types';
+import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
 import { Dialog } from '@/components/Dialog';
 import { EmptyState } from '@/components/EmptyState';
@@ -41,7 +42,7 @@ export function NewSaleSheet({ open, onClose, onRecorded }: NewSaleSheetProps) {
   const { currentBusiness } = useBusinessContext();
   const businessId = currentBusiness?.id;
   const { data: uploadUrls } = useProductUploadUrls(businessId);
-  const { lines, addLine, updateLine, removeLine, reset } = useNewSale();
+  const { form, lines, linesError, addLine, updateLine, removeLine, reset } = useNewSale();
   const totals = useSaleTotals(lines);
 
   const [step, setStep] = useState<Step>('sale');
@@ -101,7 +102,7 @@ export function NewSaleSheet({ open, onClose, onRecorded }: NewSaleSheetProps) {
   return (
     <Dialog open={open} title={title} onClose={close} size="md">
       {step === 'sale' && (
-        <div className="flex flex-col gap-5 pb-1">
+        <form onSubmit={form.handleSubmit(record)} className="flex flex-col gap-5 pb-1">
           <div>
             <SectionHeader
               title={lines.length === 0 ? 'Sale lines' : `Sale lines (${lines.length})`}
@@ -135,10 +136,12 @@ export function NewSaleSheet({ open, onClose, onRecorded }: NewSaleSheetProps) {
 
           {lines.length > 0 && <SaleTotalsCard totals={totals} currency={currency} />}
 
-          <Button type="button" onClick={record} className="w-full" disabled={lines.length === 0}>
+          {linesError && <Banner tone="danger" title={linesError} />}
+
+          <Button type="submit" className="w-full">
             Record sale
           </Button>
-        </div>
+        </form>
       )}
 
       {step === 'pick' && (

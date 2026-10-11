@@ -1,23 +1,41 @@
-import { useCallback, useState } from 'react';
-import type { SaleLineFormValues } from '@mez/types';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useFieldArray, useForm, useWatch } from 'react-hook-form';
+import type { CreateSaleInput, SaleFormValues, SaleLineFormValues } from '@mez/types';
+import { createSaleSchema } from '@mez/validation';
 
-/** The new-sale draft: an ordered list of lines. Not validated or persisted yet. */
+const freshDraft = (): SaleFormValues => ({
+  lines: [],
+});
+
+function linesRootMessage(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null) return undefined;
+  const nested = error as { root?: { message?: string }; message?: string };
+  return nested.root?.message ?? nested.message;
+}
+
+/** The new-sale draft with form-level validation. */
 export function useNewSale() {
-  const [lines, setLines] = useState<SaleLineFormValues[]>([]);
+  const form = useForm<SaleFormValues, unknown, CreateSaleInput>({
+    resolver: zodResolver(createSaleSchema),
+    defaultValues: freshDraft(),
+    mode: 'onTouched',
+  });
 
-  const addLine = useCallback((line: SaleLineFormValues) => {
-    setLines((previous) => [...previous, line]);
-  }, []);
+  const { append, update, remove } = useFieldArray({
+    control: form.control,
+    name: 'lines',
+  });
 
-  const updateLine = useCallback((index: number, line: SaleLineFormValues) => {
-    setLines((previous) => previous.map((existing, i) => (i === index ? line : existing)));
-  }, []);
+  const lines = useWatch({ control: form.control, name: 'lines' });
+  const { errors } = form.formState;
 
-  const removeLine = useCallback((index: number) => {
-    setLines((previous) => previous.filter((_, i) => i !== index));
-  }, []);
-
-  const reset = useCallback(() => setLines([]), []);
-
-  return { lines, addLine, updateLine, removeLine, reset };
+  return {
+    form,
+    linesError: linesRootMessage(errors.lines),
+    lines,
+    addLine: (line: SaleLineFormValues) => append(line),
+    updateLine: (index: number, line: SaleLineFormValues) => update(index, line),
+    removeLine: (index: number) => remove(index),
+    reset: () => form.reset(freshDraft()),
+  };
 }

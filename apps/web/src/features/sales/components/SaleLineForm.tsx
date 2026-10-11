@@ -37,18 +37,20 @@ export function SaleLineForm({
   onSave,
   onCancel,
 }: SaleLineFormProps) {
-  const { productUnitId, setProductUnitId, quantity, setQuantity, unitPrice, total, save } =
-    useSaleLineForm({ product, units, initialLine, onSave });
+  const {
+    errors,
+    submit,
+    productUnitId,
+    setProductUnitId,
+    quantity,
+    setQuantity,
+    unitPrice,
+    total,
+  } = useSaleLineForm({ product, units, initialLine, onSave });
   const imageUrl = useProductImage(businessId, product.uploadId ?? undefined, uploadUrls);
 
   return (
-    <form
-      onSubmit={(event) => {
-        event.preventDefault();
-        save();
-      }}
-      className="flex flex-col gap-4"
-    >
+    <form onSubmit={submit} className="flex flex-col gap-4">
       <ListCard
         title={product.name}
         meta={`${product.brand ?? 'No brand'} · ${formatQuantity(product.currentSealedStock)} ${product.baseUnitLabel} on hand`}
@@ -57,18 +59,24 @@ export function SaleLineForm({
       />
 
       <div className="grid grid-cols-2 gap-3">
-        <Field id="sale-unit" label="Sold in" hint="Only units this product sells in are listed">
+        <Field
+          id="sale-unit"
+          label="Sold in"
+          hint="Only units this product sells in are listed"
+          error={errors.productUnitId?.message}
+        >
           <Select
             id="sale-unit"
             value={productUnitId}
             placeholder={units.length === 0 ? 'No units available' : 'Select the unit'}
             disabled={units.length === 0}
             onChange={(event) => setProductUnitId(event.currentTarget.value)}
+            error={Boolean(errors.productUnitId)}
             options={units.map((unit) => ({ value: unit.id, label: unit.name }))}
           />
         </Field>
 
-        <Field id="sale-quantity" label="Quantity">
+        <Field id="sale-quantity" label="Quantity" error={errors.quantity?.message}>
           <Input
             id="sale-quantity"
             type="number"
@@ -78,6 +86,7 @@ export function SaleLineForm({
             placeholder="0"
             value={quantity}
             onChange={(event) => setQuantity(event.currentTarget.value)}
+            error={errors.quantity?.message}
           />
         </Field>
       </div>
