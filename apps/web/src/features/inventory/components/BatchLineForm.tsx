@@ -8,10 +8,10 @@ import { Loader } from '@/components/Loader';
 import { Select } from '@/components/Select';
 import { useProductUnits } from '@/hooks/useCatalogApi';
 import {
-  dateInputToInstant,
+  datetimeLocalToInstant,
   formatMoney,
   formatQuantity,
-  instantToDateInputValue,
+  instantToDatetimeLocalValue,
 } from '@/lib/format';
 import { useBatchLineForm } from '../hooks/useBatchLineForm';
 
@@ -156,10 +156,12 @@ export function BatchLineForm({
           >
             <Input
               id="expiryDate"
-              type="date"
+              type="datetime-local"
               ref={field.ref}
-              value={typeof field.value === 'string' ? instantToDateInputValue(field.value) : ''}
-              onChange={(event) => field.onChange(dateInputToInstant(event.target.value))}
+              value={
+                typeof field.value === 'string' ? instantToDatetimeLocalValue(field.value) : ''
+              }
+              onChange={(event) => field.onChange(datetimeLocalToInstant(event.target.value))}
               onBlur={field.onBlur}
               error={fieldState.error?.message}
             />

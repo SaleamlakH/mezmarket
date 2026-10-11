@@ -1,6 +1,6 @@
 import type { StockBatchDetailResponse } from '@mez/types';
 import { RailCard } from '@/components/RailCard';
-import { formatDate, formatMoney } from '@/lib/format';
+import { formatDateTime, formatMoney } from '@/lib/format';
 
 /** How many product lines a tile names before the rest collapse into a count. */
 const PREVIEW_COUNT = 2;
@@ -41,7 +41,7 @@ export function BatchSummaryCard({ batch, currency, className = '' }: BatchSumma
         }
       >
         <p className="m-0 text-xs whitespace-nowrap text-(--text-muted)">
-          {formatDate(batch.batchDate)}
+          {formatDateTime(batch.batchDate)}
         </p>
 
         <div className="mt-1 flex min-h-10 items-start gap-1.5">

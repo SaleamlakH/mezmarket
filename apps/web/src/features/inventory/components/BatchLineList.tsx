@@ -2,7 +2,7 @@ import type { BatchLineFormValues, DownloadUrlsResponse, ProductSummaryResponse 
 import { X } from 'lucide-react';
 import { IconButton } from '@/components/IconButton';
 import { ProductThumb } from '@/components/ProductThumb';
-import { formatDate, formatMoney } from '@/lib/format';
+import { formatDateTime, formatMoney } from '@/lib/format';
 import { useBatchLineList } from '../hooks/useBatchLineList';
 import { lineTotal } from '../lib/lineTotal';
 
@@ -82,7 +82,7 @@ export function BatchLineList({
                 </span>
                 {line.expiryDate && (
                   <span className="mt-1 block text-xs text-(--text-muted)">
-                    Expires {formatDate(line.expiryDate)}
+                    Expires {formatDateTime(line.expiryDate)}
                   </span>
                 )}
               </span>

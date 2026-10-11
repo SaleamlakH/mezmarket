@@ -168,23 +168,29 @@ describe('NewSaleSheet', () => {
     );
   }, 15_000);
 
-  it('prefills the sale date with today', () => {
+  it('prefills the sale date with the current local date and time', () => {
     renderSheet();
 
-    expect(screen.getByLabelText('Sale date')).toHaveValue(new Date().toISOString().slice(0, 10));
+    const now = new Date();
+    const pad = (value: number) => String(value).padStart(2, '0');
+    const localToday = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    const value = (screen.getByLabelText('Sale date') as HTMLInputElement).value;
+
+    expect(value).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
+    expect(value.startsWith(localToday)).toBe(true);
   });
 
-  it('records the sale with the date the user picked', async () => {
+  it('records the sale with the local date and time the user picked, as its instant', async () => {
     const user = userEvent.setup();
     renderSheet();
 
     await addTequilaLine(user);
-    fireEvent.change(screen.getByLabelText('Sale date'), { target: { value: '2026-01-05' } });
+    fireEvent.change(screen.getByLabelText('Sale date'), { target: { value: '2026-01-05T09:30' } });
     await user.click(screen.getByRole('button', { name: 'Record sale' }));
 
     expect(salesService.createSale).toHaveBeenCalledWith(
       'b1',
-      expect.objectContaining({ saleDatetime: new Date('2026-01-05T00:00:00.000Z') }),
+      expect.objectContaining({ saleDatetime: new Date('2026-01-05T09:30') }),
     );
   }, 15_000);
 

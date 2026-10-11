@@ -45,29 +45,45 @@ export function formatDate(value: string | Date): string {
   }).format(date);
 }
 
-/** Formats a `Date` as the `YYYY-MM-DD` value a date input expects. */
-export function toDateInputValue(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+/**
+ * Formats a stored instant as the day and clock time in the viewer's own
+ * zone, e.g. `5 Jan 2026, 12:00`. This is presentation only — the stored
+ * moment is unchanged by where it is read.
+ */
+export function formatDateTime(value: string | Date): string {
+  const date = typeof value === 'string' ? new Date(value) : value;
+  return new Intl.DateTimeFormat(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
 }
 
 /**
- * Formats a stored ISO 8601 instant as the `YYYY-MM-DD` value a date input
- * expects. The instant's own UTC calendar day is shown, so the day never
- * shifts with the viewer's time zone.
+ * Formats a stored ISO 8601 instant as the `YYYY-MM-DDTHH:mm` value a
+ * `datetime-local` input expects, in the viewer's own zone — the picker works
+ * in local wall clock, so the instant is shown in local terms to be edited.
  */
-export function instantToDateInputValue(instant: string): string {
-  return instant.slice(0, 10);
+export function instantToDatetimeLocalValue(instant: string): string {
+  const date = new Date(instant);
+  if (Number.isNaN(date.getTime())) return '';
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return (
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+    `T${pad(date.getHours())}:${pad(date.getMinutes())}`
+  );
 }
 
 /**
- * Records what a date input produces as the UTC instant the batch schemas
- * expect. A blank field stays blank, and a value the date input could not
- * have produced is passed through untouched so validation reports it.
+ * Converts a `datetime-local` value — a local wall-clock date and time with no
+ * zone — into its absolute UTC ISO instant. The browser reads the value in the
+ * viewer's own zone, so the local choice becomes universal here, exactly once.
+ * A blank field stays blank, and a value the input could not have produced is
+ * passed through untouched so validation reports it.
  */
-export function dateInputToInstant(value: string): string {
+export function datetimeLocalToInstant(value: string): string {
   if (value === '') return '';
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toISOString();

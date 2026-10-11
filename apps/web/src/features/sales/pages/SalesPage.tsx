@@ -10,7 +10,7 @@ import { RailCard } from '@/components/RailCard';
 import { SectionHeader } from '@/components/SectionHeader';
 import { Toast } from '@/components/Toast';
 import { useCurrency } from '@/hooks/useCurrency';
-import { formatDate, formatMoney, pluralize } from '@/lib/format';
+import { formatDateTime, formatMoney, pluralize } from '@/lib/format';
 import { NewSaleSheet } from '../components/NewSaleSheet';
 import { useSales } from '../hooks/useSalesApi';
 
@@ -90,7 +90,7 @@ export function SalesPage() {
                   </p>
                 </div>
                 <p className="m-0 mt-1 text-xs text-(--text-muted)">
-                  {formatDate(sale.saleDatetime)}
+                  {formatDateTime(sale.saleDatetime)}
                 </p>
               </RailCard>
             );

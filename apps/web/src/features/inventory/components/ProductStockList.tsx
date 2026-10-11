@@ -15,7 +15,7 @@ import {
   TableRow,
 } from '@/components/Table';
 import { useProductImage } from '@/hooks/useProductImage';
-import { formatDate, formatMoney, formatQuantity } from '@/lib/format';
+import { formatDateTime, formatMoney, formatQuantity } from '@/lib/format';
 
 const STATUS_PRESENTATION: Record<StockStatus, { label: string; tone: BadgeTone }> = {
   OUT_OF_STOCK: { label: 'Out of stock', tone: 'danger' },
@@ -33,7 +33,7 @@ function ExpiryDate({ expiryDate }: { expiryDate: string }) {
 
   return (
     <span className={isSoon ? 'font-semibold text-(--warning)' : undefined}>
-      {formatDate(expiryDate)}
+      {formatDateTime(expiryDate)}
       {isSoon && <span className="sr-only"> — expiring soon</span>}
     </span>
   );

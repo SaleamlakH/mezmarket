@@ -14,7 +14,7 @@ import { catalogKeys } from '@/hooks/useCatalogApi';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useProductUploadUrls } from '@/hooks/useProductUploadUrls';
 import { ApiError } from '@/lib/apiClient';
-import { dateInputToInstant, instantToDateInputValue } from '@/lib/format';
+import { datetimeLocalToInstant, instantToDatetimeLocalValue } from '@/lib/format';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
 import { useNewSale } from '../hooks/useNewSale';
 import { useCreateSale } from '../hooks/useSalesApi';
@@ -163,15 +163,15 @@ export function NewSaleSheet({ open, onClose, onRecorded }: NewSaleSheetProps) {
               <Field
                 id="saleDatetime"
                 label="Sale date"
-                hint="The day this sale happened"
+                hint="When this sale happened"
                 error={fieldState.error?.message}
               >
                 <Input
                   id="saleDatetime"
-                  type="date"
+                  type="datetime-local"
                   ref={field.ref}
-                  value={field.value ? instantToDateInputValue(field.value) : ''}
-                  onChange={(event) => field.onChange(dateInputToInstant(event.target.value))}
+                  value={field.value ? instantToDatetimeLocalValue(field.value) : ''}
+                  onChange={(event) => field.onChange(datetimeLocalToInstant(event.target.value))}
                   onBlur={field.onBlur}
                   error={fieldState.error?.message}
                 />
