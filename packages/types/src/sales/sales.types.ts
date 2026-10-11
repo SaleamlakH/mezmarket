@@ -163,6 +163,24 @@ export type SaleSummaryResponse = Pick<
 };
 
 /**
+ * Domain form of a sale-history row, using `Date` for the timestamp. Mirrors
+ * `SaleSummaryResponse` the way `SaleDetailResult` mirrors `SaleDetailResponse`:
+ * the read carries the header fields and a light preview of the lines (their
+ * count and product names), never the lines or payments themselves.
+ */
+export type SaleSummaryResult = Pick<
+  Sale,
+  'id' | 'invoiceNumber' | 'saleDatetime' | 'total' | 'paymentStatus' | 'voidStatus'
+> & {
+  itemCount: number;
+  productNames: string[];
+  processedBy: BusinessMemberSummaryResponse;
+  servedBy: BusinessMemberSummaryResponse | null;
+  /** Inline summary of the attached customer; deliberately not a named type. */
+  customer: { id: string; name: string } | null;
+};
+
+/**
  * The invoice view. Built only from what is on the sale plus the business's
  * display settings, never from current product data, so it never changes
  * meaning after the fact.
