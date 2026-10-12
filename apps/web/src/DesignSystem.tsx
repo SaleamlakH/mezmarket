@@ -286,7 +286,8 @@ function ButtonsPanel() {
                 <Button
                   key="sh"
                   variant="secondary"
-                  className="border-(--text-muted) bg-(--surface-primary)"
+                  style={{ backgroundColor: 'var(--surface-primary)' }}
+                  className="border-(--text-muted)"
                 >
                   Button
                 </Button>,
@@ -299,7 +300,11 @@ function ButtonsPanel() {
                 <Button key="o" variant="outline">
                   Button
                 </Button>,
-                <Button key="oh" variant="outline" className="border-(--accent) text-(--accent)">
+                <Button
+                  key="oh"
+                  variant="outline"
+                  style={{ backgroundColor: 'var(--accent)', color: '#fff' }}
+                >
                   Button
                 </Button>,
                 <Button key="od" disabled>
@@ -331,6 +336,21 @@ function ButtonsPanel() {
           ))}
         </tbody>
       </table>
+      <PanelSub>Sizes · pill & square</PanelSub>
+      <div className="flex flex-wrap items-start gap-2">
+        <Button size="sm" shape="pill">
+          <Plus size={16} aria-hidden /> Add
+        </Button>
+        <Button size="md" shape="pill">
+          <Plus size={16} aria-hidden /> Add
+        </Button>
+        <Button size="sm" shape="square" aria-label="Add">
+          <Plus size={16} aria-hidden />
+        </Button>
+        <Button size="md" shape="square" aria-label="Add">
+          <Plus size={16} aria-hidden />
+        </Button>
+      </div>
       <PanelSub>Category chips</PanelSub>
       <div className="flex flex-wrap gap-2">
         <Chip active>Products +</Chip>
@@ -360,7 +380,16 @@ function ControlsPanel() {
       <PanelSub>Search + filter</PanelSub>
       <SearchInput placeholder="Search batch and items" onFilter={() => {}} />
       <PanelSub>Quantity stepper</PanelSub>
-      <Stepper value={count} onChange={setCount} />
+      <div className="flex flex-col self-start gap-5">
+        <Stepper value={count} onChange={setCount} />
+        <Stepper size="sm" value={count} onChange={setCount} />
+        <Stepper size="sm" variant="text" value={count} onChange={setCount} />
+      </div>
+      <div className="mt-1.5 grid grid-cols-3 gap-2 font-mono text-[10px] text-(--text-muted)">
+        <span>field · md</span>
+        <span>field · sm</span>
+        <span>text · sm</span>
+      </div>
       <PanelSub>Status toggle</PanelSub>
       <StatusToggle
         options={[
@@ -471,6 +500,7 @@ function CardsPanel() {
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
         <RailCard
           variant="thumbnail"
+          thumbVariant="wide"
           className="shadow-(--shadow-md)"
           badge={<Badge tone="warning">Low</Badge>}
           badgePosition="overlay"
