@@ -5,7 +5,7 @@ import type { ProductSummaryResponse, SaleLineFormValues } from '@mez/types';
 import { Controller } from 'react-hook-form';
 import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
-import { Dialog } from '@/components/Dialog';
+import { Dialog, DialogHeader } from '@/components/Dialog';
 import { EmptyState } from '@/components/EmptyState';
 import { Field } from '@/components/Field';
 import { Input } from '@/components/Input';
@@ -120,7 +120,8 @@ export function NewSaleSheet({ open, onClose, onRecorded }: NewSaleSheetProps) {
   }
 
   return (
-    <Dialog open={open} title={title} onClose={close} size="md">
+    <Dialog open={open} onClose={close} size="md">
+      <DialogHeader title={title} onClose={close} />
       {step === 'sale' && (
         <form onSubmit={record} className="flex flex-col gap-5 pb-1">
           <div>

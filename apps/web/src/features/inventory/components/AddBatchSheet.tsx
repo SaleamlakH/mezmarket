@@ -4,7 +4,7 @@ import { Plus } from 'lucide-react';
 import type { BatchLineFormValues, ProductSummaryResponse } from '@mez/types';
 import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
-import { Dialog } from '@/components/Dialog';
+import { Dialog, DialogHeader } from '@/components/Dialog';
 import { EmptyState } from '@/components/EmptyState';
 import { SectionHeader } from '@/components/SectionHeader';
 import { catalogKeys } from '@/hooks/useCatalogApi';
@@ -125,7 +125,8 @@ export function AddBatchSheet({ open, onClose, onRecorded }: AddBatchSheetProps)
   }
 
   return (
-    <Dialog open={open} title={title} onClose={close} size="md">
+    <Dialog open={open} onClose={close} size="md">
+      <DialogHeader title={title} onClose={close} />
       {step === 'batch' && (
         <form onSubmit={confirm} className="flex flex-col gap-5 pb-1">
           <div>
