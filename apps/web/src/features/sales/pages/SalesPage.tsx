@@ -7,18 +7,32 @@ import { LoadingState } from '@/components/LoadingState';
 import { SectionHeader } from '@/components/SectionHeader';
 import { Toast } from '@/components/Toast';
 import { useCurrency } from '@/hooks/useCurrency';
+import { useProductUploadUrls } from '@/hooks/useProductUploadUrls';
+import { useBusinessContext } from '@/providers/business/useBusinessContext';
 import { NewSaleSheet } from '../components/NewSaleSheet';
 import { ProductSaleCard } from '../components/ProductSaleCard';
 import { SaleSummaryCard } from '../components/SaleSummaryCard';
 import { saleProductsFixture } from '../fixtures/saleFlow';
 import { useSales } from '../hooks/useSalesApi';
+import { SaleDraftProvider } from '../state/SaleDraftProvider';
 
 type ProductsStatus = 'loading' | 'error' | 'empty' | 'ready';
 const PRODUCTS_STATUS: ProductsStatus = 'ready';
 
 export function SalesPage() {
+  return (
+    <SaleDraftProvider>
+      <SalesPageContent />
+    </SaleDraftProvider>
+  );
+}
+
+function SalesPageContent() {
   const { isPending, isError, refetch, data: sales = [] } = useSales();
   const currency = useCurrency();
+  const { currentBusiness } = useBusinessContext();
+  const businessId = currentBusiness?.id;
+  const { data: uploadUrls } = useProductUploadUrls(businessId);
   const [isNewSaleOpen, setIsNewSaleOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -74,9 +88,15 @@ export function SalesPage() {
           description="Add a product to your catalog to sell it here."
         />
       ) : (
-        <div className="grid grid-cols-2 gap-2.5 min-[480px]:grid-cols-3 min-[640px]:grid-cols-4 md:gap-3.5">
+        <div className="grid grid-cols-2 gap-2.5 min-[480px]:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] md:grid-cols-[repeat(auto-fill,minmax(200px,1fr))] sm:gap-3.5">
           {saleProductsFixture.map((product) => (
-            <ProductSaleCard key={product.id} product={product} />
+            <ProductSaleCard
+              key={product.id}
+              product={product}
+              currency={currency}
+              businessId={businessId}
+              uploadUrls={uploadUrls}
+            />
           ))}
         </div>
       )}
