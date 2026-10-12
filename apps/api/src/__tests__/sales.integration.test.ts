@@ -452,8 +452,13 @@ describe('sales.integration', () => {
       expect(res.status).toBe(200);
       expect(salesRepository.listSales).toHaveBeenCalledWith('b-1', 'br-1');
       expect(res.body).toHaveLength(1);
-      expect(res.body[0]).toMatchObject({ id: 'sale-1', invoiceNumber: '1', total: 2185 });
-      expect(res.body[0].productNames).toEqual(['Sierra Tequila 350 ml']);
+      expect(res.body[0]).toMatchObject({
+        id: 'sale-1',
+        invoiceNumber: '1',
+        total: 2185,
+        itemCount: 1,
+        productNames: ['Sierra Tequila 350 ml'],
+      });
     });
 
     it.each(['OWNER', 'MANAGER', 'CASHIER', 'SERVER'] as const)(
