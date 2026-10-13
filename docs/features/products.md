@@ -247,10 +247,11 @@ rather than importing this one.
 
 ## Limitations — custom units
 
-- **A unit cannot be changed or removed.** They exist only inside the request
-  that creates the product: no renaming, no retyping a rate, no deletion. The
-  PRD treats units as mutable configuration, so this is a gap rather than a
-  decision.
+- **A conversion fact cannot be changed and a unit cannot be removed.** They
+  exist only inside the request that creates the product: no rate changes, no
+  deletion. Display names, by contrast, are freely renamable — a label never
+  enters the math. The PRD treats units as mutable configuration, so the locked
+  conversion facts are a gap rather than a decision.
 
 - **Names are per product.** The same word on two products is two unrelated
   units, and there is no template library yet (PRD Phase 3) — a business sets up
@@ -263,6 +264,13 @@ rather than importing this one.
 
 - **Unit order is not stable.** Creation answers in submission order, reads sort
   by role then name — harmless only as long as nothing depends on it.
+
+- **A wrong rate has nowhere to be corrected.** The Pack Relation and each custom
+  unit's basis and factor are trusted as entered — the system has no independent
+  ground truth to catch a wrong multiplier, and a mistake silently corrupts
+  every stock and cost figure derived from it (names are renamable; these
+  conversion facts are not). See
+  [../unit-system-architecture.md](../unit-system-architecture.md).
 
 ## Error concepts
 
@@ -320,3 +328,5 @@ handler; see [error-handling.md](error-handling.md).
   `Attachment` entities.
 - [../file-transfer-architecture.md](../file-transfer-architecture.md) — how
   files are uploaded, downloaded and tracked.
+- [../unit-system-architecture.md](../unit-system-architecture.md) — the unit
+  model, the conversion math, and the integrity limits of the schema.

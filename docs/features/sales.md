@@ -222,3 +222,9 @@ Client -> Authorization: Bearer <jwt>
 - Already voided: a void or payment names a sale that is already voided.
 
 Every failure is delivered as a structured error envelope by the global error handler; see [error-handling.md](error-handling.md).
+
+## Cross-references
+
+- [../unit-system-architecture.md](../unit-system-architecture.md) — how a sale
+  line's snapshotted standard-unit figure is computed, and why the schema cannot
+  detect a wrong unit or quantity entered at sale time.
