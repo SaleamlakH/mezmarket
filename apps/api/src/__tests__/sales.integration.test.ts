@@ -20,8 +20,9 @@ const { verifyJwt, authRepository, businessRepository, salesRepository } = vi.ho
     updateForOwner: vi.fn(),
   } satisfies BusinessRepository,
   salesRepository: {
-    getBusinessTaxConfig: vi.fn(),
+    getBusinessSaleConfig: vi.fn(),
     getProductSellContext: vi.fn(),
+    getStockLots: vi.fn(),
     createSale: vi.fn(),
     listSales: vi.fn(),
   } satisfies SaleRepository,
@@ -47,6 +48,7 @@ const PRODUCT = {
   id: 'p-tequila',
   businessId: 'b-1',
   name: 'Sierra Tequila 350 ml',
+  currentSealedStock: decimal(100),
   productUnits: [
     {
       id: 'pu-bottle',
@@ -133,8 +135,12 @@ async function authenticate(role: 'OWNER' | 'MANAGER' | 'CASHIER' | 'SERVER' = '
 describe('sales.integration', () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    salesRepository.getBusinessTaxConfig.mockResolvedValue({ defaultTaxRate: decimal(0.15) });
+    salesRepository.getBusinessSaleConfig.mockResolvedValue({
+      defaultTaxRate: decimal(0.15),
+      allowNegativeStock: true,
+    });
     salesRepository.getProductSellContext.mockResolvedValue([PRODUCT]);
+    salesRepository.getStockLots.mockResolvedValue([]);
     salesRepository.createSale.mockResolvedValue(SALE_RECORD);
     salesRepository.listSales.mockResolvedValue([SALE_RECORD]);
   });
@@ -271,6 +277,89 @@ describe('sales.integration', () => {
       expect(res.body.error.details).toMatchObject({ initialPayment: expect.any(String) });
       expect(salesRepository.createSale).not.toHaveBeenCalled();
     });
+
+    it('draws the sold quantity from the oldest lot first, splitting when it runs out', async () => {
+      await authenticate();
+      salesRepository.getProductSellContext.mockResolvedValue([
+        { ...PRODUCT, currentSealedStock: decimal(100) },
+      ]);
+      salesRepository.getStockLots.mockResolvedValue([
+        {
+          id: 'lot-old',
+          productId: 'p-tequila',
+          purchaseUnitCost: decimal(600),
+          quantityRemaining: decimal(1),
+        },
+        {
+          id: 'lot-new',
+          productId: 'p-tequila',
+          purchaseUnitCost: decimal(700),
+          quantityRemaining: decimal(10),
+        },
+      ]);
+
+      const res = await request(app)
+        .post('/api/businesses/b-1/sales')
+        .set('Authorization', 'Bearer token')
+        .send(BODY);
+
+      expect(res.status).toBe(201);
+      expect(salesRepository.createSale).toHaveBeenCalledWith(
+        expect.objectContaining({
+          stockDecrements: [{ productId: 'p-tequila', amount: 2 }],
+          lotDecrements: [
+            { stockBatchLineId: 'lot-old', quantity: 1 },
+            { stockBatchLineId: 'lot-new', quantity: 1 },
+          ],
+          lines: [
+            expect.objectContaining({
+              quantityInBaseUnit: 2,
+              allocations: [
+                { stockBatchLineId: 'lot-old', quantityPulled: 1, unitCost: 600 },
+                { stockBatchLineId: 'lot-new', quantityPulled: 1, unitCost: 700 },
+              ],
+            }),
+          ],
+        }),
+      );
+    });
+
+    it('blocks a sale that would oversell when the business disallows negative stock', async () => {
+      await authenticate();
+      salesRepository.getBusinessSaleConfig.mockResolvedValue({
+        defaultTaxRate: decimal(0.15),
+        allowNegativeStock: false,
+      });
+      salesRepository.getProductSellContext.mockResolvedValue([
+        { ...PRODUCT, currentSealedStock: decimal(1) },
+      ]);
+
+      const res = await request(app)
+        .post('/api/businesses/b-1/sales')
+        .set('Authorization', 'Bearer token')
+        .send(BODY);
+
+      expect(res.status).toBe(400);
+      expect(res.body).toMatchObject({ error: { code: ERROR_CODES.BAD_REQUEST } });
+      expect(salesRepository.createSale).not.toHaveBeenCalled();
+    });
+
+    it('lets a sale oversell when the business allows negative stock', async () => {
+      await authenticate();
+      salesRepository.getProductSellContext.mockResolvedValue([
+        { ...PRODUCT, currentSealedStock: decimal(1) },
+      ]);
+
+      const res = await request(app)
+        .post('/api/businesses/b-1/sales')
+        .set('Authorization', 'Bearer token')
+        .send(BODY);
+
+      expect(res.status).toBe(201);
+      expect(salesRepository.createSale).toHaveBeenCalledWith(
+        expect.objectContaining({ stockDecrements: [{ productId: 'p-tequila', amount: 2 }] }),
+      );
+    });
   });
 
   describe('GET /api/businesses/:businessId/sales', () => {
@@ -292,7 +381,7 @@ describe('sales.integration', () => {
       expect(salesRepository.listSales).toHaveBeenCalledWith('b-1', 'br-1');
       expect(res.body).toHaveLength(1);
       expect(res.body[0]).toMatchObject({ id: 'sale-1', invoiceNumber: '1', total: 2185 });
-      expect(res.body[0].lines[0]).toMatchObject({ soldUnit: 'Bottle', unitPrice: 950 });
+      expect(res.body[0].productNames).toEqual(['Sierra Tequila 350 ml']);
     });
 
     it.each(['OWNER', 'MANAGER', 'CASHIER', 'SERVER'] as const)(

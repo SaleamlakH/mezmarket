@@ -1,5 +1,11 @@
 import type { Prisma, PrismaClient } from '../../../generated/prisma/client.js';
-import type { CreateSaleCommand, SaleRecordWithDetail, SaleRepository } from './sales.types.js';
+import type {
+  CreateSaleCommand,
+  ResolvedSaleLine,
+  SaleLineAllocation,
+  SaleRecordWithDetail,
+  SaleRepository,
+} from './sales.types.js';
 
 const memberSummarySelect = { id: true, name: true, role: true } as const;
 
@@ -14,10 +20,10 @@ function isUniqueViolation(error: unknown): boolean {
 
 export function createSaleRepository(prisma: PrismaClient): SaleRepository {
   return {
-    async getBusinessTaxConfig(businessId) {
+    async getBusinessSaleConfig(businessId) {
       const business = await prisma.business.findUnique({
         where: { id: businessId },
-        select: { defaultTaxRate: true },
+        select: { defaultTaxRate: true, allowNegativeStock: true },
       });
 
       return business ?? null;
@@ -30,6 +36,7 @@ export function createSaleRepository(prisma: PrismaClient): SaleRepository {
           id: true,
           businessId: true,
           name: true,
+          currentSealedStock: true,
           productUnits: {
             select: {
               id: true,
@@ -48,6 +55,27 @@ export function createSaleRepository(prisma: PrismaClient): SaleRepository {
             },
           },
         },
+      });
+    },
+
+    /**
+     * The lots still holding stock for the named products, oldest purchase first,
+     * so a sale draws the earliest one down before the next.
+     */
+    async getStockLots(businessId, productIds) {
+      return prisma.stockBatchLine.findMany({
+        where: {
+          productId: { in: productIds },
+          quantityRemaining: { gt: 0 },
+          stockBatch: { businessId },
+        },
+        select: {
+          id: true,
+          productId: true,
+          purchaseUnitCost: true,
+          quantityRemaining: true,
+        },
+        orderBy: [{ stockBatch: { batchDate: 'asc' } }, { createdAt: 'asc' }],
       });
     },
 
@@ -81,7 +109,7 @@ export function createSaleRepository(prisma: PrismaClient): SaleRepository {
   };
 }
 
-/** Records a sale and its lines in one transaction. */
+/** Records a sale, its lines and the stock each line draws, in one transaction. */
 async function writeSale(
   tx: Prisma.TransactionClient,
   command: CreateSaleCommand,
@@ -114,10 +142,75 @@ async function writeSale(
     },
   });
 
-  const lines = await tx.saleLine.createManyAndReturn({
-    data: command.lines.map((line) => ({ saleId: sale.id, ...line })),
-    include: { product: { select: { brand: true } } },
-  });
+  // Each line and the lots it drew from are written together: the FK on every
+  // frozen cost row points at the just-created line, so nothing needs matching.
+  const lines = await Promise.all(
+    command.lines.map(({ allocations, quantityInBaseUnit, ...line }) => {
+      void quantityInBaseUnit; // Stock is drawn per product, not stored on the line.
+      return tx.saleLine.create({
+        data: toLineCreateData(sale.id, line, allocations),
+        include: { product: { select: { brand: true } } },
+      });
+    }),
+  );
+
+  await Promise.all([decrementLotStock(tx, command), decrementProductStock(tx, command)]);
 
   return { ...sale, lines, payments: [] };
+}
+
+/**
+ * The create payload for one sale line, with its FIFO draws nested as cost
+ * rows. Oversold quantity has no lot behind it, so nothing is nested for it.
+ */
+function toLineCreateData(
+  saleId: string,
+  line: Omit<ResolvedSaleLine, 'allocations' | 'quantityInBaseUnit'>,
+  allocations: SaleLineAllocation[],
+): Prisma.SaleLineUncheckedCreateInput {
+  const data: Prisma.SaleLineUncheckedCreateInput = { saleId, ...line };
+
+  if (allocations.length > 0) {
+    data.costs = {
+      createMany: {
+        data: allocations.map(({ stockBatchLineId, quantityPulled, unitCost }) => ({
+          stockBatchLineId,
+          quantityPulled,
+          unitCost,
+        })),
+      },
+    };
+  }
+
+  return data;
+}
+
+/** Takes each drawn lot's remaining quantity down by the summed draws. */
+async function decrementLotStock(
+  tx: Prisma.TransactionClient,
+  command: CreateSaleCommand,
+): Promise<void> {
+  await Promise.all(
+    command.lotDecrements.map((decrement) =>
+      tx.stockBatchLine.update({
+        where: { id: decrement.stockBatchLineId },
+        data: { quantityRemaining: { decrement: decrement.quantity } },
+      }),
+    ),
+  );
+}
+
+/** Takes each product's sealed stock down by what the sale drew from it. */
+async function decrementProductStock(
+  tx: Prisma.TransactionClient,
+  command: CreateSaleCommand,
+): Promise<void> {
+  await Promise.all(
+    command.stockDecrements.map((decrement) =>
+      tx.product.update({
+        where: { id: decrement.productId },
+        data: { currentSealedStock: { decrement: decrement.amount } },
+      }),
+    ),
+  );
 }

@@ -37,13 +37,29 @@ export type ProductSellContext = {
   id: string;
   businessId: string;
   name: string;
+  currentSealedStock: StoredDecimal;
   productUnits: ProductUnitSellContext[];
 };
 
 /**
- * A sale line with its unit snapshots resolved and its price taken, ready to be
- * written. Everything here is captured at the moment of sale, so a later rename
- * or repricing never rewrites a past line.
+ * One lot draw a sale line makes. A line that outruns the oldest lot keeps
+ * allocating against the next one, so a line can hold several of these.
+ * `unitCost` is the lot's cost at the moment of the draw, frozen so a later
+ * correction to the batch never rewrites the sale.
+ */
+export type SaleLineAllocation = {
+  stockBatchLineId: string;
+  quantityPulled: number;
+  unitCost: number;
+};
+
+/**
+ * A sale line with its unit snapshots resolved, its price taken and its lot
+ * draws allocated, ready to be written. Everything here is captured at the
+ * moment of sale, so a later rename or repricing never rewrites a past line.
+ *
+ * `quantityInBaseUnit` is what the line takes out of the product's sealed
+ * stock; `allocations` say which lots that draw came from.
  */
 export type ResolvedSaleLine = {
   productId: string;
@@ -53,14 +69,47 @@ export type ResolvedSaleLine = {
   quantity: number;
   standardUnit: string;
   quantityInStandardUnit: number;
+  quantityInBaseUnit: number;
   resolvedStandardUnitId: string;
   unitPrice: number;
+  allocations: SaleLineAllocation[];
 };
 
 /**
- * Everything the create write needs, once the service has resolved the lines
- * and worked out the totals. The business, branch and member come from the
- * resolved session scope, never the request body.
+ * A purchase lot still holding stock, oldest first, as the FIFO allocation
+ * walks it. Remaining is in the product's base unit.
+ */
+export type StockLot = {
+  id: string;
+  productId: string;
+  purchaseUnitCost: StoredDecimal;
+  quantityRemaining: StoredDecimal;
+};
+
+/**
+ * One product's sealed-stock movement from a sale. Sealed stock is counted per
+ * product, so the several lines one product contributes are added up into a
+ * single decrement rather than decremented line by line.
+ */
+export type StockDecrement = {
+  productId: string;
+  amount: number;
+};
+
+/**
+ * One lot's remaining-quantity movement from a sale, in the product's base
+ * unit. The several allocations a lot receives are added up into a single
+ * decrement, so the write moves each lot once.
+ */
+export type StockLotDecrement = {
+  stockBatchLineId: string;
+  quantity: number;
+};
+
+/**
+ * Everything the create write needs, once the service has resolved the lines,
+ * allocated their stock and worked out the totals. The business, branch and
+ * member come from the resolved session scope, never the request body.
  */
 export type CreateSaleCommand = {
   businessId: string;
@@ -73,11 +122,14 @@ export type CreateSaleCommand = {
   taxAmount: number;
   total: number;
   lines: ResolvedSaleLine[];
+  stockDecrements: StockDecrement[];
+  lotDecrements: StockLotDecrement[];
 };
 
-/** The business tax setting a sale snapshots at the moment it is created. */
-export type BusinessTaxConfig = {
+/** The business settings a sale snapshots at the moment it is created. */
+export type BusinessSaleConfig = {
   defaultTaxRate: StoredDecimal | null;
+  allowNegativeStock: boolean;
 };
 
 export type SaleLineRecordWithProduct = SaleLineRecord & {
@@ -112,8 +164,9 @@ export type SaleRecordSummary = SaleRecord & {
 };
 
 export type SaleRepository = {
-  getBusinessTaxConfig(businessId: string): Promise<BusinessTaxConfig | null>;
+  getBusinessSaleConfig(businessId: string): Promise<BusinessSaleConfig | null>;
   getProductSellContext(businessId: string, productIds: string[]): Promise<ProductSellContext[]>;
+  getStockLots(businessId: string, productIds: string[]): Promise<StockLot[]>;
   createSale(command: CreateSaleCommand): Promise<SaleRecordWithDetail>;
   listSales(businessId: string, branchId: string): Promise<SaleRecordSummary[]>;
 };

@@ -8,14 +8,16 @@ import type {
   SaleRecordWithDetail,
   SaleRepository,
   SaleService,
+  StockLot,
 } from '../sales.types.js';
 import type { Prisma } from '../../../../generated/prisma/client.js';
 import { ERROR_CODES } from '../../../shared/errors/app-error.js';
 
 function mockRepository(): SaleRepository {
   return {
-    getBusinessTaxConfig: vi.fn(),
+    getBusinessSaleConfig: vi.fn(),
     getProductSellContext: vi.fn(),
+    getStockLots: vi.fn(),
     createSale: vi.fn(),
     listSales: vi.fn(),
   };
@@ -49,6 +51,7 @@ const TEQUILA: ProductSellContext = {
   id: 'p-tequila',
   businessId: 'b-1',
   name: 'Sierra Tequila 350 ml',
+  currentSealedStock: decimal(100),
   productUnits: [
     unit(),
     unit({
@@ -90,6 +93,17 @@ function line(overrides: Partial<CreateSaleInput['lines'][number]> = {}) {
 function input(overrides: Partial<CreateSaleInput> = {}): CreateSaleInput {
   return {
     lines: [line()],
+    ...overrides,
+  };
+}
+
+/** A purchase lot still holding stock, as the FIFO walk reads it. */
+function lot(overrides: Partial<StockLot> = {}): StockLot {
+  return {
+    id: 'lot-1',
+    productId: 'p-tequila',
+    purchaseUnitCost: decimal(600),
+    quantityRemaining: decimal(10),
     ...overrides,
   };
 }
@@ -173,10 +187,12 @@ describe('sales.service', () => {
     vi.clearAllMocks();
     mockRepo = mockRepository();
     service = createSaleService(mockRepo);
-    vi.mocked(mockRepo.getBusinessTaxConfig).mockResolvedValue({
+    vi.mocked(mockRepo.getBusinessSaleConfig).mockResolvedValue({
       defaultTaxRate: decimal(0.15),
+      allowNegativeStock: true,
     });
     vi.mocked(mockRepo.getProductSellContext).mockResolvedValue(CATALOG);
+    vi.mocked(mockRepo.getStockLots).mockResolvedValue([]);
     vi.mocked(mockRepo.createSale).mockResolvedValue(saleRecord());
   });
 
@@ -213,7 +229,10 @@ describe('sales.service', () => {
     });
 
     it('charges no tax when the business has no rate set', async () => {
-      vi.mocked(mockRepo.getBusinessTaxConfig).mockResolvedValue({ defaultTaxRate: null });
+      vi.mocked(mockRepo.getBusinessSaleConfig).mockResolvedValue({
+        defaultTaxRate: null,
+        allowNegativeStock: true,
+      });
 
       await service.createSale(actor(), input());
 
@@ -221,8 +240,9 @@ describe('sales.service', () => {
     });
 
     it('rounds money to the precision the columns store', async () => {
-      vi.mocked(mockRepo.getBusinessTaxConfig).mockResolvedValue({
+      vi.mocked(mockRepo.getBusinessSaleConfig).mockResolvedValue({
         defaultTaxRate: decimal(0.075),
+        allowNegativeStock: true,
       });
 
       await service.createSale(actor(), input({ lines: [line({ quantity: 3 })] }));
@@ -317,7 +337,7 @@ describe('sales.service', () => {
     });
 
     it('answers 404 when the business has vanished', async () => {
-      vi.mocked(mockRepo.getBusinessTaxConfig).mockResolvedValue(null);
+      vi.mocked(mockRepo.getBusinessSaleConfig).mockResolvedValue(null);
 
       await expect(service.createSale(actor(), input())).rejects.toEqual(
         appError(ERROR_CODES.NOT_FOUND, 404),
@@ -349,6 +369,113 @@ describe('sales.service', () => {
         quantityInStandardUnit: 2,
       });
       expect(result.lines[0]?.quantity).toBe(2);
+    });
+
+    it('reads the lots of the products named, oldest first', async () => {
+      await service.createSale(actor(), input());
+
+      expect(mockRepo.getStockLots).toHaveBeenCalledWith('b-1', ['p-tequila']);
+    });
+
+    it('allocates a line against the oldest lot first', async () => {
+      vi.mocked(mockRepo.getStockLots).mockResolvedValue([
+        lot({ id: 'lot-old', purchaseUnitCost: decimal(600), quantityRemaining: decimal(10) }),
+        lot({ id: 'lot-new', purchaseUnitCost: decimal(700), quantityRemaining: decimal(10) }),
+      ]);
+
+      await service.createSale(actor(), input({ lines: [line({ quantity: 2 })] }));
+
+      expect(written().lines[0]?.allocations).toEqual([
+        { stockBatchLineId: 'lot-old', quantityPulled: 2, unitCost: 600 },
+      ]);
+    });
+
+    it('splits a line across lots when the oldest runs out', async () => {
+      vi.mocked(mockRepo.getStockLots).mockResolvedValue([
+        lot({ id: 'lot-old', purchaseUnitCost: decimal(600), quantityRemaining: decimal(1) }),
+        lot({ id: 'lot-new', purchaseUnitCost: decimal(700), quantityRemaining: decimal(10) }),
+      ]);
+
+      await service.createSale(actor(), input({ lines: [line({ quantity: 3 })] }));
+
+      expect(written().lines[0]?.allocations).toEqual([
+        { stockBatchLineId: 'lot-old', quantityPulled: 1, unitCost: 600 },
+        { stockBatchLineId: 'lot-new', quantityPulled: 2, unitCost: 700 },
+      ]);
+      expect(written().lotDecrements).toEqual([
+        { stockBatchLineId: 'lot-old', quantity: 1 },
+        { stockBatchLineId: 'lot-new', quantity: 2 },
+      ]);
+    });
+
+    it("sums one lot's draws across a product's lines into a single decrement", async () => {
+      vi.mocked(mockRepo.getStockLots).mockResolvedValue([
+        lot({ id: 'lot-1', quantityRemaining: decimal(50) }),
+      ]);
+
+      await service.createSale(
+        actor(),
+        input({ lines: [line({ quantity: 2 }), line({ quantity: 3 })] }),
+      );
+
+      expect(written().lotDecrements).toEqual([{ stockBatchLineId: 'lot-1', quantity: 5 }]);
+    });
+
+    it('takes the drawn base quantity off the product, summed across its lines', async () => {
+      await service.createSale(
+        actor(),
+        input({ lines: [line({ quantity: 2 }), line({ productUnitId: 'pu-case', quantity: 1 })] }),
+      );
+
+      // 2 bottles + 1 case (12 bottles) = 14 base units.
+      expect(written().stockDecrements).toEqual([{ productId: 'p-tequila', amount: 14 }]);
+    });
+
+    it('blocks a sale that would take stock below zero when the business disallows it', async () => {
+      vi.mocked(mockRepo.getBusinessSaleConfig).mockResolvedValue({
+        defaultTaxRate: decimal(0.15),
+        allowNegativeStock: false,
+      });
+      vi.mocked(mockRepo.getProductSellContext).mockResolvedValue([
+        { ...TEQUILA, currentSealedStock: decimal(1) },
+      ]);
+
+      await expect(
+        service.createSale(actor(), input({ lines: [line({ quantity: 2 })] })),
+      ).rejects.toEqual(appError(ERROR_CODES.BAD_REQUEST, 400));
+      expect(mockRepo.createSale).not.toHaveBeenCalled();
+    });
+
+    it('lets a sale run stock negative when the business allows it', async () => {
+      vi.mocked(mockRepo.getBusinessSaleConfig).mockResolvedValue({
+        defaultTaxRate: decimal(0.15),
+        allowNegativeStock: true,
+      });
+      vi.mocked(mockRepo.getProductSellContext).mockResolvedValue([
+        { ...TEQUILA, currentSealedStock: decimal(1) },
+      ]);
+
+      await service.createSale(actor(), input({ lines: [line({ quantity: 2 })] }));
+
+      expect(written().stockDecrements).toEqual([{ productId: 'p-tequila', amount: 2 }]);
+    });
+
+    it('draws what it can from lots and leaves the oversell unallocated', async () => {
+      vi.mocked(mockRepo.getProductSellContext).mockResolvedValue([
+        { ...TEQUILA, currentSealedStock: decimal(1) },
+      ]);
+      vi.mocked(mockRepo.getStockLots).mockResolvedValue([
+        lot({ id: 'lot-old', quantityRemaining: decimal(1) }),
+      ]);
+
+      await service.createSale(actor(), input({ lines: [line({ quantity: 2 })] }));
+
+      expect(written().lines[0]?.allocations).toEqual([
+        { stockBatchLineId: 'lot-old', quantityPulled: 1, unitCost: 600 },
+      ]);
+      // The product still reflects the full draw, lot or not.
+      expect(written().stockDecrements).toEqual([{ productId: 'p-tequila', amount: 2 }]);
+      expect(written().lotDecrements).toEqual([{ stockBatchLineId: 'lot-old', quantity: 1 }]);
     });
   });
 

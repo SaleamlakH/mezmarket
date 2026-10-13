@@ -9,29 +9,35 @@ type MockTx = {
     create: ReturnType<typeof vi.fn>;
     findUniqueOrThrow: ReturnType<typeof vi.fn>;
   };
-  saleLine: { createManyAndReturn: ReturnType<typeof vi.fn> };
+  saleLine: { create: ReturnType<typeof vi.fn> };
+  stockBatchLine: { update: ReturnType<typeof vi.fn> };
+  product: { update: ReturnType<typeof vi.fn> };
   auditLog: { create: ReturnType<typeof vi.fn> };
 };
 
 function createPrismaStub() {
   const tx: MockTx = {
     sale: { count: vi.fn(), create: vi.fn(), findUniqueOrThrow: vi.fn() },
-    saleLine: { createManyAndReturn: vi.fn() },
+    saleLine: { create: vi.fn() },
+    stockBatchLine: { update: vi.fn() },
+    product: { update: vi.fn() },
     auditLog: { create: vi.fn() },
   };
   const business = { findUnique: vi.fn() };
   const product = { findMany: vi.fn() };
   const sale = { findMany: vi.fn() };
+  const stockBatchLine = { findMany: vi.fn() };
   const $transaction = vi.fn((cb: (tx: MockTx) => unknown) => cb(tx));
 
   const prisma = {
     business,
     product,
     sale,
+    stockBatchLine,
     $transaction,
   } as unknown as PrismaClient;
 
-  return { prisma, tx, business, product, sale, $transaction };
+  return { prisma, tx, business, product, sale, stockBatchLine, $transaction };
 }
 
 function command(overrides: Partial<CreateSaleCommand> = {}): CreateSaleCommand {
@@ -54,10 +60,14 @@ function command(overrides: Partial<CreateSaleCommand> = {}): CreateSaleCommand 
         quantity: 2,
         standardUnit: 'pc',
         quantityInStandardUnit: 2,
+        quantityInBaseUnit: 2,
         resolvedStandardUnitId: 'su-pc',
         unitPrice: 950,
+        allocations: [{ stockBatchLineId: 'lot-1', quantityPulled: 2, unitCost: 600 }],
       },
     ],
+    stockDecrements: [{ productId: 'p-tequila', amount: 2 }],
+    lotDecrements: [{ stockBatchLineId: 'lot-1', quantity: 2 }],
     ...overrides,
   };
 }
@@ -133,7 +143,7 @@ function listedSale(overrides: Record<string, unknown> = {}) {
 function registerSuccess(tx: MockTx) {
   tx.sale.count.mockResolvedValue(0);
   tx.sale.create.mockResolvedValue(createdSale());
-  tx.saleLine.createManyAndReturn.mockResolvedValue([CREATED_LINE]);
+  tx.saleLine.create.mockResolvedValue(CREATED_LINE);
 }
 
 describe('sales.repository', () => {
@@ -141,19 +151,23 @@ describe('sales.repository', () => {
     vi.clearAllMocks();
   });
 
-  describe('getBusinessTaxConfig', () => {
-    it('reads the business default tax rate by id', async () => {
+  describe('getBusinessSaleConfig', () => {
+    it('reads the business tax rate and negative-stock policy by id', async () => {
       const { prisma, business } = createPrismaStub();
       const repo = createSaleRepository(prisma);
-      business.findUnique.mockResolvedValue({ defaultTaxRate: { toNumber: () => 0.15 } });
+      business.findUnique.mockResolvedValue({
+        defaultTaxRate: { toNumber: () => 0.15 },
+        allowNegativeStock: false,
+      });
 
-      const result = await repo.getBusinessTaxConfig('b-1');
+      const result = await repo.getBusinessSaleConfig('b-1');
 
       expect(business.findUnique).toHaveBeenCalledWith({
         where: { id: 'b-1' },
-        select: { defaultTaxRate: true },
+        select: { defaultTaxRate: true, allowNegativeStock: true },
       });
       expect(result?.defaultTaxRate?.toNumber()).toBe(0.15);
+      expect(result?.allowNegativeStock).toBe(false);
     });
 
     it('answers null when the business is gone', async () => {
@@ -161,7 +175,7 @@ describe('sales.repository', () => {
       const repo = createSaleRepository(prisma);
       business.findUnique.mockResolvedValue(null);
 
-      await expect(repo.getBusinessTaxConfig('b-1')).resolves.toBeNull();
+      await expect(repo.getBusinessSaleConfig('b-1')).resolves.toBeNull();
     });
   });
 
@@ -179,6 +193,7 @@ describe('sales.repository', () => {
             id: true,
             businessId: true,
             name: true,
+            currentSealedStock: true,
             productUnits: {
               select: expect.objectContaining({
                 unitRole: true,
@@ -197,8 +212,33 @@ describe('sales.repository', () => {
     });
   });
 
+  describe('getStockLots', () => {
+    it('reads the in-stock lots of the named products, oldest purchase first', async () => {
+      const { prisma, stockBatchLine } = createPrismaStub();
+      const repo = createSaleRepository(prisma);
+      stockBatchLine.findMany.mockResolvedValue([]);
+
+      await repo.getStockLots('b-1', ['p-tequila']);
+
+      expect(stockBatchLine.findMany).toHaveBeenCalledWith({
+        where: {
+          productId: { in: ['p-tequila'] },
+          quantityRemaining: { gt: 0 },
+          stockBatch: { businessId: 'b-1' },
+        },
+        select: {
+          id: true,
+          productId: true,
+          purchaseUnitCost: true,
+          quantityRemaining: true,
+        },
+        orderBy: [{ stockBatch: { batchDate: 'asc' } }, { createdAt: 'asc' }],
+      });
+    });
+  });
+
   describe('createSale', () => {
-    it('writes the sale and its lines in one transaction', async () => {
+    it('writes the sale, its lines and the stock movement in one transaction', async () => {
       const { prisma, tx, $transaction } = createPrismaStub();
       const repo = createSaleRepository(prisma);
       registerSuccess(tx);
@@ -208,7 +248,9 @@ describe('sales.repository', () => {
       expect($transaction).toHaveBeenCalledTimes(1);
       expect(tx.sale.count).toHaveBeenCalledTimes(1);
       expect(tx.sale.create).toHaveBeenCalledTimes(1);
-      expect(tx.saleLine.createManyAndReturn).toHaveBeenCalledTimes(1);
+      expect(tx.saleLine.create).toHaveBeenCalledTimes(1);
+      expect(tx.stockBatchLine.update).toHaveBeenCalledTimes(1);
+      expect(tx.product.update).toHaveBeenCalledTimes(1);
     });
 
     it('numbers the sale next in its branch', async () => {
@@ -216,7 +258,7 @@ describe('sales.repository', () => {
       const repo = createSaleRepository(prisma);
       tx.sale.count.mockResolvedValue(4);
       tx.sale.create.mockResolvedValue(createdSale({ invoiceNumber: '5' }));
-      tx.saleLine.createManyAndReturn.mockResolvedValue([CREATED_LINE]);
+      tx.saleLine.create.mockResolvedValue(CREATED_LINE);
 
       await repo.createSale(command());
 
@@ -257,28 +299,37 @@ describe('sales.repository', () => {
       });
     });
 
-    it('writes each resolved line against the created sale, with its brand', async () => {
+    it('writes each resolved line with its draws nested, against the created sale', async () => {
       const { prisma, tx } = createPrismaStub();
       const repo = createSaleRepository(prisma);
       registerSuccess(tx);
 
       await repo.createSale(command());
 
-      expect(tx.saleLine.createManyAndReturn).toHaveBeenCalledWith({
-        data: [
-          {
-            saleId: 'sale-1',
-            productId: 'p-tequila',
-            productName: 'Sierra Tequila 350 ml',
-            productUnitId: 'pu-bottle',
-            soldUnit: 'Bottle',
-            quantity: 2,
-            standardUnit: 'pc',
-            quantityInStandardUnit: 2,
-            resolvedStandardUnitId: 'su-pc',
-            unitPrice: 950,
+      expect(tx.saleLine.create).toHaveBeenCalledWith({
+        data: {
+          saleId: 'sale-1',
+          productId: 'p-tequila',
+          productName: 'Sierra Tequila 350 ml',
+          productUnitId: 'pu-bottle',
+          soldUnit: 'Bottle',
+          quantity: 2,
+          standardUnit: 'pc',
+          quantityInStandardUnit: 2,
+          resolvedStandardUnitId: 'su-pc',
+          unitPrice: 950,
+          costs: {
+            createMany: {
+              data: [
+                {
+                  stockBatchLineId: 'lot-1',
+                  quantityPulled: 2,
+                  unitCost: 600,
+                },
+              ],
+            },
           },
-        ],
+        },
         include: { product: { select: { brand: true } } },
       });
     });
@@ -295,13 +346,78 @@ describe('sales.repository', () => {
       expect(tx.sale.findUniqueOrThrow).not.toHaveBeenCalled();
     });
 
+    it('takes each lot down by the summed draw the command carries', async () => {
+      const { prisma, tx } = createPrismaStub();
+      const repo = createSaleRepository(prisma);
+      registerSuccess(tx);
+
+      await repo.createSale(
+        command({
+          lotDecrements: [
+            { stockBatchLineId: 'lot-1', quantity: 1 },
+            { stockBatchLineId: 'lot-2', quantity: 1 },
+          ],
+        }),
+      );
+
+      expect(tx.stockBatchLine.update).toHaveBeenCalledWith({
+        where: { id: 'lot-1' },
+        data: { quantityRemaining: { decrement: 1 } },
+      });
+      expect(tx.stockBatchLine.update).toHaveBeenCalledWith({
+        where: { id: 'lot-2' },
+        data: { quantityRemaining: { decrement: 1 } },
+      });
+    });
+
+    it('decrements each product sealed stock by its summed draw', async () => {
+      const { prisma, tx } = createPrismaStub();
+      const repo = createSaleRepository(prisma);
+      registerSuccess(tx);
+
+      await repo.createSale(command());
+
+      expect(tx.product.update).toHaveBeenCalledWith({
+        where: { id: 'p-tequila' },
+        data: { currentSealedStock: { decrement: 2 } },
+      });
+    });
+
+    it('nests no cost rows when a line drew no lot', async () => {
+      const { prisma, tx } = createPrismaStub();
+      const repo = createSaleRepository(prisma);
+      registerSuccess(tx);
+
+      const [firstLine] = command().lines;
+      if (!firstLine) {
+        throw new Error('expected a seeded line');
+      }
+
+      await repo.createSale(
+        command({
+          lines: [{ ...firstLine, allocations: [] }],
+          stockDecrements: [],
+          lotDecrements: [],
+        }),
+      );
+
+      const data = (
+        vi.mocked(tx.saleLine.create).mock.calls[0]?.[0] as {
+          data: { costs?: unknown };
+        }
+      ).data;
+      expect(data).not.toHaveProperty('costs');
+      expect(tx.stockBatchLine.update).not.toHaveBeenCalled();
+      expect(tx.product.update).not.toHaveBeenCalled();
+    });
+
     it('recomputes the invoice number when a concurrent write takes it', async () => {
       const { prisma, tx } = createPrismaStub();
       const repo = createSaleRepository(prisma);
       tx.sale.count.mockResolvedValue(0);
       tx.sale.create.mockRejectedValueOnce({ code: 'P2002' });
       tx.sale.create.mockResolvedValueOnce(createdSale({ invoiceNumber: '2' }));
-      tx.saleLine.createManyAndReturn.mockResolvedValue([CREATED_LINE]);
+      tx.saleLine.create.mockResolvedValue(CREATED_LINE);
 
       await repo.createSale(command());
 
@@ -317,7 +433,7 @@ describe('sales.repository', () => {
 
       await expect(repo.createSale(command())).rejects.toThrow('db down');
 
-      expect(tx.saleLine.createManyAndReturn).not.toHaveBeenCalled();
+      expect(tx.saleLine.create).not.toHaveBeenCalled();
     });
   });
 
