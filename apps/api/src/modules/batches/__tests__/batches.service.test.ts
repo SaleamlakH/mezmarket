@@ -466,7 +466,7 @@ describe('batch service listProductInventorySummaries', () => {
       active: true,
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
       updatedAt: new Date('2026-01-02T00:00:00.000Z'),
-      productUnits: [unit()],
+      productUnits: [unit({ id: 'pu-bottle' })],
       stockBatchLines: [line()],
       ...overrides,
     } as ProductWithStockLinesRecord;
@@ -581,6 +581,72 @@ describe('batch service listProductInventorySummaries', () => {
       ]);
       const [summary] = await service.listProductInventorySummaries(SCOPE);
       expect(summary?.totalCost).toBe(0);
+    });
+
+    it('prorates the remaining cost by the unsold share in base units, not in the units bought', async () => {
+      vi.mocked(mockRepo.listProductsWithStockLines).mockResolvedValue([
+        inventoryRecord({
+          productUnits: [
+            unit({ id: 'pu-bottle', productId: 'p-tequila' }),
+            unit({
+              id: 'pu-ml',
+              productId: 'p-tequila',
+              unitRole: 'MOU',
+              standardUnitId: 'su-ml',
+              standardUnit: { id: 'su-ml', name: 'Milliliter', symbol: 'ml' },
+              name: 'Milliliter',
+              dependsOn: 'BASE',
+              conversionRate: decimal(350),
+              purchaseCapable: false,
+            }),
+            unit({
+              id: 'pu-liter',
+              productId: 'p-tequila',
+              unitRole: 'STANDARD',
+              standardUnitId: 'su-l',
+              standardUnit: { id: 'su-l', name: 'Liter', symbol: 'L' },
+              name: 'Liter',
+              dependsOn: 'MOU',
+              conversionRate: decimal(1000),
+            }),
+          ],
+          stockBatchLines: [
+            line({
+              productUnitId: 'pu-liter',
+              purchaseUnit: 'Liter',
+              purchaseQuantity: decimal(7),
+              purchaseUnitCost: decimal(2000),
+              standardUnit: 'ml',
+              standardQuantity: decimal(7000),
+              quantityRemaining: decimal(5),
+            }),
+          ],
+        }),
+      ]);
+
+      const [summary] = await service.listProductInventorySummaries(SCOPE);
+
+      // 7 L bought at 2000 = 14000 spread over 20 bottles (7 x 1000 ml / 350 ml);
+      // the 5 bottles still sellable keep 14000 x (5 / 20), not 14000 x (5 / 7
+      // liters) nor 14000 x (5 / 7000 ml).
+      expect(summary?.totalCost).toBe(3500);
+    });
+
+    it("skips the cost of a line whose purchased unit is not in the product's units", async () => {
+      vi.mocked(mockRepo.listProductsWithStockLines).mockResolvedValue([
+        inventoryRecord({
+          stockBatchLines: [
+            line({ id: 'sbl-1', purchaseQuantity: decimal(10), quantityRemaining: decimal(4) }),
+            line({ id: 'sbl-2', productUnitId: 'pu-retired' }),
+          ],
+        }),
+      ]);
+
+      const [summary] = await service.listProductInventorySummaries(SCOPE);
+
+      // Only sbl-1 counts (10 x 950 x 4/10); the stale-unit line contributes 0
+      // and doesn't fail the summary for the product being listed.
+      expect(summary?.totalCost).toBe(3800);
     });
 
     it('does not fail when a line has no standard quantity', async () => {

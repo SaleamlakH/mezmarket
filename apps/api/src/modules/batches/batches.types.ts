@@ -14,7 +14,6 @@ import type {
   Attachment as AttachmentRecord,
   Product,
   StockBatchLine as StockBatchLineRecord,
-  ProductUnit,
 } from '../../../generated/prisma/client.js';
 
 import type { ProductUnitContext } from '../../shared/types/unit.types.js';
@@ -101,7 +100,7 @@ export type StockBatchRecord = StockBatch & {
 };
 
 export type ProductWithStockLinesRecord = Product & {
-  productUnits: ProductUnit[];
+  productUnits: ProductUnitContext[];
   stockBatchLines: StockBatchLineRecord[];
 };
 

@@ -6,6 +6,7 @@ import type {
   CreateBatchLineInput,
   ProductContext,
   ProductInventorySummary,
+  ProductUnitContext,
   ProductWithStockLinesRecord,
   ResolvedBatchLine,
   StockBatchRecord,
@@ -172,7 +173,7 @@ function toProductInventorySummary(
   record: ProductWithStockLinesRecord,
   uploadIds: Map<string, string>,
 ): ProductInventorySummary {
-  const baseUnit = record.productUnits[0];
+  const baseUnit = record.productUnits.find((unit) => unit.unitRole === 'BASE');
 
   // Without a Base Unit there is no unit to express the stock in.
   if (!baseUnit) {
@@ -223,7 +224,7 @@ function sumInventoryTotals(record: ProductWithStockLinesRecord): InventoryTotal
   };
 
   for (const line of record.stockBatchLines) {
-    totals.totalCost += remainingCostOf(line);
+    totals.totalCost += remainingCostOf(line, record.productUnits);
     totals.batchIds.add(line.stockBatchId); // if only has remaining > 0, needs correction
 
     if (line.expiryDate === null) continue;
@@ -239,13 +240,24 @@ function sumInventoryTotals(record: ProductWithStockLinesRecord): InventoryTotal
 
 /**
  * What a line cost when bought, scaled by the fraction of it still unsold. The
- * fraction is taken against `standardQuantity` because remaining quantity is
- * tracked in standard units; a zero standard quantity contributes no cost.
+ * fraction is taken against the base-unit quantity because remaining quantity is
+ * tracked in base units. A line whose purchased unit is missing from the
+ * product's units contributes no cost, so the rest of the summary still adds up.
  */
-function remainingCostOf(line: StockBatchLineRecord): number {
-  const standardQuantity = line.standardQuantity.toNumber();
-  if (standardQuantity === 0) return 0;
+function remainingCostOf(line: StockBatchLineRecord, productUnits: ProductUnitContext[]): number {
+  const sourceUnit = productUnits.find((unit) => unit.id === line.productUnitId);
+
+  if (!sourceUnit) return 0;
+
+  const baseBought = convertToStandardQuantity(
+    productUnits,
+    sourceUnit,
+    'BASE',
+    line.purchaseQuantity.toNumber(),
+  );
+
+  if (baseBought === 0) return 0;
 
   const bought = line.purchaseQuantity.toNumber() * line.purchaseUnitCost.toNumber();
-  return bought * (line.quantityRemaining.toNumber() / standardQuantity);
+  return bought * (line.quantityRemaining.toNumber() / baseBought);
 }

@@ -65,8 +65,8 @@ export function createBatchRepository(prisma: PrismaClient): BatchRepository {
           return tx.stockBatchLine.createManyAndReturn({
             data: command.lines.map((line) => {
               const { stockIncrement, ...lineData } = line;
-              void stockIncrement; // Service-only, not a column on the line.
-              return { stockBatchId: batch.id, ...lineData };
+              // A fresh lot holds its whole base-unit quantity; sales draw it down from here.
+              return { stockBatchId: batch.id, ...lineData, quantityRemaining: stockIncrement };
             }),
 
             include: { product: { select: { name: true, brand: true } } },
@@ -103,12 +103,12 @@ export function createBatchRepository(prisma: PrismaClient): BatchRepository {
       });
     },
 
-    /** Active products, with their Base Unit and the lines still holding stock. */
+    /** Active products, with their units and the lines still holding stock. */
     async listProductsWithStockLines(businessId, branchId) {
       return prisma.product.findMany({
         where: { businessId, branchId, active: true },
         include: {
-          productUnits: { where: { unitRole: 'BASE' }, take: 1 },
+          productUnits: { include: { standardUnit: { select: standardUnitSelect } } },
           stockBatchLines: { where: { quantityRemaining: { gt: 0 } } },
         },
         orderBy: { name: 'asc' },

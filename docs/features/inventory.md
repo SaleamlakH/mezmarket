@@ -226,6 +226,16 @@ guessing a conversion.
   sealed one — is not recorded against a lot, so every draw is taken from sealed
   stock.
 
+- **A line whose purchase unit is missing drops its cost silently.** A product's
+  remaining cost is derived line by line: the quantity bought is converted to
+  base units through the unit's live conversion facts, then scaled by the
+  fraction still unsold. A line whose purchased unit is no longer among the
+  product's units has no rate to convert with, so it contributes nothing and the
+  product's `totalCost` is understated — with no error and no marker on the
+  response. Units cannot currently be deleted, so this is a defensive branch
+  rather than a reachable state, but the summary would not surface it if it ever
+  happened.
+
 - **Lists are unbounded.** A branch's batches and products are returned whole,
   with no pagination or limit, so the reads scale with the size of the catalog
   and its history.
