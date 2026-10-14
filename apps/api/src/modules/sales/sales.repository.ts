@@ -94,6 +94,17 @@ export function createSaleRepository(prisma: PrismaClient): SaleRepository {
       });
     },
 
+    /**
+     * The named customer, but only if it belongs to the business, so a sale can
+     * never be attributed across businesses. Inactive customers are not attached.
+     */
+    async getCustomer(businessId, customerId) {
+      return prisma.customer.findFirst({
+        where: { id: customerId, businessId, active: true },
+        select: { id: true },
+      });
+    },
+
     async getSaleForPayment(businessId, saleId) {
       return prisma.sale.findFirst({
         where: { id: saleId, businessId },
@@ -176,6 +187,7 @@ async function writeSale(
       branchId: command.branchId,
       invoiceNumber,
       processedByMemberId: command.memberId,
+      customerId: command.customerId,
       saleDatetime: command.saleDatetime,
       discount: command.discount,
       taxRateApplied: command.taxRateApplied,

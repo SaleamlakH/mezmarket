@@ -35,6 +35,7 @@ function createPrismaStub() {
   };
   const business = { findUnique: vi.fn() };
   const product = { findMany: vi.fn() };
+  const customer = { findFirst: vi.fn() };
   const sale = { findMany: vi.fn(), findFirst: vi.fn() };
   const stockBatchLine = { findMany: vi.fn() };
   const $transaction = vi.fn((cb: (tx: MockTx) => unknown) => cb(tx));
@@ -42,12 +43,13 @@ function createPrismaStub() {
   const prisma = {
     business,
     product,
+    customer,
     sale,
     stockBatchLine,
     $transaction,
   } as unknown as PrismaClient;
 
-  return { prisma, tx, business, product, sale, stockBatchLine, $transaction };
+  return { prisma, tx, business, product, customer, sale, stockBatchLine, $transaction };
 }
 
 function command(overrides: Partial<CreateSaleCommand> = {}): CreateSaleCommand {
@@ -64,6 +66,7 @@ function command(overrides: Partial<CreateSaleCommand> = {}): CreateSaleCommand 
     paymentStatus: 'PENDING',
     amountPaid: 0,
     balanceDue: 2185,
+    customerId: null,
     initialPayment: null,
     lines: [
       {
@@ -276,6 +279,29 @@ describe('sales.repository', () => {
     });
   });
 
+  describe('getCustomer', () => {
+    it('reads the named customer only when it is active and in the business', async () => {
+      const { prisma, customer } = createPrismaStub();
+      const repo = createSaleRepository(prisma);
+      customer.findFirst.mockResolvedValue(null);
+
+      await repo.getCustomer('b-1', 'cust-1');
+
+      expect(customer.findFirst).toHaveBeenCalledWith({
+        where: { id: 'cust-1', businessId: 'b-1', active: true },
+        select: { id: true },
+      });
+    });
+
+    it('answers null when the customer is not in the business', async () => {
+      const { prisma, customer } = createPrismaStub();
+      const repo = createSaleRepository(prisma);
+      customer.findFirst.mockResolvedValue(null);
+
+      await expect(repo.getCustomer('b-1', 'cust-1')).resolves.toBeNull();
+    });
+  });
+
   describe('getSaleForPayment', () => {
     it('reads the sale within the business with the fields a payment write needs', async () => {
       const { prisma, sale } = createPrismaStub();
@@ -350,6 +376,7 @@ describe('sales.repository', () => {
           branchId: 'br-1',
           invoiceNumber: '1',
           processedByMemberId: 'm-1',
+          customerId: null,
           saleDatetime: new Date('2026-02-01T09:00:00.000Z'),
           discount: null,
           taxRateApplied: 0.15,
@@ -366,6 +393,18 @@ describe('sales.repository', () => {
           customer: true,
         },
       });
+    });
+
+    it('attaches the customer the command names to the written sale', async () => {
+      const { prisma, tx } = createPrismaStub();
+      const repo = createSaleRepository(prisma);
+      registerSuccess(tx);
+
+      await repo.createSale(command({ customerId: 'cust-1' }));
+
+      expect(tx.sale.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ customerId: 'cust-1' }) }),
+      );
     });
 
     it('writes each resolved line with its draws nested, against the created sale', async () => {

@@ -19,6 +19,7 @@ function mockRepository(): SaleRepository {
     getBusinessSaleConfig: vi.fn(),
     getProductSellContext: vi.fn(),
     getStockLots: vi.fn(),
+    getCustomer: vi.fn(),
     getSaleForPayment: vi.fn(),
     createSale: vi.fn(),
     recordPayment: vi.fn(),
@@ -177,6 +178,7 @@ describe('sales.service', () => {
     });
     vi.mocked(mockRepo.getProductSellContext).mockResolvedValue(CATALOG);
     vi.mocked(mockRepo.getStockLots).mockResolvedValue([]);
+    vi.mocked(mockRepo.getCustomer).mockResolvedValue({ id: 'cust-1' });
     vi.mocked(mockRepo.createSale).mockResolvedValue(saleRecord());
     vi.mocked(mockRepo.recordPayment).mockResolvedValue(saleRecord());
     vi.mocked(mockRepo.getSaleForPayment).mockResolvedValue(paymentContext());
@@ -331,6 +333,29 @@ describe('sales.service', () => {
       await expect(service.createSale(actor(), input())).rejects.toEqual(
         appError(ERROR_CODES.NOT_FOUND, 404),
       );
+      expect(mockRepo.createSale).not.toHaveBeenCalled();
+    });
+
+    it('reads a named customer within the acting business before writing', async () => {
+      await service.createSale(actor(), input({ customerId: 'cust-1' }));
+
+      expect(mockRepo.getCustomer).toHaveBeenCalledWith('b-1', 'cust-1');
+      expect(written().customerId).toBe('cust-1');
+    });
+
+    it('never reads a customer back for a sale that names none', async () => {
+      await service.createSale(actor(), input());
+
+      expect(mockRepo.getCustomer).not.toHaveBeenCalled();
+      expect(written().customerId).toBeNull();
+    });
+
+    it('rejects a customer that is not in the business', async () => {
+      vi.mocked(mockRepo.getCustomer).mockResolvedValue(null);
+
+      await expect(
+        service.createSale(actor(), input({ customerId: 'cust-other' })),
+      ).rejects.toEqual(appError(ERROR_CODES.BAD_REQUEST, 400));
       expect(mockRepo.createSale).not.toHaveBeenCalled();
     });
   });

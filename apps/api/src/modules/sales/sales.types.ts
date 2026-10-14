@@ -148,10 +148,20 @@ export type CreateSaleCommand = {
   paymentStatus: PaymentStatus;
   amountPaid: number;
   balanceDue: number;
+  /** The customer the sale is attributed to, verified to belong to the business. */
+  customerId: string | null;
   initialPayment: ResolvedPayment | null;
   lines: ResolvedSaleLine[];
   stockDecrements: StockDecrement[];
   lotDecrements: StockLotDecrement[];
+};
+
+/**
+ * A customer narrowed to the identity the sale write needs: the customer a
+ * caller named, confirmed to belong to the acting business.
+ */
+export type CustomerRef = {
+  id: string;
 };
 
 /** The business settings a sale snapshots at the moment it is created. */
@@ -225,6 +235,7 @@ export type SaleRepository = {
   getBusinessSaleConfig(businessId: string): Promise<BusinessSaleConfig | null>;
   getProductSellContext(businessId: string, productIds: string[]): Promise<ProductSellContext[]>;
   getStockLots(businessId: string, productIds: string[]): Promise<StockLot[]>;
+  getCustomer(businessId: string, customerId: string): Promise<CustomerRef | null>;
   getSaleForPayment(businessId: string, saleId: string): Promise<SalePaymentContext | null>;
   createSale(command: CreateSaleCommand): Promise<SaleRecordWithDetail>;
   recordPayment(command: RecordPaymentCommand): Promise<SaleRecordWithDetail>;

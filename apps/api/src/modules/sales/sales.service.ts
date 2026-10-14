@@ -17,14 +17,25 @@ export function createSaleService(repository: SaleRepository): SaleService {
   return {
     async createSale(actor: Actor, input: CreateSaleInput): Promise<SaleDetailResult> {
       const productIds = [...new Set(input.lines.map((line) => line.productId))];
-      const [saleConfig, products, lots] = await Promise.all([
+      const [saleConfig, products, lots, customer] = await Promise.all([
         repository.getBusinessSaleConfig(actor.businessId),
         repository.getProductSellContext(actor.businessId, productIds),
         repository.getStockLots(actor.businessId, productIds),
+        // A customer named by the sale must belong to the business; a sale with
+        // none never reads one back.
+        input.customerId === undefined
+          ? Promise.resolve(null)
+          : repository.getCustomer(actor.businessId, input.customerId),
       ]);
 
       if (!saleConfig) {
         throw new AppError(ERROR_CODES.NOT_FOUND, 'Business not found', 404);
+      }
+
+      if (input.customerId !== undefined && customer === null) {
+        throw new AppError(ERROR_CODES.BAD_REQUEST, 'Customer not found', 400, {
+          customerId: 'Select a valid customer',
+        });
       }
 
       const lines = snapshotSaleLines(products, actor.businessId, input.lines);
@@ -52,6 +63,7 @@ export function createSaleService(repository: SaleRepository): SaleService {
         paymentStatus: initial.status,
         amountPaid: initial.amountPaid,
         balanceDue: initial.balanceDue,
+        customerId: customer?.id ?? null,
         initialPayment: initial.payment,
         lines: allocated,
         stockDecrements: sumBaseByProduct(allocated),

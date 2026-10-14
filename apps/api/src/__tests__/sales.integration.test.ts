@@ -23,6 +23,7 @@ const { verifyJwt, authRepository, businessRepository, salesRepository } = vi.ho
     getBusinessSaleConfig: vi.fn(),
     getProductSellContext: vi.fn(),
     getStockLots: vi.fn(),
+    getCustomer: vi.fn(),
     getSaleForPayment: vi.fn(),
     createSale: vi.fn(),
     recordPayment: vi.fn(),
