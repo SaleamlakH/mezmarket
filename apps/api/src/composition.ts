@@ -39,6 +39,11 @@ import {
   validateSaleCreateInput,
   validateSalePaymentInput,
 } from './modules/sales/sales.middleware.js';
+import { createCustomersRepository } from './modules/customers/customers.repository.js';
+import { createCustomersService } from './modules/customers/customers.service.js';
+import { createCustomersController } from './modules/customers/customers.controller.js';
+import { createCustomersRouter } from './modules/customers/customers.routes.js';
+import { validateCustomerInput } from './modules/customers/customers.middleware.js';
 import { createUnitsRepository } from './modules/units/units.repository.js';
 import { createUnitsService } from './modules/units/units.service.js';
 import { createUnitsController } from './modules/units/units.controller.js';
@@ -142,6 +147,16 @@ export const salesRoutes = createSalesRouter(
   requireBusinessRole(['OWNER', 'MANAGER', 'CASHIER']),
   validateSaleCreateInput,
   validateSalePaymentInput,
+);
+
+const customersRepository = createCustomersRepository(prisma);
+const customersService = createCustomersService(customersRepository);
+const customersController = createCustomersController(customersService);
+export const customersRoutes = createCustomersRouter(
+  customersController,
+  authorizeBusiness,
+  requireBusinessRole(['OWNER', 'MANAGER', 'CASHIER']),
+  validateCustomerInput,
 );
 
 const unitsRepository = createUnitsRepository(prisma);
