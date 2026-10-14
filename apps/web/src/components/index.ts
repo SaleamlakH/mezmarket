@@ -1,8 +1,6 @@
 export { Button } from './Button';
 export type { ButtonProps, ButtonVariant } from './Button';
 export { Brand } from './Brand';
-export { IconButton } from './IconButton';
-export type { IconButtonProps } from './IconButton';
 export { Chip } from './Chip';
 export type { ChipProps } from './Chip';
 export { SegmentedControl } from './SegmentedControl';
