@@ -3,16 +3,16 @@ import { useState } from 'react';
 import { ShoppingCart, X } from 'lucide-react';
 import { Badge } from '@/components/Badge';
 import { Button } from '@/components/Button';
-import { IconButton } from '@/components/IconButton';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import { pluralize } from '@/lib/format';
-import { getSaleProductUnits } from '../fixtures/saleFlow';
+import { unitsForProduct } from '../lib/saleDraftView';
+import { formatLineCount } from '../lib/saleDisplay';
+import { useProductDraftView } from '../hooks/useProductDraftView';
 import { useSaleDraftTotals } from '../hooks/useSaleDraftTotals';
 import { useSaleDraftView } from '../hooks/useSaleDraftView';
 import { useSaleDraft } from '../state/useSaleDraft';
-import { SaleLineRows } from './SaleLineRows';
-import { SaleLineSheet } from './SaleLineSheet';
+import { CartItem } from './CartItem';
+import { CartItemEditor } from './CartItemEditor';
 import { SaleTotalsCard } from './SaleTotalsCard';
 
 export interface SalePanelProps {
@@ -27,7 +27,7 @@ export interface SalePanelProps {
 }
 
 /**
- * The sale sheet: every committed line of the draft, grouped by product and
+ * The sale sheet: every committed line of the draft, one cart item per product,
  * editable in place, with the running totals and a confirm button. It owns no
  * outer container — the host supplies the class that docks it beside the page
  * or embeds it in the mobile review dialog.
@@ -40,19 +40,29 @@ export function SalePanel({
   onClose,
 }: SalePanelProps) {
   const currency = useCurrency();
-  const { itemCount, hasLines } = useSaleDraftView();
+  const { cartItems, itemCount, hasLines } = useSaleDraftView();
   const totals = useSaleDraftTotals();
-  const { clear, openProduct, removeProduct } = useSaleDraft();
+  const {
+    clear,
+    openProduct,
+    removeProduct,
+    closeProduct,
+    setUnitForProduct,
+    setQuantityForProduct,
+    setQuantity,
+    removeLine,
+  } = useSaleDraft();
   const isMobile = useIsMobile();
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const editor = useProductDraftView(editingProductId ?? '');
 
   if (!hasLines) return null;
 
   // Mobile reviews in the picker's product dialog; desktop edits inline in the
-  // docked sheet — driven by the shared draft state either way.
+  // docked editor — driven by the shared draft state either way.
   const handleEdit = (productId: string) => {
     if (isMobile) {
-      openProduct(productId, getSaleProductUnits(productId)[0]?.id ?? '');
+      openProduct(productId, unitsForProduct(productId)[0]?.id ?? '');
     } else {
       setEditingProductId(productId);
     }
@@ -65,14 +75,17 @@ export function SalePanel({
     if (editingProductId === productId) setEditingProductId(null);
   };
 
+  const handleEditorClose = () => {
+    closeProduct();
+    setEditingProductId(null);
+  };
+
   return (
     <div className={`flex min-h-0 flex-col md:mr-3.5 ${className ?? ''}`}>
       <header className="flex shrink-0 items-center justify-between gap-3 border-b border-(--border) py-2 md:px-2">
         <span className="flex min-w-0 items-center gap-2 text-sm font-bold text-(--text)">
           <ShoppingCart size={16} aria-hidden /> Current sale
-          <Badge tone="accent">
-            {itemCount} {pluralize(itemCount, 'line')}
-          </Badge>
+          <Badge tone="accent">{formatLineCount(itemCount)}</Badge>
         </span>
         <span className="flex shrink-0 items-center gap-1">
           <Button
@@ -87,33 +100,57 @@ export function SalePanel({
             Clear
           </Button>
           {onClose && (
-            <IconButton
-              label="Close"
-              icon={<X size={15} aria-hidden />}
+            <Button
+              type="button"
+              shape="square"
               size="sm"
+              variant="field"
+              aria-label="Close"
+              title="Close"
               onClick={onClose}
-            />
+            >
+              <X size={15} aria-hidden />
+            </Button>
           )}
         </span>
       </header>
 
       <div className="min-h-0 grow overflow-y-auto py-2 md:px-2">
-        <SaleLineRows
-          businessId={businessId}
-          uploadUrls={uploadUrls}
-          onEdit={handleEdit}
-          onRemove={handleRemove}
-          editingProductId={editingProductId}
-        />
+        <ul className="m-0 flex list-none flex-col gap-2.5 p-0">
+          {cartItems.map((cartItem) => (
+            <li key={cartItem.productId}>
+              <CartItem
+                cartItem={cartItem}
+                businessId={businessId}
+                uploadUrls={uploadUrls}
+                onEdit={handleEdit}
+                onRemove={handleRemove}
+                isEditing={editingProductId === cartItem.productId}
+              />
+            </li>
+          ))}
+        </ul>
       </div>
 
-      {editingProductId && (
-        <SaleLineSheet
-          productId={editingProductId}
-          businessId={businessId}
-          uploadUrls={uploadUrls}
-          onClose={() => setEditingProductId(null)}
-        />
+      {editingProductId && editor.product && (
+        <section className="flex shrink-0 flex-col rounded-t-2xl border-x border-t border-(--border) bg-(--surface-primary) p-2 shadow-(--shadow-lg)">
+          <CartItemEditor
+            product={editor.product}
+            units={editor.units}
+            lines={editor.lines}
+            activeLine={editor.activeLine ?? editor.lines.at(-1)}
+            currency={currency}
+            businessId={businessId}
+            uploadUrls={uploadUrls}
+            onUnitChange={(unitId) => setUnitForProduct(editingProductId, unitId)}
+            onQuantityChange={(quantity) =>
+              setQuantityForProduct(editingProductId, editor.units[0]?.id ?? '', quantity)
+            }
+            onLineQuantityChange={(lineId, quantity) => setQuantity(lineId, quantity)}
+            onLineRemove={removeLine}
+            onClose={handleEditorClose}
+          />
+        </section>
       )}
 
       <footer className="flex shrink-0 flex-col gap-2 border-t border-(--border) py-2 md:px-2">

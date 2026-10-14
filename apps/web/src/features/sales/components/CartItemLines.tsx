@@ -1,32 +1,39 @@
 import type { ProductUnitOptionResponse } from '@mez/types';
+import { X } from 'lucide-react';
+import { Button } from '@/components/Button';
 import { Stepper } from '@/components/Stepper';
 import { formatMoney } from '@/lib/format';
-import type { SaleDraftLine } from '../state/saleDraft';
+import { lineAmount } from '@/lib/lineTotal';
+import { isCommitted, type SaleDraftLine } from '../state/saleDraft';
 
-export interface ProductLinesSummaryProps {
+export interface CartItemLinesProps {
   units: ProductUnitOptionResponse[];
   lines: SaleDraftLine[];
   currency: string;
   /** When given, each line gets a compact stepper to adjust its quantity. */
   onQuantityChange?: ((lineId: string, quantity: number) => void) | undefined;
+  /** When given, each line gets a control to drop it from the sale. */
+  onRemove?: ((lineId: string) => void) | undefined;
 }
 
 /**
  * The running list of a product's committed lines with per-line totals, plus a
- * grand total and a hint when nothing has been added yet. Shared by the mobile
- * sheet, the desktop popover, and the inline editor on the sale panel.
+ * grand total and a hint when nothing has been added yet. Shared by the docked
+ * editor, the grid card's review popover, and the mobile editor.
  */
-export function ProductLinesSummary({
+export function CartItemLines({
   units,
   lines,
   currency,
   onQuantityChange,
-}: ProductLinesSummaryProps) {
-  const committed = lines.filter((line) => line.quantity > 0);
-  const total = committed.reduce((sum, line) => {
-    const unit = units.find((entry) => entry.id === line.productUnitId);
-    return unit?.price != null ? sum + unit.price * line.quantity : sum;
-  }, 0);
+  onRemove,
+}: CartItemLinesProps) {
+  const unitOf = (line: SaleDraftLine) => units.find((entry) => entry.id === line.productUnitId);
+  const committed = lines.filter(isCommitted);
+  const total = committed.reduce(
+    (sum, line) => sum + (lineAmount(line.quantity, unitOf(line)?.price ?? null) ?? 0),
+    0,
+  );
 
   return (
     <div className="rounded-xl border border-(--border-strong) bg-(--surface-primary) px-3 py-1.5">
@@ -38,9 +45,8 @@ export function ProductLinesSummary({
         <>
           <ul className="m-0 flex list-none flex-col p-0">
             {committed.map((line) => {
-              const unit = units.find((entry) => entry.id === line.productUnitId);
-              const lineTotal =
-                unit?.price == null ? null : formatMoney(unit.price * line.quantity, currency);
+              const unit = unitOf(line);
+              const amount = lineAmount(line.quantity, unit?.price ?? null);
 
               return (
                 <li key={line.id} className="flex items-center gap-3 py-1">
@@ -49,7 +55,7 @@ export function ProductLinesSummary({
                       {unit?.name ?? 'unit'}
                     </p>
                     <p className="m-0 font-mono text-xs tabular-nums text-(--text)">
-                      {lineTotal ?? 'No price'}
+                      {amount == null ? 'No price' : formatMoney(amount, currency)}
                     </p>
                   </div>
 
@@ -62,6 +68,20 @@ export function ProductLinesSummary({
                         onChange={(quantity) => onQuantityChange(line.id, quantity)}
                       />
                     </div>
+                  )}
+
+                  {onRemove && (
+                    <Button
+                      type="button"
+                      shape="square"
+                      size="sm"
+                      variant="field"
+                      aria-label={`Remove ${unit?.name ?? 'unit'} line`}
+                      title={`Remove ${unit?.name ?? 'unit'} line`}
+                      onClick={() => onRemove(line.id)}
+                    >
+                      <X size={14} aria-hidden />
+                    </Button>
                   )}
                 </li>
               );

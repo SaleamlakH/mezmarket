@@ -1,7 +1,8 @@
 import { ShoppingCart } from 'lucide-react';
 import { useCurrency } from '@/hooks/useCurrency';
-import { formatMoney, pluralize } from '@/lib/format';
+import { formatMoney } from '@/lib/format';
 import { useSaleDraftView } from '../hooks/useSaleDraftView';
+import { formatLineCount } from '../lib/saleDisplay';
 
 export interface SaleCartTriggerProps {
   /** Opens the full review sheet. */
@@ -20,7 +21,7 @@ export function SaleCartTrigger({ onReview }: SaleCartTriggerProps) {
 
   if (!hasLines) return null;
 
-  const count = `${itemCount} ${pluralize(itemCount, 'line')}`;
+  const count = formatLineCount(itemCount);
   const amount = formatMoney(total, currency);
 
   return (

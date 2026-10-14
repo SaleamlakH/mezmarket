@@ -1,13 +1,8 @@
 import { useMemo } from 'react';
 import type { SaleLineFormValues, TaxDisplayMode } from '@mez/types';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
-import { saleTotals, type SaleTotals } from '../lib/saleTotals';
+import { saleTotals, type SaleTotalsPreview } from '../lib/saleTotals';
 import { useSaleLineList } from './useSaleLineList';
-
-export interface SaleTotalsPreview extends SaleTotals {
-  taxRate: number;
-  taxDisplayMode: TaxDisplayMode;
-}
 
 /** Running subtotal, tax and total for the draft from the business's tax config. Preview only. */
 export function useSaleTotals(lines: SaleLineFormValues[]): SaleTotalsPreview {

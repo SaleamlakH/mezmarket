@@ -1,6 +1,6 @@
 import type { ProductSummaryResponse, SaleLineFormValues } from '@mez/types';
 import { X } from 'lucide-react';
-import { IconButton } from '@/components/IconButton';
+import { Button } from '@/components/Button';
 import { formatMoney } from '@/lib/format';
 import { useSaleLineList } from '../hooks/useSaleLineList';
 
@@ -54,12 +54,18 @@ export function SaleLineList({ lines, currency, onEdit, onRemove }: SaleLineList
               </span>
             </button>
 
-            <IconButton
-              label={`Remove ${productName}`}
-              icon={<X size={15} aria-hidden />}
+            <Button
+              type="button"
+              shape="square"
+              size="sm"
+              variant="field"
+              aria-label={`Remove ${productName}`}
+              title={`Remove ${productName}`}
               onClick={() => onRemove(index)}
-              className="h-8 w-8 border-transparent bg-transparent hover:border-(--border) hover:bg-(--surface-secondary) hover:text-(--danger)"
-            />
+              className="border-transparent bg-transparent hover:border-(--border) hover:bg-(--surface-secondary) hover:text-(--danger)"
+            >
+              <X size={15} aria-hidden />
+            </Button>
           </li>
         );
       })}

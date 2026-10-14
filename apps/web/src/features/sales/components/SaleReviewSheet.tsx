@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import type { DownloadUrlsResponse } from '@mez/types';
 import { Dialog } from '@/components/Dialog';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { useSaleDraftView } from '../hooks/useSaleDraftView';
 import { SalePanel } from './SalePanel';
 
@@ -25,17 +26,8 @@ export function SaleReviewSheet({
   uploadUrls,
   onConfirm,
 }: SaleReviewSheetProps) {
-  const [isMobile, setIsMobile] = useState(false);
+  const isMobile = useIsMobile();
   const { hasLines } = useSaleDraftView();
-
-  useEffect(() => {
-    if (typeof window.matchMedia !== 'function') return;
-    const query = window.matchMedia('(max-width: 767px)');
-    const sync = () => setIsMobile(query.matches);
-    sync();
-    query.addEventListener('change', sync);
-    return () => query.removeEventListener('change', sync);
-  }, []);
 
   // The draft can empty underneath the open sheet — clearing it or dropping its
   // last product — which retires the panel itself, so the dialog goes with it.

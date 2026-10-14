@@ -11,3 +11,12 @@ export function lineTotal(quantity: string, unitPrice: number | null): number | 
 
   return qty * unitPrice;
 }
+
+/**
+ * One line's amount where the quantity is already a number — the typed form
+ * uses `lineTotal`; the draft store holds a parsed quantity. Null when the unit
+ * has no price, so a line without a price never counts as zero.
+ */
+export function lineAmount(quantity: number, unitPrice: number | null): number | null {
+  return unitPrice === null ? null : quantity * unitPrice;
+}

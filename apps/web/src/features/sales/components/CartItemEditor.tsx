@@ -6,15 +6,13 @@ import type {
 } from '@mez/types';
 import { X } from 'lucide-react';
 import { Button } from '@/components/Button';
-import { IconButton } from '@/components/IconButton';
 import { ProductThumb } from '@/components/ProductThumb';
-import { Select } from '@/components/Select';
-import { Stepper } from '@/components/Stepper';
-import { formatMoney, formatQuantity } from '@/lib/format';
-import type { SaleDraftLine } from '../state/saleDraft';
-import { ProductLinesSummary } from './ProductLinesSummary';
+import { formatQuantity } from '@/lib/format';
+import { isCommitted, type SaleDraftLine } from '../state/saleDraft';
+import { CartItemLines } from './CartItemLines';
+import { ProductQuantityControl } from './ProductQuantityControl';
 
-export interface ProductLineControlsProps {
+export interface CartItemEditorProps {
   product: ProductSummaryResponse;
   units: ProductUnitOptionResponse[];
   /** Every line held for this product; those with a quantity show as text. */
@@ -27,15 +25,16 @@ export interface ProductLineControlsProps {
   onUnitChange: (unitId: string) => void;
   onQuantityChange: (quantity: number) => void;
   onLineQuantityChange?: ((lineId: string, quantity: number) => void) | undefined;
+  onLineRemove?: ((lineId: string) => void) | undefined;
   onClose: () => void;
 }
 
 /**
- * The unit and quantity controls for one product, plus the list of the lines
- * it has built. Rendered inline on large screens and inside the mobile sheet —
- * the same markup in both.
+ * The editor for one cart item: its header, the unit and quantity control, and
+ * the list of lines it has built. Rendered inline on large screens and inside
+ * the grid card's dialog on mobile — the same markup in both.
  */
-export function ProductLineControls({
+export function CartItemEditor({
   product,
   units,
   lines,
@@ -46,11 +45,12 @@ export function ProductLineControls({
   onUnitChange,
   onQuantityChange,
   onLineQuantityChange,
+  onLineRemove,
   onClose,
-}: ProductLineControlsProps) {
+}: CartItemEditorProps) {
   const selectId = useId();
   const activeUnit = units.find((unit) => unit.id === activeLine?.productUnitId);
-  const hasCommitted = lines.some((line) => line.quantity > 0);
+  const hasCommitted = lines.some(isCommitted);
 
   return (
     <>
@@ -70,35 +70,37 @@ export function ProductLineControls({
             <span className="sr-only"> in stock</span>
           </p>
         </div>
-        <IconButton label="Close" icon={<X size={15} aria-hidden />} size="sm" onClick={onClose} />
+        <Button
+          type="button"
+          shape="square"
+          size="sm"
+          variant="field"
+          aria-label="Close"
+          title="Close"
+          onClick={onClose}
+        >
+          <X size={15} aria-hidden />
+        </Button>
       </div>
 
       <div className="mt-3 flex flex-col gap-3">
-        <Select
-          id={selectId}
-          value={activeLine?.productUnitId ?? ''}
-          placeholder={units.length === 0 ? 'No units available' : 'Select the unit'}
-          disabled={units.length === 0}
-          onChange={(event) => onUnitChange(event.currentTarget.value)}
-          options={units.map((unit) => ({ value: unit.id, label: unit.name }))}
+        <ProductQuantityControl
+          selectId={selectId}
+          units={units}
+          unitId={activeLine?.productUnitId ?? ''}
+          onUnitChange={onUnitChange}
+          quantity={activeLine?.quantity ?? 0}
+          onQuantityChange={onQuantityChange}
+          currency={currency}
+          activeUnit={activeUnit}
         />
 
-        {activeUnit?.price != null && (
-          <p
-            className="m-0 text-right font-mono text-[11px] text-(--text-muted)"
-            aria-label={`Unit price of ${activeUnit.name}`}
-          >
-            {formatMoney(activeUnit.price, currency)} / {activeUnit.name}
-          </p>
-        )}
-
-        <Stepper value={activeLine?.quantity ?? 0} onChange={onQuantityChange} />
-
-        <ProductLinesSummary
+        <CartItemLines
           units={units}
           lines={lines}
           currency={currency}
           onQuantityChange={onLineQuantityChange}
+          onRemove={onLineRemove}
         />
 
         {!hasCommitted && (

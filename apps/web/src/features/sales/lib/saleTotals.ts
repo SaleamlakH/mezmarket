@@ -6,6 +6,12 @@ export interface SaleTotals {
   total: number;
 }
 
+/** A sale's totals alongside the tax config they were computed from. */
+export interface SaleTotalsPreview extends SaleTotals {
+  taxRate: number;
+  taxDisplayMode: TaxDisplayMode;
+}
+
 /**
  * The running subtotal, tax and total a sale will be created with — a preview
  * only, since the server computes and stores the real figures. Tax is the

@@ -1,27 +1,11 @@
 import { useMemo } from 'react';
-import type { ProductSummaryResponse, ProductUnitOptionResponse } from '@mez/types';
-import { getSaleProductUnits, saleProductsFixture } from '../fixtures/saleFlow';
-import type { SaleDraftLine } from '../state/saleDraft';
+import { buildCartItems, type CartItem } from '../lib/saleDraftView';
 import { useSaleDraft } from '../state/useSaleDraft';
 
-/** A committed draft line joined with the catalog entries it points at. */
-export interface SaleDraftViewLine {
-  line: SaleDraftLine;
-  unit: ProductUnitOptionResponse | undefined;
-  unitPrice: number | null;
-  lineTotal: number | null;
-}
-
-/** One product's committed lines, with the total those lines come to. */
-export interface SaleDraftViewGroup {
-  productId: string;
-  product: ProductSummaryResponse | undefined;
-  lines: SaleDraftViewLine[];
-  productTotal: number;
-}
+export type { CartItemLine, CartItem } from '../lib/saleDraftView';
 
 export interface SaleDraftView {
-  groups: SaleDraftViewGroup[];
+  cartItems: CartItem[];
   /** How many committed lines the sale holds. */
   itemCount: number;
   total: number;
@@ -30,9 +14,9 @@ export interface SaleDraftView {
 
 /**
  * The committed lines of the new-sale draft — those holding a quantity — joined
- * with the product and unit each is sold in and grouped by product, in
- * insertion order. This is the read model the sale panel and the mobile review
- * sheet share.
+ * with the product and unit each is sold in and grouped into cart items by
+ * product, in insertion order. This is the read model the sale panel and the
+ * mobile review sheet share.
  *
  * The catalog is read from the runtime fixture for now; this is where the
  * API-backed products and units swap in later.
@@ -41,34 +25,10 @@ export function useSaleDraftView(): SaleDraftView {
   const { lines } = useSaleDraft();
 
   return useMemo(() => {
-    const committed = lines.filter((line) => line.quantity > 0);
-    const groupsById = new Map<string, SaleDraftViewGroup>();
+    const cartItems = buildCartItems(lines);
+    const itemCount = cartItems.reduce((sum, item) => sum + item.lines.length, 0);
+    const total = cartItems.reduce((sum, item) => sum + item.total, 0);
 
-    for (const line of committed) {
-      const unit = getSaleProductUnits(line.productId).find(
-        (entry) => entry.id === line.productUnitId,
-      );
-      const unitPrice = unit?.price ?? null;
-      const lineTotal = unitPrice == null ? null : unitPrice * line.quantity;
-
-      let group = groupsById.get(line.productId);
-      if (!group) {
-        group = {
-          productId: line.productId,
-          product: saleProductsFixture.find((entry) => entry.id === line.productId),
-          lines: [],
-          productTotal: 0,
-        };
-        groupsById.set(line.productId, group);
-      }
-
-      group.lines.push({ line, unit, unitPrice, lineTotal });
-      group.productTotal += lineTotal ?? 0;
-    }
-
-    const groups = [...groupsById.values()];
-    const total = groups.reduce((sum, group) => sum + group.productTotal, 0);
-
-    return { groups, itemCount: committed.length, total, hasLines: committed.length > 0 };
+    return { cartItems, itemCount, total, hasLines: cartItems.length > 0 };
   }, [lines]);
 }

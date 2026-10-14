@@ -12,6 +12,11 @@ export interface SaleDraftLine {
   quantity: number;
 }
 
+/** Whether a draft line holds a quantity, and so counts toward the sale. */
+export function isCommitted(line: { quantity: number }): boolean {
+  return line.quantity > 0;
+}
+
 export interface SaleDraftContextValue {
   lines: SaleDraftLine[];
   /** The product whose controls are open — one at a time. */

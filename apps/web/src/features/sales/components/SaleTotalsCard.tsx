@@ -1,5 +1,5 @@
 import { formatMoney } from '@/lib/format';
-import type { SaleTotalsPreview } from '../hooks/useSaleTotals';
+import type { SaleTotalsPreview } from '../lib/saleTotals';
 
 export interface SaleTotalsCardProps {
   totals: SaleTotalsPreview;
