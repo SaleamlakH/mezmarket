@@ -257,11 +257,17 @@ export type CreateSaleLineInput = Pick<SaleLine, 'productId' | 'quantity'> & {
 };
 
 /**
- * A payment as submitted. The method is optional to record; `OTHER` is its
- * default when none is given.
+ * A payment as submitted, carrying the status the caller asserts for the sale.
+ *
+ * Every payment field is optional: the `amount` is left out to let the server
+ * resolve it from the status and the sale's totals (a `PAID` payment with no
+ * amount settles the whole balance). `status` is always supplied — a `PENDING`
+ * sale records no payment at all. `method` defaults to `OTHER` when none is
+ * given.
  */
 export interface PaymentInput {
-  amount: number;
+  status: PaymentStatus;
+  amount?: number;
   method?: PaymentMethod;
   methodDetail?: string;
 }
@@ -347,10 +353,11 @@ export type SaleLineFormValues = Omit<CreateSaleLineInput, 'quantity'> & {
 };
 
 /**
- * Raw values a payment row holds before validation.
+ * Raw values a payment row holds before validation: the amount is optional
+ * text, which is what an input hands over when it is left blank.
  */
 export type PaymentFormValues = Omit<PaymentInput, 'amount'> & {
-  amount: string;
+  amount?: string;
 };
 
 /**
