@@ -1,4 +1,12 @@
-import type { CreateSaleInput, SaleDetailResult, SaleSummaryResult } from '@mez/types';
+import type {
+  CreateSaleInput,
+  PaymentMethod,
+  PaymentStatus,
+  RecordPaymentInput,
+  SaleDetailResult,
+  SaleSummaryResult,
+  VoidStatus,
+} from '@mez/types';
 
 import type {
   Payment as PaymentRecord,
@@ -14,6 +22,7 @@ import type { ProductUnitContext } from '../../shared/types/unit.types.js';
 export type {
   CreateSaleInput,
   CreateSaleLineInput,
+  RecordPaymentInput,
   SaleDetailResponse,
   SaleDetailResult,
   SaleLineDetailResponse,
@@ -107,9 +116,24 @@ export type StockLotDecrement = {
 };
 
 /**
+ * A payment ready to be written: the amount worked out from the status the
+ * caller asserted, and the method narrowed to a value with the free-text
+ * detail defaulted. `null` detail means no note was left.
+ */
+export type ResolvedPayment = {
+  amount: number;
+  method: PaymentMethod;
+  methodDetail: string | null;
+};
+
+/**
  * Everything the create write needs, once the service has resolved the lines,
  * allocated their stock and worked out the totals. The business, branch and
  * member come from the resolved session scope, never the request body.
+ *
+ * The payment fields are the service's read of any initial payment: the status
+ * to stamp, the running total paid and the balance left, plus the payment row
+ * to write when one was named.
  */
 export type CreateSaleCommand = {
   businessId: string;
@@ -121,6 +145,10 @@ export type CreateSaleCommand = {
   subtotal: number;
   taxAmount: number;
   total: number;
+  paymentStatus: PaymentStatus;
+  amountPaid: number;
+  balanceDue: number;
+  initialPayment: ResolvedPayment | null;
   lines: ResolvedSaleLine[];
   stockDecrements: StockDecrement[];
   lotDecrements: StockLotDecrement[];
@@ -163,15 +191,48 @@ export type SaleRecordSummary = SaleRecord & {
   customer: CustomerRecord | null;
 };
 
+/**
+ * The sale fields a payment write reads before it touches anything: what the
+ * sale totals and owes, and whether it is still open to payment. `null` total
+ * money is never the case here but the shape mirrors the row.
+ */
+export type SalePaymentContext = {
+  id: string;
+  total: StoredDecimal;
+  paymentStatus: PaymentStatus;
+  voidStatus: VoidStatus;
+  amountPaid: StoredDecimal;
+  balanceDue: StoredDecimal;
+};
+
+/**
+ * The write side of recording a payment: the status to stamp, the sale's total
+ * to settle against, and the payment row to append when the status records one.
+ * The repository sums the running total back from the sale's payments, so it
+ * never trusts a running figure a caller worked out earlier; the total is
+ * immutable once the sale exists, so it rides along rather than being re-read.
+ */
+export type RecordPaymentCommand = {
+  businessId: string;
+  saleId: string;
+  memberId: string;
+  total: number;
+  paymentStatus: PaymentStatus;
+  payment: ResolvedPayment | null;
+};
+
 export type SaleRepository = {
   getBusinessSaleConfig(businessId: string): Promise<BusinessSaleConfig | null>;
   getProductSellContext(businessId: string, productIds: string[]): Promise<ProductSellContext[]>;
   getStockLots(businessId: string, productIds: string[]): Promise<StockLot[]>;
+  getSaleForPayment(businessId: string, saleId: string): Promise<SalePaymentContext | null>;
   createSale(command: CreateSaleCommand): Promise<SaleRecordWithDetail>;
+  recordPayment(command: RecordPaymentCommand): Promise<SaleRecordWithDetail>;
   listSales(businessId: string, branchId: string): Promise<SaleRecordSummary[]>;
 };
 
 export type SaleService = {
   createSale(actor: Actor, input: CreateSaleInput): Promise<SaleDetailResult>;
+  recordPayment(actor: Actor, saleId: string, input: RecordPaymentInput): Promise<SaleDetailResult>;
   listSales(scope: Scope): Promise<SaleSummaryResult[]>;
 };

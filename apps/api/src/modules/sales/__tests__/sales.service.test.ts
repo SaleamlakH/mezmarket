@@ -5,6 +5,8 @@ import type {
   CreateSaleInput,
   ProductSellContext,
   ProductUnitSellContext,
+  RecordPaymentCommand,
+  SalePaymentContext,
   SaleRecordWithDetail,
   SaleRepository,
   SaleService,
@@ -18,7 +20,9 @@ function mockRepository(): SaleRepository {
     getBusinessSaleConfig: vi.fn(),
     getProductSellContext: vi.fn(),
     getStockLots: vi.fn(),
+    getSaleForPayment: vi.fn(),
     createSale: vi.fn(),
+    recordPayment: vi.fn(),
     listSales: vi.fn(),
   };
 }
@@ -159,6 +163,19 @@ function saleRecord(overrides: Partial<SaleRecordWithDetail> = {}): SaleRecordWi
   };
 }
 
+/** A sale as the payment flow reads it before it writes anything. */
+function paymentContext(overrides: Partial<SalePaymentContext> = {}): SalePaymentContext {
+  return {
+    id: 'sale-1',
+    total: decimal(2185),
+    paymentStatus: 'PENDING',
+    voidStatus: 'NONE',
+    amountPaid: decimal(0),
+    balanceDue: decimal(2185),
+    ...overrides,
+  };
+}
+
 function actor() {
   return { businessId: 'b-1', branchId: 'br-1', memberId: 'm-1' };
 }
@@ -169,6 +186,17 @@ function written(): CreateSaleCommand {
 
   if (!call) {
     throw new Error('createSale was never called');
+  }
+
+  return call[0];
+}
+
+/** The command the service handed the repository's payment write, as it was given. */
+function paymentWritten(): RecordPaymentCommand {
+  const call = vi.mocked(mockRepo.recordPayment).mock.calls.at(0);
+
+  if (!call) {
+    throw new Error('recordPayment was never called');
   }
 
   return call[0];
@@ -194,6 +222,8 @@ describe('sales.service', () => {
     vi.mocked(mockRepo.getProductSellContext).mockResolvedValue(CATALOG);
     vi.mocked(mockRepo.getStockLots).mockResolvedValue([]);
     vi.mocked(mockRepo.createSale).mockResolvedValue(saleRecord());
+    vi.mocked(mockRepo.recordPayment).mockResolvedValue(saleRecord());
+    vi.mocked(mockRepo.getSaleForPayment).mockResolvedValue(paymentContext());
   });
 
   describe('createSale', () => {
@@ -329,11 +359,55 @@ describe('sales.service', () => {
       expect(mockRepo.createSale).not.toHaveBeenCalled();
     });
 
-    it('rejects an initial payment, which this flow does not record yet', async () => {
-      await expect(
-        service.createSale(actor(), input({ initialPayment: { amount: 500 } })),
-      ).rejects.toEqual(appError(ERROR_CODES.BAD_REQUEST, 400));
-      expect(mockRepo.createSale).not.toHaveBeenCalled();
+    it('opens a sale paid when it is created with a paid status and no amount', async () => {
+      await service.createSale(actor(), input({ initialPayment: { status: 'PAID' } }));
+
+      expect(written()).toMatchObject({
+        paymentStatus: 'PAID',
+        amountPaid: 2185,
+        balanceDue: 0,
+        initialPayment: { amount: 2185, method: 'OTHER', methodDetail: null },
+      });
+    });
+
+    it('opens a sale partially paid at the amount it names', async () => {
+      await service.createSale(
+        actor(),
+        input({ initialPayment: { status: 'PARTIALLY_PAID', amount: 500, method: 'CASH' } }),
+      );
+
+      expect(written()).toMatchObject({
+        paymentStatus: 'PARTIALLY_PAID',
+        amountPaid: 500,
+        balanceDue: 1685,
+        initialPayment: { amount: 500, method: 'CASH', methodDetail: null },
+      });
+    });
+
+    it('opens a sale pending with nothing paid when it is created without a payment', async () => {
+      await service.createSale(actor(), input());
+
+      expect(written()).toMatchObject({
+        paymentStatus: 'PENDING',
+        amountPaid: 0,
+        balanceDue: 2185,
+        initialPayment: null,
+      });
+    });
+
+    it('keeps a free-text detail with the initial payment', async () => {
+      await service.createSale(
+        actor(),
+        input({
+          initialPayment: { status: 'PAID', method: 'MOBILE_MONEY', methodDetail: 'ref 42' },
+        }),
+      );
+
+      expect(written().initialPayment).toEqual({
+        amount: 2185,
+        method: 'MOBILE_MONEY',
+        methodDetail: 'ref 42',
+      });
     });
 
     it('answers 404 when the business has vanished', async () => {
@@ -476,6 +550,113 @@ describe('sales.service', () => {
       // The product still reflects the full draw, lot or not.
       expect(written().stockDecrements).toEqual([{ productId: 'p-tequila', amount: 2 }]);
       expect(written().lotDecrements).toEqual([{ stockBatchLineId: 'lot-old', quantity: 1 }]);
+    });
+  });
+
+  describe('recordPayment', () => {
+    it('reads the sale within the acting business before writing', async () => {
+      await service.recordPayment(actor(), 'sale-1', { status: 'PAID' });
+
+      expect(mockRepo.getSaleForPayment).toHaveBeenCalledWith('b-1', 'sale-1');
+    });
+
+    it('settles a paid sale for the whole balance when no amount is named', async () => {
+      await service.recordPayment(actor(), 'sale-1', { status: 'PAID' });
+
+      expect(paymentWritten()).toMatchObject({
+        saleId: 'sale-1',
+        memberId: 'm-1',
+        total: 2185,
+        paymentStatus: 'PAID',
+        payment: { amount: 2185, method: 'OTHER', methodDetail: null },
+      });
+    });
+
+    it('records the amount a partial payment names and keeps the status', async () => {
+      vi.mocked(mockRepo.getSaleForPayment).mockResolvedValue(
+        paymentContext({ paymentStatus: 'PENDING', balanceDue: decimal(2185) }),
+      );
+
+      await service.recordPayment(actor(), 'sale-1', {
+        status: 'PARTIALLY_PAID',
+        amount: 500,
+        method: 'CARD',
+      });
+
+      expect(paymentWritten()).toMatchObject({
+        paymentStatus: 'PARTIALLY_PAID',
+        payment: { amount: 500, method: 'CARD', methodDetail: null },
+      });
+    });
+
+    it('settles only the remaining balance for a paid sale already part-way', async () => {
+      vi.mocked(mockRepo.getSaleForPayment).mockResolvedValue(
+        paymentContext({
+          paymentStatus: 'PARTIALLY_PAID',
+          amountPaid: decimal(500),
+          balanceDue: decimal(1685),
+        }),
+      );
+
+      await service.recordPayment(actor(), 'sale-1', { status: 'PAID' });
+
+      expect(paymentWritten()).toMatchObject({ payment: { amount: 1685 } });
+    });
+
+    it('marks a sale pending without recording a payment', async () => {
+      await service.recordPayment(actor(), 'sale-1', { status: 'PENDING' });
+
+      expect(paymentWritten()).toMatchObject({ paymentStatus: 'PENDING', payment: null });
+    });
+
+    it('rejects a payment against a sale that is already paid', async () => {
+      vi.mocked(mockRepo.getSaleForPayment).mockResolvedValue(
+        paymentContext({
+          paymentStatus: 'PAID',
+          amountPaid: decimal(2185),
+          balanceDue: decimal(0),
+        }),
+      );
+
+      await expect(service.recordPayment(actor(), 'sale-1', { status: 'PAID' })).rejects.toEqual(
+        appError(ERROR_CODES.BAD_REQUEST, 400),
+      );
+      expect(mockRepo.recordPayment).not.toHaveBeenCalled();
+    });
+
+    it('rejects a payment against a voided sale', async () => {
+      vi.mocked(mockRepo.getSaleForPayment).mockResolvedValue(
+        paymentContext({ voidStatus: 'VOIDED' }),
+      );
+
+      await expect(service.recordPayment(actor(), 'sale-1', { status: 'PAID' })).rejects.toEqual(
+        appError(ERROR_CODES.BAD_REQUEST, 400),
+      );
+      expect(mockRepo.recordPayment).not.toHaveBeenCalled();
+    });
+
+    it('rejects marking pending a sale that already holds a payment', async () => {
+      vi.mocked(mockRepo.getSaleForPayment).mockResolvedValue(
+        paymentContext({
+          paymentStatus: 'PARTIALLY_PAID',
+          amountPaid: decimal(500),
+          balanceDue: decimal(1685),
+        }),
+      );
+
+      await expect(service.recordPayment(actor(), 'sale-1', { status: 'PENDING' })).rejects.toEqual(
+        appError(ERROR_CODES.BAD_REQUEST, 400),
+      );
+      expect(mockRepo.recordPayment).not.toHaveBeenCalled();
+    });
+
+    it('answers 404 when the sale is not in the business', async () => {
+      vi.mocked(mockRepo.getSaleForPayment).mockResolvedValue(null);
+
+      await expect(service.recordPayment(actor(), 'sale-1', { status: 'PAID' })).rejects.toEqual(
+        appError(ERROR_CODES.NOT_FOUND, 404),
+      );
+      expect(mockRepo.recordPayment).not.toHaveBeenCalled();
     });
   });
 

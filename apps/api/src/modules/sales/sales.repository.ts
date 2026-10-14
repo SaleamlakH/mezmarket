@@ -1,6 +1,9 @@
 import type { Prisma, PrismaClient } from '../../../generated/prisma/client.js';
+import { paymentSummary } from './utils/payment.js';
 import type {
   CreateSaleCommand,
+  RecordPaymentCommand,
+  ResolvedPayment,
   ResolvedSaleLine,
   SaleLineAllocation,
   SaleRecordWithDetail,
@@ -8,6 +11,18 @@ import type {
 } from './sales.types.js';
 
 const memberSummarySelect = { id: true, name: true, role: true } as const;
+
+/**
+ * The relations every detail read carries back, so a create, a payment write
+ * and a re-read all answer the same shape.
+ */
+const saleDetailInclude = {
+  lines: { include: { product: { select: { brand: true } } } },
+  payments: true,
+  processedByMember: { select: memberSummarySelect },
+  serverMember: { select: memberSummarySelect },
+  customer: true,
+} as const;
 
 /** How many times a create is reattempted when a concurrent write took the invoice number. */
 const MAX_INVOICE_ATTEMPTS = 3;
@@ -79,6 +94,20 @@ export function createSaleRepository(prisma: PrismaClient): SaleRepository {
       });
     },
 
+    async getSaleForPayment(businessId, saleId) {
+      return prisma.sale.findFirst({
+        where: { id: saleId, businessId },
+        select: {
+          id: true,
+          total: true,
+          paymentStatus: true,
+          voidStatus: true,
+          amountPaid: true,
+          balanceDue: true,
+        },
+      });
+    },
+
     async createSale(command) {
       for (let attempt = 0; ; attempt += 1) {
         try {
@@ -94,6 +123,10 @@ export function createSaleRepository(prisma: PrismaClient): SaleRepository {
       }
     },
 
+    async recordPayment(command) {
+      return prisma.$transaction((tx) => writePayment(tx, command));
+    },
+
     async listSales(businessId, branchId) {
       return prisma.sale.findMany({
         where: { businessId, branchId },
@@ -107,6 +140,26 @@ export function createSaleRepository(prisma: PrismaClient): SaleRepository {
       });
     },
   };
+}
+
+/** The fields a payment row is built from, whether it opens a sale or tops one up. */
+type PaymentWrite = {
+  saleId: string;
+  memberId: string;
+  payment: ResolvedPayment;
+};
+
+/** Writes one payment row against a sale; the create and the payment flows share it. */
+function createPayment(tx: Prisma.TransactionClient, { saleId, memberId, payment }: PaymentWrite) {
+  return tx.payment.create({
+    data: {
+      saleId,
+      businessMemberId: memberId,
+      amount: payment.amount,
+      method: payment.method,
+      methodDetail: payment.methodDetail,
+    },
+  });
 }
 
 /** Records a sale, its lines and the stock each line draws, in one transaction. */
@@ -129,11 +182,9 @@ async function writeSale(
       subtotal: command.subtotal,
       taxAmount: command.taxAmount,
       total: command.total,
-      // A sale with no payment recorded against it is pending, and the full
-      // total is what it is owed.
-      paymentStatus: 'PENDING',
-      amountPaid: 0,
-      balanceDue: command.total,
+      paymentStatus: command.paymentStatus,
+      amountPaid: command.amountPaid,
+      balanceDue: command.balanceDue,
     },
     include: {
       processedByMember: { select: memberSummarySelect },
@@ -142,21 +193,67 @@ async function writeSale(
     },
   });
 
-  // Each line and the lots it drew from are written together: the FK on every
-  // frozen cost row points at the just-created line, so nothing needs matching.
-  const lines = await Promise.all(
-    command.lines.map(({ allocations, quantityInBaseUnit, ...line }) => {
-      void quantityInBaseUnit; // Stock is drawn per product, not stored on the line.
-      return tx.saleLine.create({
-        data: toLineCreateData(sale.id, line, allocations),
-        include: { product: { select: { brand: true } } },
-      });
-    }),
-  );
+  // The opening payment and the lines are independent of each other — both only
+  // need the sale's id — so they are written together.
+  const [payment, lines] = await Promise.all([
+    command.initialPayment
+      ? createPayment(tx, {
+          saleId: sale.id,
+          memberId: command.memberId,
+          payment: command.initialPayment,
+        })
+      : Promise.resolve(null),
+
+    // Each line and the lots it drew from are written together: the FK on every
+    // frozen cost row points at the just-created line, so nothing needs matching.
+    Promise.all(
+      command.lines.map(({ allocations, quantityInBaseUnit, ...line }) => {
+        void quantityInBaseUnit; // Stock is drawn per product, not stored on the line.
+        return tx.saleLine.create({
+          data: toLineCreateData(sale.id, line, allocations),
+          include: { product: { select: { brand: true } } },
+        });
+      }),
+    ),
+  ]);
 
   await Promise.all([decrementLotStock(tx, command), decrementProductStock(tx, command)]);
 
-  return { ...sale, lines, payments: [] };
+  return { ...sale, lines, payments: payment ? [payment] : [] };
+}
+
+/**
+ * Appends a payment to an existing sale and restamps its payment summary in one
+ * transaction. The running totals are summed from the sale's payment rows
+ * rather than taken from the caller, so a stale figure never wins.
+ */
+async function writePayment(
+  tx: Prisma.TransactionClient,
+  command: RecordPaymentCommand,
+): Promise<SaleRecordWithDetail> {
+  if (command.payment) {
+    await createPayment(tx, {
+      saleId: command.saleId,
+      memberId: command.memberId,
+      payment: command.payment,
+    });
+  }
+
+  const summed = await tx.payment.aggregate({
+    where: { saleId: command.saleId },
+    _sum: { amount: true },
+  });
+
+  const { amountPaid, balanceDue } = paymentSummary(
+    command.total,
+    summed._sum.amount?.toNumber() ?? 0,
+  );
+
+  return tx.sale.update({
+    where: { id: command.saleId },
+    data: { paymentStatus: command.paymentStatus, amountPaid, balanceDue },
+    include: saleDetailInclude,
+  });
 }
 
 /**

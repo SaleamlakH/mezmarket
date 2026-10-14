@@ -22,6 +22,7 @@ const CREATED = { id: 'sale-1', lines: [{ id: 'sl-1' }] };
 function mockService(): SaleService {
   return {
     createSale: vi.fn(),
+    recordPayment: vi.fn(),
     listSales: vi.fn(),
   };
 }
@@ -36,8 +37,12 @@ describe('sales.controller', () => {
     controller = createSaleController(service);
   });
 
-  function call(auth: Partial<Request['auth']> | undefined, validBody?: unknown) {
-    const req = { auth, validBody } as unknown as Request;
+  function call(
+    auth: Partial<Request['auth']> | undefined,
+    validBody?: unknown,
+    params: Request['params'] = {},
+  ) {
+    const req = { auth, validBody, params } as unknown as Request;
     const res = {
       locals: {},
       status: vi.fn().mockReturnThis(),
@@ -74,6 +79,43 @@ describe('sales.controller', () => {
       const { req, res } = call(AUTH, input());
 
       await expect(controller.createSale(req, res)).rejects.toThrow('db down');
+      expect(res.json).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('recordPayment', () => {
+    it('answers 201 with the sale the service recorded against', async () => {
+      vi.mocked(service.recordPayment).mockResolvedValue(CREATED as never);
+      const { req, res } = call(AUTH, { status: 'PAID' }, { saleId: 'sale-1' });
+
+      await controller.recordPayment(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith(CREATED);
+    });
+
+    it('hands the service the scope, the sale id and the validated payment body', async () => {
+      vi.mocked(service.recordPayment).mockResolvedValue(CREATED as never);
+      const { req, res } = call(
+        AUTH,
+        { status: 'PARTIALLY_PAID', amount: 500 },
+        { saleId: 'sale-9' },
+      );
+
+      await controller.recordPayment(req, res);
+
+      expect(service.recordPayment).toHaveBeenCalledWith(
+        { businessId: 'b-1', branchId: 'br-1', memberId: 'm-1' },
+        'sale-9',
+        { status: 'PARTIALLY_PAID', amount: 500 },
+      );
+    });
+
+    it('lets a rejected service call propagate to the error handler', async () => {
+      vi.mocked(service.recordPayment).mockRejectedValue(new Error('db down'));
+      const { req, res } = call(AUTH, { status: 'PAID' }, { saleId: 'sale-1' });
+
+      await expect(controller.recordPayment(req, res)).rejects.toThrow('db down');
       expect(res.json).not.toHaveBeenCalled();
     });
   });

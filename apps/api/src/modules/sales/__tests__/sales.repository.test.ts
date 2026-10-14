@@ -1,15 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createSaleRepository } from '../sales.repository.js';
-import type { CreateSaleCommand } from '../sales.types.js';
+import type { CreateSaleCommand, RecordPaymentCommand } from '../sales.types.js';
 import type { PrismaClient } from '../../../../generated/prisma/client.js';
 
 type MockTx = {
   sale: {
     count: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
+    findUnique: ReturnType<typeof vi.fn>;
     findUniqueOrThrow: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
   };
   saleLine: { create: ReturnType<typeof vi.fn> };
+  payment: { create: ReturnType<typeof vi.fn>; aggregate: ReturnType<typeof vi.fn> };
   stockBatchLine: { update: ReturnType<typeof vi.fn> };
   product: { update: ReturnType<typeof vi.fn> };
   auditLog: { create: ReturnType<typeof vi.fn> };
@@ -17,15 +20,22 @@ type MockTx = {
 
 function createPrismaStub() {
   const tx: MockTx = {
-    sale: { count: vi.fn(), create: vi.fn(), findUniqueOrThrow: vi.fn() },
+    sale: {
+      count: vi.fn(),
+      create: vi.fn(),
+      findUnique: vi.fn(),
+      findUniqueOrThrow: vi.fn(),
+      update: vi.fn(),
+    },
     saleLine: { create: vi.fn() },
+    payment: { create: vi.fn(), aggregate: vi.fn() },
     stockBatchLine: { update: vi.fn() },
     product: { update: vi.fn() },
     auditLog: { create: vi.fn() },
   };
   const business = { findUnique: vi.fn() };
   const product = { findMany: vi.fn() };
-  const sale = { findMany: vi.fn() };
+  const sale = { findMany: vi.fn(), findFirst: vi.fn() };
   const stockBatchLine = { findMany: vi.fn() };
   const $transaction = vi.fn((cb: (tx: MockTx) => unknown) => cb(tx));
 
@@ -51,6 +61,10 @@ function command(overrides: Partial<CreateSaleCommand> = {}): CreateSaleCommand 
     subtotal: 1900,
     taxAmount: 285,
     total: 2185,
+    paymentStatus: 'PENDING',
+    amountPaid: 0,
+    balanceDue: 2185,
+    initialPayment: null,
     lines: [
       {
         productId: 'p-tequila',
@@ -68,6 +82,18 @@ function command(overrides: Partial<CreateSaleCommand> = {}): CreateSaleCommand 
     ],
     stockDecrements: [{ productId: 'p-tequila', amount: 2 }],
     lotDecrements: [{ stockBatchLineId: 'lot-1', quantity: 2 }],
+    ...overrides,
+  };
+}
+
+function paymentCommand(overrides: Partial<RecordPaymentCommand> = {}): RecordPaymentCommand {
+  return {
+    businessId: 'b-1',
+    saleId: 'sale-1',
+    memberId: 'm-1',
+    total: 2185,
+    paymentStatus: 'PAID',
+    payment: { amount: 2185, method: 'CASH', methodDetail: null },
     ...overrides,
   };
 }
@@ -98,6 +124,8 @@ function createdSale(overrides: Record<string, unknown> = {}) {
     processedByMember: { id: 'm-1', name: 'me', role: 'OWNER' },
     serverMember: null,
     customer: null,
+    lines: [],
+    payments: [],
     ...overrides,
   };
 }
@@ -144,6 +172,17 @@ function registerSuccess(tx: MockTx) {
   tx.sale.count.mockResolvedValue(0);
   tx.sale.create.mockResolvedValue(createdSale());
   tx.saleLine.create.mockResolvedValue(CREATED_LINE);
+}
+
+/**
+ * Wires a payment write: the summed payments the restamp reads and the detail
+ * the update hands back.
+ */
+function registerPayment(tx: MockTx, options: { summed?: number; detail?: unknown } = {}) {
+  tx.payment.aggregate.mockResolvedValue({
+    _sum: { amount: { toNumber: () => options.summed ?? 2185 } },
+  });
+  tx.sale.update.mockResolvedValue(options.detail ?? createdSale());
 }
 
 describe('sales.repository', () => {
@@ -234,6 +273,36 @@ describe('sales.repository', () => {
         },
         orderBy: [{ stockBatch: { batchDate: 'asc' } }, { createdAt: 'asc' }],
       });
+    });
+  });
+
+  describe('getSaleForPayment', () => {
+    it('reads the sale within the business with the fields a payment write needs', async () => {
+      const { prisma, sale } = createPrismaStub();
+      const repo = createSaleRepository(prisma);
+      sale.findFirst.mockResolvedValue(null);
+
+      await repo.getSaleForPayment('b-1', 'sale-1');
+
+      expect(sale.findFirst).toHaveBeenCalledWith({
+        where: { id: 'sale-1', businessId: 'b-1' },
+        select: {
+          id: true,
+          total: true,
+          paymentStatus: true,
+          voidStatus: true,
+          amountPaid: true,
+          balanceDue: true,
+        },
+      });
+    });
+
+    it('answers null when the sale is not in the business', async () => {
+      const { prisma, sale } = createPrismaStub();
+      const repo = createSaleRepository(prisma);
+      sale.findFirst.mockResolvedValue(null);
+
+      await expect(repo.getSaleForPayment('b-1', 'sale-1')).resolves.toBeNull();
     });
   });
 
@@ -346,6 +415,33 @@ describe('sales.repository', () => {
       expect(tx.sale.findUniqueOrThrow).not.toHaveBeenCalled();
     });
 
+    it('writes the opening payment against the created sale', async () => {
+      const { prisma, tx } = createPrismaStub();
+      const repo = createSaleRepository(prisma);
+      registerSuccess(tx);
+      tx.payment.create.mockResolvedValue({ id: 'pay-1' });
+
+      const result = await repo.createSale(
+        command({
+          paymentStatus: 'PARTIALLY_PAID',
+          amountPaid: 500,
+          balanceDue: 1685,
+          initialPayment: { amount: 500, method: 'CASH', methodDetail: 'ref 1' },
+        }),
+      );
+
+      expect(tx.payment.create).toHaveBeenCalledWith({
+        data: {
+          saleId: 'sale-1',
+          businessMemberId: 'm-1',
+          amount: 500,
+          method: 'CASH',
+          methodDetail: 'ref 1',
+        },
+      });
+      expect(result.payments).toEqual([{ id: 'pay-1' }]);
+    });
+
     it('takes each lot down by the summed draw the command carries', async () => {
       const { prisma, tx } = createPrismaStub();
       const repo = createSaleRepository(prisma);
@@ -434,6 +530,98 @@ describe('sales.repository', () => {
       await expect(repo.createSale(command())).rejects.toThrow('db down');
 
       expect(tx.saleLine.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('recordPayment', () => {
+    it('appends the payment and restamps the sale in one transaction', async () => {
+      const { prisma, tx, $transaction } = createPrismaStub();
+      const repo = createSaleRepository(prisma);
+      registerPayment(tx);
+
+      await repo.recordPayment(paymentCommand());
+
+      expect($transaction).toHaveBeenCalledTimes(1);
+      expect(tx.payment.create).toHaveBeenCalledWith({
+        data: {
+          saleId: 'sale-1',
+          businessMemberId: 'm-1',
+          amount: 2185,
+          method: 'CASH',
+          methodDetail: null,
+        },
+      });
+      expect(tx.sale.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'sale-1' },
+          data: { paymentStatus: 'PAID', amountPaid: 2185, balanceDue: 0 },
+        }),
+      );
+    });
+
+    it('restamps from the summed payments at the status asserted', async () => {
+      const { prisma, tx } = createPrismaStub();
+      const repo = createSaleRepository(prisma);
+      registerPayment(tx, { summed: 500 });
+
+      await repo.recordPayment(
+        paymentCommand({
+          paymentStatus: 'PARTIALLY_PAID',
+          payment: { amount: 500, method: 'CARD', methodDetail: 'visa' },
+        }),
+      );
+
+      expect(tx.sale.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'sale-1' },
+          data: { paymentStatus: 'PARTIALLY_PAID', amountPaid: 500, balanceDue: 1685 },
+        }),
+      );
+    });
+
+    it('writes no payment row when the status records none', async () => {
+      const { prisma, tx } = createPrismaStub();
+      const repo = createSaleRepository(prisma);
+      registerPayment(tx, { summed: 0 });
+
+      await repo.recordPayment(paymentCommand({ paymentStatus: 'PENDING', payment: null }));
+
+      expect(tx.payment.create).not.toHaveBeenCalled();
+      expect(tx.sale.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'sale-1' },
+          data: { paymentStatus: 'PENDING', amountPaid: 0, balanceDue: 2185 },
+        }),
+      );
+    });
+
+    it('floors the balance due at zero on an overpayment', async () => {
+      const { prisma, tx } = createPrismaStub();
+      const repo = createSaleRepository(prisma);
+      registerPayment(tx, { summed: 2500 });
+
+      await repo.recordPayment(paymentCommand());
+
+      expect(tx.sale.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'sale-1' },
+          data: { paymentStatus: 'PAID', amountPaid: 2500, balanceDue: 0 },
+        }),
+      );
+    });
+
+    it('returns the updated sale with its detail', async () => {
+      const { prisma, tx } = createPrismaStub();
+      const repo = createSaleRepository(prisma);
+      const detail = createdSale({
+        paymentStatus: 'PAID',
+        amountPaid: 2185,
+        balanceDue: 0,
+        payments: [{ id: 'pay-1' }],
+      });
+      registerPayment(tx, { detail });
+
+      await expect(repo.recordPayment(paymentCommand())).resolves.toBe(detail);
     });
   });
 

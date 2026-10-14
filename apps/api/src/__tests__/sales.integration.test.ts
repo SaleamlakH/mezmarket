@@ -23,7 +23,9 @@ const { verifyJwt, authRepository, businessRepository, salesRepository } = vi.ho
     getBusinessSaleConfig: vi.fn(),
     getProductSellContext: vi.fn(),
     getStockLots: vi.fn(),
+    getSaleForPayment: vi.fn(),
     createSale: vi.fn(),
+    recordPayment: vi.fn(),
     listSales: vi.fn(),
   } satisfies SaleRepository,
 }));
@@ -116,6 +118,23 @@ const SALE_RECORD = {
   customer: null,
 };
 
+const PAID_SALE_RECORD = {
+  ...SALE_RECORD,
+  paymentStatus: 'PAID',
+  amountPaid: decimal(2185),
+  balanceDue: decimal(0),
+  payments: [{ id: 'pay-1', amount: decimal(2185), method: 'CASH', methodDetail: null }],
+};
+
+const SALE_PAYMENT_CONTEXT = {
+  id: 'sale-1',
+  total: decimal(2185),
+  paymentStatus: 'PENDING',
+  voidStatus: 'NONE',
+  amountPaid: decimal(0),
+  balanceDue: decimal(2185),
+};
+
 const BODY = {
   lines: [{ productId: 'p-tequila', productUnitId: 'pu-bottle', quantity: '2' }],
 };
@@ -142,6 +161,8 @@ describe('sales.integration', () => {
     salesRepository.getProductSellContext.mockResolvedValue([PRODUCT]);
     salesRepository.getStockLots.mockResolvedValue([]);
     salesRepository.createSale.mockResolvedValue(SALE_RECORD);
+    salesRepository.getSaleForPayment.mockResolvedValue(SALE_PAYMENT_CONTEXT);
+    salesRepository.recordPayment.mockResolvedValue(PAID_SALE_RECORD);
     salesRepository.listSales.mockResolvedValue([SALE_RECORD]);
   });
 
@@ -265,16 +286,35 @@ describe('sales.integration', () => {
       expect(salesRepository.createSale).not.toHaveBeenCalled();
     });
 
-    it('refuses an initial payment with a per-field detail', async () => {
+    it('creates a sale already paid from an initial payment with no amount', async () => {
       await authenticate();
 
       const res = await request(app)
         .post('/api/businesses/b-1/sales')
         .set('Authorization', 'Bearer token')
-        .send({ ...BODY, initialPayment: { amount: '500' } });
+        .send({ ...BODY, initialPayment: { status: 'PAID' } });
+
+      expect(res.status).toBe(201);
+      expect(salesRepository.createSale).toHaveBeenCalledWith(
+        expect.objectContaining({
+          paymentStatus: 'PAID',
+          amountPaid: 2185,
+          balanceDue: 0,
+          initialPayment: { amount: 2185, method: 'OTHER', methodDetail: null },
+        }),
+      );
+    });
+
+    it('refuses a partial initial payment with no amount, pointing at the field', async () => {
+      await authenticate();
+
+      const res = await request(app)
+        .post('/api/businesses/b-1/sales')
+        .set('Authorization', 'Bearer token')
+        .send({ ...BODY, initialPayment: { status: 'PARTIALLY_PAID' } });
 
       expect(res.status).toBe(400);
-      expect(res.body.error.details).toMatchObject({ initialPayment: expect.any(String) });
+      expect(res.body.error.details).toMatchObject({ 'initialPayment.amount': expect.any(String) });
       expect(salesRepository.createSale).not.toHaveBeenCalled();
     });
 
@@ -419,6 +459,80 @@ describe('sales.integration', () => {
 
       expect(res.status).toBe(404);
       expect(salesRepository.listSales).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('POST /api/businesses/:businessId/sales/:saleId/payments', () => {
+    it('rejects an unauthenticated request', async () => {
+      const res = await request(app)
+        .post('/api/businesses/b-1/sales/sale-1/payments')
+        .send({ status: 'PAID' });
+
+      expect(res.status).toBe(401);
+      expect(salesRepository.recordPayment).not.toHaveBeenCalled();
+    });
+
+    it('refuses a SERVER with FORBIDDEN', async () => {
+      await authenticate('SERVER');
+
+      const res = await request(app)
+        .post('/api/businesses/b-1/sales/sale-1/payments')
+        .set('Authorization', 'Bearer token')
+        .send({ status: 'PAID' });
+
+      expect(res.status).toBe(403);
+      expect(res.body).toMatchObject({ error: { code: ERROR_CODES.FORBIDDEN } });
+      expect(salesRepository.recordPayment).not.toHaveBeenCalled();
+    });
+
+    it('rejects a body with no status before the sale is read', async () => {
+      await authenticate();
+
+      const res = await request(app)
+        .post('/api/businesses/b-1/sales/sale-1/payments')
+        .set('Authorization', 'Bearer token')
+        .send({ amount: '500' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.details).toMatchObject({ status: expect.any(String) });
+      expect(salesRepository.getSaleForPayment).not.toHaveBeenCalled();
+    });
+
+    it.each(['OWNER', 'MANAGER', 'CASHIER'] as const)(
+      'records a payment for a %s',
+      async (role) => {
+        await authenticate(role);
+
+        const res = await request(app)
+          .post('/api/businesses/b-1/sales/sale-1/payments')
+          .set('Authorization', 'Bearer token')
+          .send({ status: 'PARTIALLY_PAID', amount: '500', method: 'CASH' });
+
+        expect(res.status).toBe(201);
+        expect(salesRepository.getSaleForPayment).toHaveBeenCalledWith('b-1', 'sale-1');
+        expect(salesRepository.recordPayment).toHaveBeenCalledWith(
+          expect.objectContaining({
+            saleId: 'sale-1',
+            memberId: 'm-1',
+            paymentStatus: 'PARTIALLY_PAID',
+            payment: { amount: 500, method: 'CASH', methodDetail: null },
+          }),
+        );
+        expect(res.body).toMatchObject({ id: 'sale-1', paymentStatus: 'PAID' });
+      },
+    );
+
+    it('answers 404 when the sale is not in the business', async () => {
+      await authenticate();
+      salesRepository.getSaleForPayment.mockResolvedValue(null);
+
+      const res = await request(app)
+        .post('/api/businesses/b-1/sales/sale-1/payments')
+        .set('Authorization', 'Bearer token')
+        .send({ status: 'PAID' });
+
+      expect(res.status).toBe(404);
+      expect(salesRepository.recordPayment).not.toHaveBeenCalled();
     });
   });
 });

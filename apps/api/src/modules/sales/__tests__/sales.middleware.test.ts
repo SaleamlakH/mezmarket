@@ -1,13 +1,18 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { NextFunction, Request, Response } from 'express';
-import { validateSaleCreateInput } from '../sales.middleware.js';
+import { validateSaleCreateInput, validateSalePaymentInput } from '../sales.middleware.js';
 import { ERROR_CODES } from '../../../shared/errors/app-error.js';
 
 function call(body: unknown) {
   const req = { body, validBody: undefined } as unknown as Request;
   const res = { locals: {} } as unknown as Response;
   const next = vi.fn() as NextFunction;
-  return { run: () => validateSaleCreateInput(req, res, next), req, next };
+  return {
+    req,
+    next,
+    runCreate: () => validateSaleCreateInput(req, res, next),
+    runPayment: () => validateSalePaymentInput(req, res, next),
+  };
 }
 
 const VALID = {
@@ -18,9 +23,9 @@ const VALID = {
 describe('sales.middleware', () => {
   describe('validateSaleCreateInput', () => {
     it('stores the parsed body on the request and calls next', () => {
-      const { run, req, next } = call(VALID);
+      const { runCreate, req, next } = call(VALID);
 
-      run();
+      runCreate();
 
       expect(next).toHaveBeenCalledTimes(1);
       expect(req.validBody).toEqual({
@@ -33,14 +38,43 @@ describe('sales.middleware', () => {
     // matters here is that a failure becomes a 400 and never reaches the
     // service.
     it('turns a rejected body into a 400 and stops the chain', () => {
-      const { run, req, next } = call({ lines: [] });
+      const { runCreate, req, next } = call({ lines: [] });
 
-      expect(run).toThrow(
+      expect(runCreate).toThrow(
         expect.objectContaining({
           code: ERROR_CODES.BAD_REQUEST,
           statusCode: 400,
           message: expect.any(String),
           details: expect.objectContaining({ lines: expect.any(String) }),
+        }),
+      );
+      expect(next).not.toHaveBeenCalled();
+      expect(req.validBody).toBeUndefined();
+    });
+  });
+
+  describe('validateSalePaymentInput', () => {
+    it('stores the parsed payment on the request and calls next', () => {
+      const { runPayment, req, next } = call({
+        status: 'PARTIALLY_PAID',
+        amount: '500',
+        method: 'CASH',
+      });
+
+      runPayment();
+
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(req.validBody).toEqual({ status: 'PARTIALLY_PAID', amount: 500, method: 'CASH' });
+    });
+
+    it('turns a payment with no status into a 400 and stops the chain', () => {
+      const { runPayment, req, next } = call({ amount: '500' });
+
+      expect(runPayment).toThrow(
+        expect.objectContaining({
+          code: ERROR_CODES.BAD_REQUEST,
+          statusCode: 400,
+          details: expect.objectContaining({ status: expect.any(String) }),
         }),
       );
       expect(next).not.toHaveBeenCalled();
