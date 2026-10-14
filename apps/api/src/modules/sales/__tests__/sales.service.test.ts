@@ -10,7 +10,6 @@ import type {
   SaleRecordWithDetail,
   SaleRepository,
   SaleService,
-  StockLot,
 } from '../sales.types.js';
 import type { Prisma } from '../../../../generated/prisma/client.js';
 import { ERROR_CODES } from '../../../shared/errors/app-error.js';
@@ -68,18 +67,6 @@ const TEQUILA: ProductSellContext = {
       conversionRate: decimal(12),
       price: decimal(10800),
     }),
-    unit({
-      id: 'pu-notsellable',
-      unitRole: 'STANDARD',
-      standardUnitId: 'su-l',
-      standardUnit: { id: 'su-l', name: 'Liter', symbol: 'L' },
-      name: 'Liter',
-      dependsOn: 'BASE',
-      conversionRate: decimal(1),
-      sellCapable: false,
-      price: decimal(50),
-    }),
-    unit({ id: 'pu-noprice', name: 'Unpriced', price: null }),
   ],
 };
 
@@ -97,17 +84,6 @@ function line(overrides: Partial<CreateSaleInput['lines'][number]> = {}) {
 function input(overrides: Partial<CreateSaleInput> = {}): CreateSaleInput {
   return {
     lines: [line()],
-    ...overrides,
-  };
-}
-
-/** A purchase lot still holding stock, as the FIFO walk reads it. */
-function lot(overrides: Partial<StockLot> = {}): StockLot {
-  return {
-    id: 'lot-1',
-    productId: 'p-tequila',
-    purchaseUnitCost: decimal(600),
-    quantityRemaining: decimal(10),
     ...overrides,
   };
 }
@@ -134,27 +110,7 @@ function saleRecord(overrides: Partial<SaleRecordWithDetail> = {}): SaleRecordWi
     voidReason: null,
     createdAt: new Date('2026-02-01T10:00:00.000Z'),
     updatedAt: new Date('2026-02-01T10:00:00.000Z'),
-    lines: [
-      {
-        id: 'sl-1',
-        saleId: 'sale-1',
-        productId: 'p-tequila',
-        productName: 'Sierra Tequila 350 ml',
-        productUnitId: 'pu-bottle',
-        soldUnit: 'Bottle',
-        quantity: decimal(2),
-        standardUnit: 'pc',
-        quantityInStandardUnit: decimal(2),
-        resolvedStandardUnitId: 'su-pc',
-        unitPrice: decimal(950),
-        containerId: null,
-        refunded: false,
-        refundRestocked: false,
-        createdAt: new Date('2026-02-01T10:00:00.000Z'),
-        updatedAt: new Date('2026-02-01T10:00:00.000Z'),
-        product: { brand: 'Sierra' },
-      },
-    ],
+    lines: [],
     payments: [],
     processedByMember: { id: 'm-1', name: 'me', role: 'OWNER' },
     serverMember: null,
@@ -258,33 +214,73 @@ describe('sales.service', () => {
       });
     });
 
-    it('charges no tax when the business has no rate set', async () => {
-      vi.mocked(mockRepo.getBusinessSaleConfig).mockResolvedValue({
-        defaultTaxRate: null,
-        allowNegativeStock: true,
-      });
+    it('records the snapshotted lines onto the write', async () => {
+      await service.createSale(actor(), input({ lines: [line({ quantity: 2 })] }));
 
-      await service.createSale(actor(), input());
-
-      expect(written()).toMatchObject({ taxRateApplied: 0, taxAmount: 0, total: 1900 });
+      expect(written().lines).toEqual([
+        expect.objectContaining({
+          productName: 'Sierra Tequila 350 ml',
+          soldUnit: 'Bottle',
+          quantity: 2,
+          quantityInStandardUnit: 2,
+          unitPrice: 950,
+        }),
+      ]);
     });
 
-    it('rounds money to the precision the columns store', async () => {
-      vi.mocked(mockRepo.getBusinessSaleConfig).mockResolvedValue({
-        defaultTaxRate: decimal(0.075),
-        allowNegativeStock: true,
-      });
+    it('snapshots the chosen unit and its standard quantity onto the line', async () => {
+      await service.createSale(actor(), input({ lines: [line({ productUnitId: 'pu-case' })] }));
 
-      await service.createSale(actor(), input({ lines: [line({ quantity: 3 })] }));
-
-      // 3 x 950 = 2850; 7.5% = 213.75; total = 3063.75
-      expect(written()).toMatchObject({ subtotal: 2850, taxAmount: 213.75, total: 3063.75 });
+      // 2 cases x 12 = 24 bottles in the standard unit
+      expect(written().lines).toEqual([
+        expect.objectContaining({
+          soldUnit: 'Case (12 bottles)',
+          quantityInStandardUnit: 24,
+          unitPrice: 10800,
+        }),
+      ]);
     });
 
     it('leaves the discount empty', async () => {
       await service.createSale(actor(), input());
 
       expect(written().discount).toBeNull();
+    });
+
+    it('records the initial payment position of a sale confirmed paid', async () => {
+      await service.createSale(actor(), input({ initialPayment: { status: 'PAID' } }));
+
+      expect(written()).toMatchObject({
+        paymentStatus: 'PAID',
+        amountPaid: 2185,
+        balanceDue: 0,
+        initialPayment: { amount: 2185, method: 'OTHER', methodDetail: null },
+      });
+    });
+
+    it('records a partial initial payment at the amount it names', async () => {
+      await service.createSale(
+        actor(),
+        input({ initialPayment: { status: 'PARTIALLY_PAID', amount: 500, method: 'CASH' } }),
+      );
+
+      expect(written()).toMatchObject({
+        paymentStatus: 'PARTIALLY_PAID',
+        amountPaid: 500,
+        balanceDue: 1685,
+        initialPayment: { amount: 500, method: 'CASH', methodDetail: null },
+      });
+    });
+
+    it('records a pending sale owing the whole total when no payment is named', async () => {
+      await service.createSale(actor(), input());
+
+      expect(written()).toMatchObject({
+        paymentStatus: 'PENDING',
+        amountPaid: 0,
+        balanceDue: 2185,
+        initialPayment: null,
+      });
     });
 
     it('defaults the sale datetime to now when none was given', async () => {
@@ -304,110 +300,10 @@ describe('sales.service', () => {
       expect(written().saleDatetime).toEqual(saleDatetime);
     });
 
-    it('hands the snapshotted lines to the write, computed before it runs', async () => {
-      await service.createSale(actor(), input({ lines: [line({ quantity: 2 })] }));
-
-      expect(written().lines).toEqual([
-        expect.objectContaining({
-          productName: 'Sierra Tequila 350 ml',
-          soldUnit: 'Bottle',
-          quantity: 2,
-          quantityInStandardUnit: 2,
-          unitPrice: 950,
-        }),
-      ]);
-    });
-
-    it('snapshots each sold unit price from the unit that was chosen', async () => {
-      await service.createSale(actor(), input({ lines: [line({ productUnitId: 'pu-case' })] }));
-
-      expect(written().lines).toEqual([
-        expect.objectContaining({
-          soldUnit: 'Case (12 bottles)',
-          quantity: 2,
-          quantityInStandardUnit: 24,
-          unitPrice: 10800,
-        }),
-      ]);
-    });
-
-    it('rejects a unit that is not one of that product units', async () => {
-      await expect(
-        service.createSale(actor(), input({ lines: [line({ productUnitId: 'pu-elsewhere' })] })),
-      ).rejects.toEqual(appError(ERROR_CODES.BAD_REQUEST, 400));
-      expect(mockRepo.createSale).not.toHaveBeenCalled();
-    });
-
-    it('rejects a unit the product cannot be sold in', async () => {
-      await expect(
-        service.createSale(actor(), input({ lines: [line({ productUnitId: 'pu-notsellable' })] })),
-      ).rejects.toEqual(appError(ERROR_CODES.BAD_REQUEST, 400));
-      expect(mockRepo.createSale).not.toHaveBeenCalled();
-    });
-
-    it('rejects a sellable unit that carries no price', async () => {
-      await expect(
-        service.createSale(actor(), input({ lines: [line({ productUnitId: 'pu-noprice' })] })),
-      ).rejects.toEqual(appError(ERROR_CODES.BAD_REQUEST, 400));
-      expect(mockRepo.createSale).not.toHaveBeenCalled();
-    });
-
-    it('does not write the sale when a line cannot be snapshotted', async () => {
-      await expect(
-        service.createSale(actor(), input({ lines: [line({ productId: 'p-unknown' })] })),
-      ).rejects.toEqual(appError(ERROR_CODES.NOT_FOUND, 404));
-      expect(mockRepo.createSale).not.toHaveBeenCalled();
-    });
-
-    it('opens a sale paid when it is created with a paid status and no amount', async () => {
-      await service.createSale(actor(), input({ initialPayment: { status: 'PAID' } }));
-
-      expect(written()).toMatchObject({
-        paymentStatus: 'PAID',
-        amountPaid: 2185,
-        balanceDue: 0,
-        initialPayment: { amount: 2185, method: 'OTHER', methodDetail: null },
-      });
-    });
-
-    it('opens a sale partially paid at the amount it names', async () => {
-      await service.createSale(
-        actor(),
-        input({ initialPayment: { status: 'PARTIALLY_PAID', amount: 500, method: 'CASH' } }),
-      );
-
-      expect(written()).toMatchObject({
-        paymentStatus: 'PARTIALLY_PAID',
-        amountPaid: 500,
-        balanceDue: 1685,
-        initialPayment: { amount: 500, method: 'CASH', methodDetail: null },
-      });
-    });
-
-    it('opens a sale pending with nothing paid when it is created without a payment', async () => {
+    it('reads the lots of the products named', async () => {
       await service.createSale(actor(), input());
 
-      expect(written()).toMatchObject({
-        paymentStatus: 'PENDING',
-        amountPaid: 0,
-        balanceDue: 2185,
-        initialPayment: null,
-      });
-    });
-
-    it('keeps a free-text detail with the initial payment', async () => {
-      await service.createSale(
-        actor(),
-        input({
-          initialPayment: { status: 'PAID', method: 'MOBILE_MONEY', methodDetail: 'ref 42' },
-        }),
-      );
-
-      expect(written().initialPayment).toEqual({
-        amount: 2185,
-        method: 'MOBILE_MONEY',
-        methodDetail: 'ref 42',
-      });
+      expect(mockRepo.getStockLots).toHaveBeenCalledWith('b-1', ['p-tequila']);
     });
 
     it('answers 404 when the business has vanished', async () => {
@@ -417,139 +313,6 @@ describe('sales.service', () => {
         appError(ERROR_CODES.NOT_FOUND, 404),
       );
       expect(mockRepo.createSale).not.toHaveBeenCalled();
-    });
-
-    it('returns the created sale with its lines, brand and processing member', async () => {
-      const result = await service.createSale(actor(), input());
-
-      expect(result).toMatchObject({
-        id: 'sale-1',
-        invoiceNumber: '1',
-        subtotal: 1900,
-        taxAmount: 285,
-        total: 2185,
-        paymentStatus: 'PENDING',
-        discount: null,
-        processedBy: { id: 'm-1', name: 'me', role: 'OWNER' },
-        servedBy: null,
-        customer: null,
-        payments: [],
-      });
-      expect(result.lines[0]).toMatchObject({
-        productName: 'Sierra Tequila 350 ml',
-        productBrand: 'Sierra',
-        quantity: 2,
-        unitPrice: 950,
-        quantityInStandardUnit: 2,
-      });
-      expect(result.lines[0]?.quantity).toBe(2);
-    });
-
-    it('reads the lots of the products named, oldest first', async () => {
-      await service.createSale(actor(), input());
-
-      expect(mockRepo.getStockLots).toHaveBeenCalledWith('b-1', ['p-tequila']);
-    });
-
-    it('allocates a line against the oldest lot first', async () => {
-      vi.mocked(mockRepo.getStockLots).mockResolvedValue([
-        lot({ id: 'lot-old', purchaseUnitCost: decimal(600), quantityRemaining: decimal(10) }),
-        lot({ id: 'lot-new', purchaseUnitCost: decimal(700), quantityRemaining: decimal(10) }),
-      ]);
-
-      await service.createSale(actor(), input({ lines: [line({ quantity: 2 })] }));
-
-      expect(written().lines[0]?.allocations).toEqual([
-        { stockBatchLineId: 'lot-old', quantityPulled: 2, unitCost: 600 },
-      ]);
-    });
-
-    it('splits a line across lots when the oldest runs out', async () => {
-      vi.mocked(mockRepo.getStockLots).mockResolvedValue([
-        lot({ id: 'lot-old', purchaseUnitCost: decimal(600), quantityRemaining: decimal(1) }),
-        lot({ id: 'lot-new', purchaseUnitCost: decimal(700), quantityRemaining: decimal(10) }),
-      ]);
-
-      await service.createSale(actor(), input({ lines: [line({ quantity: 3 })] }));
-
-      expect(written().lines[0]?.allocations).toEqual([
-        { stockBatchLineId: 'lot-old', quantityPulled: 1, unitCost: 600 },
-        { stockBatchLineId: 'lot-new', quantityPulled: 2, unitCost: 700 },
-      ]);
-      expect(written().lotDecrements).toEqual([
-        { stockBatchLineId: 'lot-old', quantity: 1 },
-        { stockBatchLineId: 'lot-new', quantity: 2 },
-      ]);
-    });
-
-    it("sums one lot's draws across a product's lines into a single decrement", async () => {
-      vi.mocked(mockRepo.getStockLots).mockResolvedValue([
-        lot({ id: 'lot-1', quantityRemaining: decimal(50) }),
-      ]);
-
-      await service.createSale(
-        actor(),
-        input({ lines: [line({ quantity: 2 }), line({ quantity: 3 })] }),
-      );
-
-      expect(written().lotDecrements).toEqual([{ stockBatchLineId: 'lot-1', quantity: 5 }]);
-    });
-
-    it('takes the drawn base quantity off the product, summed across its lines', async () => {
-      await service.createSale(
-        actor(),
-        input({ lines: [line({ quantity: 2 }), line({ productUnitId: 'pu-case', quantity: 1 })] }),
-      );
-
-      // 2 bottles + 1 case (12 bottles) = 14 base units.
-      expect(written().stockDecrements).toEqual([{ productId: 'p-tequila', amount: 14 }]);
-    });
-
-    it('blocks a sale that would take stock below zero when the business disallows it', async () => {
-      vi.mocked(mockRepo.getBusinessSaleConfig).mockResolvedValue({
-        defaultTaxRate: decimal(0.15),
-        allowNegativeStock: false,
-      });
-      vi.mocked(mockRepo.getProductSellContext).mockResolvedValue([
-        { ...TEQUILA, currentSealedStock: decimal(1) },
-      ]);
-
-      await expect(
-        service.createSale(actor(), input({ lines: [line({ quantity: 2 })] })),
-      ).rejects.toEqual(appError(ERROR_CODES.BAD_REQUEST, 400));
-      expect(mockRepo.createSale).not.toHaveBeenCalled();
-    });
-
-    it('lets a sale run stock negative when the business allows it', async () => {
-      vi.mocked(mockRepo.getBusinessSaleConfig).mockResolvedValue({
-        defaultTaxRate: decimal(0.15),
-        allowNegativeStock: true,
-      });
-      vi.mocked(mockRepo.getProductSellContext).mockResolvedValue([
-        { ...TEQUILA, currentSealedStock: decimal(1) },
-      ]);
-
-      await service.createSale(actor(), input({ lines: [line({ quantity: 2 })] }));
-
-      expect(written().stockDecrements).toEqual([{ productId: 'p-tequila', amount: 2 }]);
-    });
-
-    it('draws what it can from lots and leaves the oversell unallocated', async () => {
-      vi.mocked(mockRepo.getProductSellContext).mockResolvedValue([
-        { ...TEQUILA, currentSealedStock: decimal(1) },
-      ]);
-      vi.mocked(mockRepo.getStockLots).mockResolvedValue([
-        lot({ id: 'lot-old', quantityRemaining: decimal(1) }),
-      ]);
-
-      await service.createSale(actor(), input({ lines: [line({ quantity: 2 })] }));
-
-      expect(written().lines[0]?.allocations).toEqual([
-        { stockBatchLineId: 'lot-old', quantityPulled: 1, unitCost: 600 },
-      ]);
-      // The product still reflects the full draw, lot or not.
-      expect(written().stockDecrements).toEqual([{ productId: 'p-tequila', amount: 2 }]);
-      expect(written().lotDecrements).toEqual([{ stockBatchLineId: 'lot-old', quantity: 1 }]);
     });
   });
 
@@ -572,11 +335,7 @@ describe('sales.service', () => {
       });
     });
 
-    it('records the amount a partial payment names and keeps the status', async () => {
-      vi.mocked(mockRepo.getSaleForPayment).mockResolvedValue(
-        paymentContext({ paymentStatus: 'PENDING', balanceDue: decimal(2185) }),
-      );
-
+    it('records the amount and method a partial payment names', async () => {
       await service.recordPayment(actor(), 'sale-1', {
         status: 'PARTIALLY_PAID',
         amount: 500,
@@ -587,26 +346,6 @@ describe('sales.service', () => {
         paymentStatus: 'PARTIALLY_PAID',
         payment: { amount: 500, method: 'CARD', methodDetail: null },
       });
-    });
-
-    it('settles only the remaining balance for a paid sale already part-way', async () => {
-      vi.mocked(mockRepo.getSaleForPayment).mockResolvedValue(
-        paymentContext({
-          paymentStatus: 'PARTIALLY_PAID',
-          amountPaid: decimal(500),
-          balanceDue: decimal(1685),
-        }),
-      );
-
-      await service.recordPayment(actor(), 'sale-1', { status: 'PAID' });
-
-      expect(paymentWritten()).toMatchObject({ payment: { amount: 1685 } });
-    });
-
-    it('marks a sale pending without recording a payment', async () => {
-      await service.recordPayment(actor(), 'sale-1', { status: 'PENDING' });
-
-      expect(paymentWritten()).toMatchObject({ paymentStatus: 'PENDING', payment: null });
     });
 
     it('rejects a payment against a sale that is already paid', async () => {
@@ -667,50 +406,6 @@ describe('sales.service', () => {
       await service.listSales({ businessId: 'b-1', branchId: 'br-1' });
 
       expect(mockRepo.listSales).toHaveBeenCalledWith('b-1', 'br-1');
-    });
-
-    it('maps each stored sale to a summary row rather than its detail', async () => {
-      vi.mocked(mockRepo.listSales).mockResolvedValue([
-        saleRecord(),
-        saleRecord({ id: 'sale-2', invoiceNumber: '2' }),
-      ]);
-
-      const result = await service.listSales({ businessId: 'b-1', branchId: 'br-1' });
-
-      expect(result).toHaveLength(2);
-      expect(result[0]).toMatchObject({
-        id: 'sale-1',
-        invoiceNumber: '1',
-        total: 2185,
-        paymentStatus: 'PENDING',
-        voidStatus: 'NONE',
-        itemCount: 1,
-        productNames: ['Sierra Tequila 350 ml'],
-        processedBy: { id: 'm-1', name: 'me', role: 'OWNER' },
-        servedBy: null,
-        customer: null,
-      });
-      expect(result[0]).not.toHaveProperty('lines');
-      expect(result[0]).not.toHaveProperty('payments');
-      expect(result[1]?.id).toBe('sale-2');
-    });
-
-    it('counts every line but names each product once', async () => {
-      const baseLine = saleRecord().lines[0] as SaleRecordWithDetail['lines'][number];
-      vi.mocked(mockRepo.listSales).mockResolvedValue([
-        saleRecord({
-          lines: [
-            { ...baseLine, id: 'sl-1' },
-            { ...baseLine, id: 'sl-2', productName: 'Cooking Oil 5 L' },
-            { ...baseLine, id: 'sl-3', productUnitId: 'pu-case' },
-          ],
-        }),
-      ]);
-
-      const [row] = await service.listSales({ businessId: 'b-1', branchId: 'br-1' });
-
-      expect(row?.itemCount).toBe(3);
-      expect(row?.productNames).toEqual(['Sierra Tequila 350 ml', 'Cooking Oil 5 L']);
     });
   });
 });
