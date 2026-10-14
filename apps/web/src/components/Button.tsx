@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'text' | 'ghost' | 'outline';
+export type ButtonVariant = 'primary' | 'secondary' | 'text' | 'ghost' | 'outline' | 'field';
 export type ButtonShape = 'pill' | 'square';
 export type ButtonSize = 'sm' | 'md';
 
@@ -43,6 +43,8 @@ const variants: Record<ButtonVariant, string> = {
   ghost: 'bg-transparent text-(--text-muted) hover:text-(--text) underline underline-offset-2',
   outline:
     'bg-(--surface-secondary) border border-(--text-muted) text-(--text) hover:bg-(--accent) hover:border-transparent hover:text-white',
+  field:
+    'bg-(--field) text-(--text) border border-(--border) hover:bg-(--accent) hover:border-transparent hover:text-white focus-visible:bg-(--accent) focus-visible:text-white',
 };
 
 export function Button({
