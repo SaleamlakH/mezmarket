@@ -286,6 +286,7 @@ export interface CreateSaleInput {
   lines: CreateSaleLineInput[];
   initialPayment?: PaymentInput;
   discount?: number;
+  customerId?: string;
 }
 
 /**
@@ -366,12 +367,13 @@ export type PaymentFormValues = Omit<PaymentInput, 'amount'> & {
  */
 export type SaleFormValues = Omit<
   CreateSaleInput,
-  'saleDatetime' | 'lines' | 'initialPayment' | 'discount'
+  'saleDatetime' | 'lines' | 'initialPayment' | 'discount' | 'customerId'
 > & {
   /** UTC ISO 8601 instant, as a date picker produces. */
   saleDatetime?: string | undefined;
   lines: SaleLineFormValues[];
   initialPayment?: PaymentFormValues | undefined;
+  customerId?: string | undefined;
   /** Text as the input hands it over, or blank for no discount. */
   discount?: string | undefined;
 };
