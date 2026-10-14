@@ -72,6 +72,8 @@ A sale with no initial payment is `PENDING` and owes its whole total. An `initia
 
 `discount` is an optional whole-sale reduction, never a per-line one. It is stored on the sale as entered, subtracted from the line subtotal before the tax rate is applied, so the total is the discounted amount plus tax. A blank field is no discount and leaves the stored value empty. A discount larger than the line subtotal is refused with a `discount` field error rather than swallowed, since it would mean taking off more than the goods are worth.
 
+`customerId` is an optional attribution, independent of the payment: a sale may name an existing customer of the business, with or without a payment, and the link never affects the totals or the payment status. The API rejects an id that is not an active customer of the acting business, so a sale can never be attributed across businesses. A sale with no customer omits the field and stores none; see [customers.md](customers.md).
+
 When a draw would take sealed stock below zero, the recording still proceeds and the response carries the resulting stock unless the business has `allowNegativeStock` turned off, in which case the whole request is rejected. The warning itself is surfaced by the client, which already holds each product's current stock.
 
 ### GET /api/businesses/:businessId/sales
