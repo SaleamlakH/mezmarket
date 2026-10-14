@@ -181,6 +181,109 @@ describe('SaleDraftProvider', () => {
     expect(result.current.activeLineId).toBeNull();
   });
 
+  it('removes a specific line and keeps the active line when it is another', () => {
+    const { result } = renderDraft();
+
+    act(() => result.current.openProduct('p1', 'u1'));
+    const firstId = activeId(result);
+    act(() => result.current.setQuantity(firstId, 1));
+    act(() => result.current.setUnit('u2'));
+    const secondId = activeId(result);
+
+    act(() => result.current.removeLine(firstId));
+
+    expect(result.current.lines.find((line) => line.id === firstId)).toBeUndefined();
+    expect(result.current.activeLineId).toBe(secondId);
+    expect(result.current.activeProductId).toBe('p1');
+  });
+
+  it('re-points the active line to the product’s remaining line when the active one is removed', () => {
+    const { result } = renderDraft();
+
+    act(() => result.current.openProduct('p1', 'u1'));
+    const firstId = activeId(result);
+    act(() => result.current.setQuantity(firstId, 1));
+    act(() => result.current.setUnit('u2'));
+    const secondId = activeId(result);
+
+    act(() => result.current.removeLine(secondId));
+
+    expect(result.current.lines.find((line) => line.id === secondId)).toBeUndefined();
+    expect(result.current.activeLineId).toBe(firstId);
+  });
+
+  it('closes the product when its last line is removed by id', () => {
+    const { result } = renderDraft();
+
+    act(() => result.current.openProduct('p1', 'u1'));
+    const id = activeId(result);
+    act(() => result.current.setQuantity(id, 2));
+
+    act(() => result.current.removeLine(id));
+
+    expect(result.current.lines).toHaveLength(0);
+    expect(result.current.activeProductId).toBeNull();
+    expect(result.current.activeLineId).toBeNull();
+  });
+
+  it('removes every line a product holds and closes it', () => {
+    const { result } = renderDraft();
+
+    act(() => result.current.openProduct('p1', 'u1'));
+    act(() => result.current.setQuantity(activeId(result), 2));
+    act(() => result.current.setUnit('u2'));
+    act(() => result.current.setQuantityForProduct('p2', 'u2', 3));
+
+    act(() => result.current.removeProduct('p1'));
+
+    expect(result.current.linesForProduct('p1')).toHaveLength(0);
+    expect(result.current.activeProductId).toBeNull();
+    expect(result.current.activeLineId).toBeNull();
+    expect(result.current.lines).toHaveLength(1);
+    expect(result.current.lines[0]?.productId).toBe('p2');
+  });
+
+  it('leaves the active product alone when another is removed', () => {
+    const { result } = renderDraft();
+
+    act(() => result.current.openProduct('p1', 'u1'));
+    act(() => result.current.setQuantity(activeId(result), 2));
+    act(() => result.current.openProduct('p2', 'u2'));
+    const active = activeId(result);
+
+    act(() => result.current.removeProduct('p1'));
+
+    expect(result.current.linesForProduct('p1')).toHaveLength(0);
+    expect(result.current.activeProductId).toBe('p2');
+    expect(result.current.activeLineId).toBe(active);
+    expect(result.current.lines).toHaveLength(1);
+  });
+
+  it('leaves the draft untouched when the product holds no line', () => {
+    const { result } = renderDraft();
+
+    act(() => result.current.openProduct('p1', 'u1'));
+    const before = result.current.lines;
+
+    act(() => result.current.removeProduct('missing'));
+
+    expect(result.current.lines).toBe(before);
+  });
+
+  it('clears every line and closes the open product', () => {
+    const { result } = renderDraft();
+
+    act(() => result.current.openProduct('p1', 'u1'));
+    act(() => result.current.setQuantity(activeId(result), 2));
+    act(() => result.current.setQuantityForProduct('p2', 'u2', 3));
+
+    act(() => result.current.clear());
+
+    expect(result.current.lines).toHaveLength(0);
+    expect(result.current.activeProductId).toBeNull();
+    expect(result.current.activeLineId).toBeNull();
+  });
+
   it('scopes lines to their product', () => {
     const { result } = renderDraft();
 

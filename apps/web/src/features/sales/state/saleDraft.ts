@@ -23,6 +23,13 @@ export interface SaleDraftContextValue {
   setUnit: (unitId: string) => void;
   setQuantity: (lineId: string, quantity: number) => void;
   removeActiveLine: () => void;
+  /** Removes one line by id, whether or not it is the active one. */
+  removeLine: (lineId: string) => void;
+  /** Drops every line the product holds in the sale, closing it when it is
+   * the product being worked on. */
+  removeProduct: (productId: string) => void;
+  /** Drops every line and closes the open product. */
+  clear: () => void;
   linesForProduct: (productId: string) => SaleDraftLine[];
   /** Switches a product's active line to a unit, opening the product first if
    * its lines are not the ones being edited right now. Used by the inline

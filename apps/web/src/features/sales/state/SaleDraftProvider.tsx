@@ -14,6 +14,9 @@ type SaleDraftAction =
   | { type: 'setUnit'; unitId: string }
   | { type: 'setQuantity'; lineId: string; quantity: number }
   | { type: 'removeActive' }
+  | { type: 'remove'; lineId: string }
+  | { type: 'removeProduct'; productId: string }
+  | { type: 'clear' }
   | { type: 'setUnitForProduct'; productId: string; unitId: string }
   | { type: 'setQuantityForProduct'; productId: string; defaultUnitId: string; quantity: number };
 
@@ -72,6 +75,38 @@ function editableLineOf(
     return state.lines.find((line) => line.id === activeLineId);
   }
   return lastLineOf(state.lines, productId);
+}
+
+/**
+ * Drops one line. When it was the active line, the product's remaining last
+ * line takes over — or, with none left, the product closes.
+ */
+function withoutLine(state: SaleDraftState, lineId: string): SaleDraftState {
+  const target = state.lines.find((line) => line.id === lineId);
+  if (!target) return state;
+
+  const lines = state.lines.filter((line) => line.id !== lineId);
+  if (state.activeLineId !== lineId) return { ...state, lines };
+
+  const remaining = lastLineOf(lines, target.productId);
+  return {
+    lines,
+    activeProductId: remaining ? target.productId : null,
+    activeLineId: remaining?.id ?? null,
+  };
+}
+
+/**
+ * Drops every line a product holds. When that product was the active one, its
+ * editor closes with it; other products and their active line are untouched.
+ */
+function withoutProduct(state: SaleDraftState, productId: string): SaleDraftState {
+  if (!state.lines.some((line) => line.productId === productId)) return state;
+
+  const lines = state.lines.filter((line) => line.productId !== productId);
+  if (state.activeProductId !== productId) return { ...state, lines };
+
+  return { lines, activeProductId: null, activeLineId: null };
 }
 
 function reducer(state: SaleDraftState, action: SaleDraftAction): SaleDraftState {
@@ -158,17 +193,17 @@ function reducer(state: SaleDraftState, action: SaleDraftAction): SaleDraftState
       };
     }
 
-    case 'removeActive': {
-      const active = state.lines.find((line) => line.id === state.activeLineId);
-      if (!active) return state;
+    case 'removeActive':
+      return state.activeLineId ? withoutLine(state, state.activeLineId) : state;
 
-      const lines = state.lines.filter((line) => line.id !== active.id);
-      const remaining = lastLineOf(lines, active.productId);
-      if (!remaining) {
-        return { lines, activeProductId: null, activeLineId: null };
-      }
-      return { lines, activeProductId: active.productId, activeLineId: remaining.id };
-    }
+    case 'remove':
+      return withoutLine(state, action.lineId);
+
+    case 'removeProduct':
+      return withoutProduct(state, action.productId);
+
+    case 'clear':
+      return { lines: [], activeProductId: null, activeLineId: null };
 
     default:
       return state;
@@ -200,6 +235,9 @@ export function SaleDraftProvider({ children }: { children: ReactNode }) {
       setUnit: (unitId) => dispatch({ type: 'setUnit', unitId }),
       setQuantity: (lineId, quantity) => dispatch({ type: 'setQuantity', lineId, quantity }),
       removeActiveLine: () => dispatch({ type: 'removeActive' }),
+      removeLine: (lineId) => dispatch({ type: 'remove', lineId }),
+      removeProduct: (productId) => dispatch({ type: 'removeProduct', productId }),
+      clear: () => dispatch({ type: 'clear' }),
       linesForProduct,
       setUnitForProduct: (productId, unitId) =>
         dispatch({ type: 'setUnitForProduct', productId, unitId }),
