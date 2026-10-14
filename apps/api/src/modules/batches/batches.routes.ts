@@ -16,6 +16,12 @@ export function createBatchRouter(
     authorizeBusiness,
     controller.listBatches,
   );
+  router.get(
+    '/businesses/:businessId/inventory/batches/:batchId',
+    authorizeBusiness,
+    controller.getBatchDetail,
+  );
+
   router.post(
     '/businesses/:businessId/inventory/batches',
     authorizeBusiness,
@@ -28,6 +34,12 @@ export function createBatchRouter(
     '/businesses/:businessId/inventory/products',
     authorizeBusiness,
     controller.listProductInventorySummaries,
+  );
+
+  router.get(
+    '/businesses/:businessId/inventory/products/:productId',
+    authorizeBusiness,
+    controller.getProductInventoryDetail,
   );
 
   return router;

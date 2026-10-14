@@ -3,6 +3,8 @@ import type {
   CreateBatchInput,
   CreateBatchLineInput,
   CreateBatchResult,
+  ProductInventoryBatch,
+  ProductInventoryDetail,
   ProductInventorySummary,
   StockBatch,
   StockBatchDetailResult,
@@ -14,6 +16,7 @@ import type {
 import type {
   Attachment as AttachmentRecord,
   Product,
+  StockBatch as StockBatchModel,
   StockBatchLine as StockBatchLineRecord,
   StandardUnit,
   ProductUnit,
@@ -23,6 +26,8 @@ export type {
   CreateBatchInput,
   CreateBatchLineInput,
   CreateBatchResult,
+  ProductInventoryBatch,
+  ProductInventoryDetail,
   ProductInventorySummary,
   StockBatchDetailResult,
   StockStatus,
@@ -139,19 +144,49 @@ export type ProductWithStockLinesRecord = Product & {
   stockBatchLines: StockBatchLineRecord[];
 };
 
+/**
+ * A line carrying the batch it belongs to, so the product history can be grouped
+ * under the batch that recorded it and linked back to that batch's detail.
+ */
+export type StockBatchLineWithBatchRecord = StockBatchLineRecord & {
+  stockBatch: StockBatchModel;
+};
+
+/**
+ * A product with its Base Unit and every line of it, each line including the
+ * batch that carried it. Unlike the summary read, no `active` filter and no
+ * remaining-stock filter is applied, so the purchase history stays complete.
+ */
+export type ProductWithBatchHistoryRecord = Product & {
+  productUnits: ProductUnit[];
+  stockBatchLines: StockBatchLineWithBatchRecord[];
+};
+
 export type BatchRepository = {
   getProductUnitContext(businessId: string, productIds: string[]): Promise<ProductContext[]>;
   createBatchAndAdjustStock(command: CreateBatchCommand): Promise<StockBatchRecord>;
   listBatches(businessId: string, branchId: string): Promise<StockBatchRecord[]>;
+  getBatchDetail(
+    businessId: string,
+    branchId: string,
+    batchId: string,
+  ): Promise<StockBatchRecord | null>;
   listProductsWithStockLines(
     businessId: string,
     branchId: string,
   ): Promise<ProductWithStockLinesRecord[]>;
+  getProductWithBatchHistory(
+    businessId: string,
+    branchId: string,
+    productId: string,
+  ): Promise<ProductWithBatchHistoryRecord | null>;
   listProductAttachments(productIds: string[]): Promise<AttachmentRecord[]>;
 };
 
 export type BatchService = {
   createBatch(actor: BatchActor, input: CreateBatchInput): Promise<CreateBatchResult>;
   listBatches(scope: BatchScope): Promise<StockBatchDetailResult[]>;
+  getBatchDetail(scope: BatchScope, batchId: string): Promise<StockBatchDetailResult>;
   listProductInventorySummaries(scope: BatchScope): Promise<ProductInventorySummary[]>;
+  getProductInventoryDetail(scope: BatchScope, productId: string): Promise<ProductInventoryDetail>;
 };

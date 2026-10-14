@@ -4,7 +4,9 @@ import type { BatchActor, BatchScope, BatchService, CreateBatchInput } from './b
 export type BatchController = {
   createBatch(req: Request, res: Response): Promise<void>;
   listBatches(req: Request, res: Response): Promise<void>;
+  getBatchDetail(req: Request, res: Response): Promise<void>;
   listProductInventorySummaries(req: Request, res: Response): Promise<void>;
+  getProductInventoryDetail(req: Request, res: Response): Promise<void>;
 };
 
 /** The scope the authorize middleware resolved onto the request. */
@@ -34,9 +36,21 @@ export function createBatchController(service: BatchService): BatchController {
       res.status(200).json(batches);
     },
 
+    async getBatchDetail(req, res) {
+      const batchId = req.params.batchId as string;
+      const batch = await service.getBatchDetail(scopeOf(req), batchId);
+      res.status(200).json(batch);
+    },
+
     async listProductInventorySummaries(req, res) {
       const summaries = await service.listProductInventorySummaries(scopeOf(req));
       res.status(200).json(summaries);
+    },
+
+    async getProductInventoryDetail(req, res) {
+      const productId = req.params.productId as string;
+      const product = await service.getProductInventoryDetail(scopeOf(req), productId);
+      res.status(200).json(product);
     },
   };
 }
