@@ -21,8 +21,8 @@ function createPrismaStub() {
     stockBatchLine: { createManyAndReturn: vi.fn() },
     product: { update: vi.fn() },
   };
-  const product = { findMany: vi.fn() };
-  const stockBatch = { findMany: vi.fn() };
+  const product = { findMany: vi.fn(), findFirst: vi.fn() };
+  const stockBatch = { findMany: vi.fn(), findFirst: vi.fn() };
   const attachment = { findMany: vi.fn().mockResolvedValue([]) };
   const $transaction = vi.fn((cb: (tx: MockTx) => unknown) => cb(tx));
 
@@ -401,6 +401,43 @@ describe('batches.repository', () => {
     });
   });
 
+  describe('getBatchDetail', () => {
+    it('reads one batch scoped to the business and branch, with the full report include', async () => {
+      const { prisma, stockBatch } = createPrismaStub();
+      const repo = createBatchRepository(prisma);
+      stockBatch.findFirst.mockResolvedValue(null);
+
+      await repo.getBatchDetail('b-1', 'br-1', 'sb-1');
+
+      expect(stockBatch.findFirst).toHaveBeenCalledWith({
+        where: { id: 'sb-1', businessId: 'b-1', branchId: 'br-1' },
+        include: BATCH_INCLUDE,
+      });
+    });
+
+    it('returns the batch the query answered with, receiver included', async () => {
+      const { prisma, stockBatch } = createPrismaStub();
+      const repo = createBatchRepository(prisma);
+      stockBatch.findFirst.mockResolvedValue(listedBatch({ id: 'sb-1' }));
+
+      const result = await repo.getBatchDetail('b-1', 'br-1', 'sb-1');
+
+      expect(result).toMatchObject({
+        id: 'sb-1',
+        receivedByMember: { id: 'm-1', name: 'me', role: 'OWNER' },
+      });
+      expect(result?.lines).toHaveLength(1);
+    });
+
+    it('reads back no batch when the id is outside the scope', async () => {
+      const { prisma, stockBatch } = createPrismaStub();
+      const repo = createBatchRepository(prisma);
+      stockBatch.findFirst.mockResolvedValue(null);
+
+      await expect(repo.getBatchDetail('b-1', 'br-1', 'missing')).resolves.toBeNull();
+    });
+  });
+
   describe('listProductsWithStockLines', () => {
     const INVENTORY_INCLUDE = {
       productUnits: {
@@ -438,6 +475,51 @@ describe('batches.repository', () => {
 
       expect(result).toEqual(rows);
       expect(attachment.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getProductWithBatchHistory', () => {
+    const HISTORY_INCLUDE = {
+      productUnits: {
+        include: { standardUnit: { select: { id: true, name: true, symbol: true } } },
+      },
+      stockBatchLines: { include: { stockBatch: true } },
+    };
+
+    it('reads one product scoped to the business and branch, with its units and full history', async () => {
+      const { prisma, product } = createPrismaStub();
+      const repo = createBatchRepository(prisma);
+      product.findFirst.mockResolvedValue(null);
+
+      await repo.getProductWithBatchHistory('b-1', 'br-1', 'p-tequila');
+
+      expect(product.findFirst).toHaveBeenCalledWith({
+        where: { id: 'p-tequila', businessId: 'b-1', branchId: 'br-1' },
+        include: HISTORY_INCLUDE,
+      });
+    });
+
+    it('returns the product row the query answered with, batch on every line', async () => {
+      const { prisma, product } = createPrismaStub();
+      const repo = createBatchRepository(prisma);
+      const row = {
+        id: 'p-tequila',
+        productUnits: [],
+        stockBatchLines: [{ id: 'sbl-1', stockBatch: { id: 'sb-1' } }],
+      };
+      product.findFirst.mockResolvedValue(row as never);
+
+      const result = await repo.getProductWithBatchHistory('b-1', 'br-1', 'p-tequila');
+
+      expect(result).toEqual(row);
+    });
+
+    it('reads back no product when the id is outside the scope', async () => {
+      const { prisma, product } = createPrismaStub();
+      const repo = createBatchRepository(prisma);
+      product.findFirst.mockResolvedValue(null);
+
+      await expect(repo.getProductWithBatchHistory('b-1', 'br-1', 'missing')).resolves.toBeNull();
     });
   });
 

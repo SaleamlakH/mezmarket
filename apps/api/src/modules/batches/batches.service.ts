@@ -5,10 +5,13 @@ import type {
   CreateBatchInput,
   CreateBatchLineInput,
   ProductContext,
+  ProductInventoryBatch,
   ProductInventorySummary,
   ProductUnitContext,
+  ProductWithBatchHistoryRecord,
   ProductWithStockLinesRecord,
   ResolvedBatchLine,
+  StockBatchLineWithBatchRecord,
   StockBatchRecord,
   StockIncrement,
   StockStatus,
@@ -51,6 +54,16 @@ export function createBatchService(repository: BatchRepository): BatchService {
       return records.map(toBatchDetail);
     },
 
+    async getBatchDetail({ businessId, branchId }: Scope, batchId: string) {
+      const record = await repository.getBatchDetail(businessId, branchId, batchId);
+
+      if (!record) {
+        throw new AppError(ERROR_CODES.NOT_FOUND, 'Batch not found', 404);
+      }
+
+      return toBatchDetail(record);
+    },
+
     async listProductInventorySummaries({ businessId, branchId }: Scope) {
       const records = await repository.listProductsWithStockLines(businessId, branchId);
 
@@ -67,6 +80,29 @@ export function createBatchService(repository: BatchRepository): BatchService {
       );
 
       return records.map((record) => toProductInventorySummary(record, uploadIds));
+    },
+
+    async getProductInventoryDetail({ businessId, branchId }: Scope, productId: string) {
+      const record = await repository.getProductWithBatchHistory(businessId, branchId, productId);
+
+      if (!record) {
+        throw new AppError(ERROR_CODES.NOT_FOUND, 'Product not found', 404);
+      }
+
+      const attachments = await repository.listProductAttachments([record.id]);
+      const uploadId =
+        attachments.find((attachment) => attachment.uploadId != null)?.uploadId ?? null;
+
+      // The summary figures read the lines still holding stock, the same way the
+      // product list does; the history below lists every batch it appeared in.
+      const remainingLines = record.stockBatchLines.filter(
+        (line) => line.quantityRemaining.toNumber() > 0,
+      );
+
+      return {
+        ...buildProductInventorySummary(record, remainingLines, uploadId),
+        batches: toProductBatches(record.stockBatchLines),
+      };
     },
   };
 }
@@ -173,6 +209,23 @@ function toProductInventorySummary(
   record: ProductWithStockLinesRecord,
   uploadIds: Map<string, string>,
 ): ProductInventorySummary {
+  return buildProductInventorySummary(
+    record,
+    record.stockBatchLines,
+    uploadIds.get(record.id) ?? null,
+  );
+}
+
+/**
+ * The summary figures of a product, computed from the lines it is handed. The
+ * list passes the lines still holding stock; the detail passes the same subset,
+ * so both surfaces agree on the totals.
+ */
+function buildProductInventorySummary(
+  record: ProductWithBatchHistoryRecord | ProductWithStockLinesRecord,
+  lines: StockBatchLineWithBatchRecord[] | StockBatchLineRecord[],
+  uploadId: string | null,
+): ProductInventorySummary {
   const baseUnit = record.productUnits.find((unit) => unit.unitRole === 'BASE');
 
   // Without a Base Unit there is no unit to express the stock in.
@@ -182,7 +235,7 @@ function toProductInventorySummary(
 
   const currentSealedStock = record.currentSealedStock.toNumber();
   const lowStockThreshold = record.lowStockThreshold?.toNumber() ?? null;
-  const totals = sumInventoryTotals(record);
+  const totals = sumInventoryTotals(lines, record.productUnits);
 
   return {
     id: record.id,
@@ -192,13 +245,52 @@ function toProductInventorySummary(
     lowStockThreshold,
     active: record.active,
     baseUnitLabel: baseUnit.name,
-    uploadId: uploadIds.get(record.id) ?? null,
+    uploadId,
     totalCost: totals.totalCost,
     earliestExpiry: totals.earliestExpiry,
     expiryCount: totals.expiringBatchIds.size,
     numberOfBatches: totals.batchIds.size,
     stockStatus: stockStatusOf(currentSealedStock, lowStockThreshold),
   };
+}
+
+/**
+ * Groups the product's lines under the batch that recorded them, newest batch
+ * first. A batch keeps every line the product had in it, whether or not any
+ * stock is left, so the purchase history is complete.
+ */
+function toProductBatches(lines: StockBatchLineWithBatchRecord[]): ProductInventoryBatch[] {
+  const batches = new Map<string, ProductInventoryBatch>();
+
+  for (const line of lines) {
+    const { stockBatch } = line;
+
+    let batch = batches.get(stockBatch.id);
+
+    if (!batch) {
+      batch = {
+        id: stockBatch.id,
+        batchDate: stockBatch.batchDate,
+        supplierName: stockBatch.supplierName,
+        referenceNumber: stockBatch.referenceNumber,
+        lines: [],
+      };
+      batches.set(stockBatch.id, batch);
+    }
+
+    batch.lines.push({
+      id: line.id,
+      purchaseQuantity: line.purchaseQuantity.toNumber(),
+      purchaseUnit: line.purchaseUnit,
+      purchaseUnitCost: line.purchaseUnitCost.toNumber(),
+      standardQuantity: line.standardQuantity.toNumber(),
+      standardUnit: line.standardUnit,
+      quantityRemaining: line.quantityRemaining.toNumber(),
+      expiryDate: line.expiryDate,
+    });
+  }
+
+  return [...batches.values()].sort((a, b) => b.batchDate.getTime() - a.batchDate.getTime());
 }
 
 /** A product with no threshold set has no level to be low against. */
@@ -215,7 +307,10 @@ type InventoryTotals = {
   batchIds: Set<string>;
 };
 
-function sumInventoryTotals(record: ProductWithStockLinesRecord): InventoryTotals {
+function sumInventoryTotals(
+  lines: StockBatchLineWithBatchRecord[] | StockBatchLineRecord[],
+  productUnits: ProductUnitContext[],
+): InventoryTotals {
   const totals: InventoryTotals = {
     totalCost: 0,
     earliestExpiry: null,
@@ -223,8 +318,8 @@ function sumInventoryTotals(record: ProductWithStockLinesRecord): InventoryTotal
     batchIds: new Set(),
   };
 
-  for (const line of record.stockBatchLines) {
-    totals.totalCost += remainingCostOf(line, record.productUnits);
+  for (const line of lines) {
+    totals.totalCost += remainingCostOf(line, productUnits);
     totals.batchIds.add(line.stockBatchId); // if only has remaining > 0, needs correction
 
     if (line.expiryDate === null) continue;

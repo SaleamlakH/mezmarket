@@ -18,7 +18,9 @@ function mockRepository(): BatchRepository {
     getProductUnitContext: vi.fn(),
     createBatchAndAdjustStock: vi.fn(),
     listBatches: vi.fn(),
+    getBatchDetail: vi.fn(),
     listProductsWithStockLines: vi.fn(),
+    getProductWithBatchHistory: vi.fn(),
     listProductAttachments: vi.fn(),
   };
 }
@@ -420,6 +422,40 @@ describe('batches.service', () => {
       });
     });
   });
+
+  describe('getBatchDetail', () => {
+    it('reads the batch of the resolved business, branch and id', async () => {
+      vi.mocked(mockRepo.getBatchDetail).mockResolvedValue(batchRecord());
+
+      await service.getBatchDetail({ businessId: 'b-1', branchId: 'br-1' }, 'sb-1');
+
+      expect(mockRepo.getBatchDetail).toHaveBeenCalledWith('b-1', 'br-1', 'sb-1');
+    });
+
+    it('returns the batch with its lines, product labels and receiver', async () => {
+      vi.mocked(mockRepo.getBatchDetail).mockResolvedValue(batchRecord());
+
+      const batch = await service.getBatchDetail({ businessId: 'b-1', branchId: 'br-1' }, 'sb-1');
+
+      expect(batch).toMatchObject({
+        id: 'sb-1',
+        receivedBy: { id: 'm-1', name: 'me', role: 'OWNER' },
+      });
+      expect(batch.lines[0]).toMatchObject({
+        productName: 'Sierra Tequila 350 ml',
+        productBrand: 'Sierra',
+        purchaseQuantity: 10,
+      });
+    });
+
+    it('fails with a 404 when the batch is outside the caller scope', async () => {
+      vi.mocked(mockRepo.getBatchDetail).mockResolvedValue(null);
+
+      await expect(
+        service.getBatchDetail({ businessId: 'b-1', branchId: 'br-1' }, 'missing'),
+      ).rejects.toEqual(appError(ERROR_CODES.NOT_FOUND, 404));
+    });
+  });
 });
 
 describe('batch service listProductInventorySummaries', () => {
@@ -779,5 +815,224 @@ describe('batch service listProductInventorySummaries', () => {
 
       expect(summary?.stockStatus).toBe(expected);
     });
+  });
+});
+
+describe('batch service getProductInventoryDetail', () => {
+  let mockRepo: BatchRepository;
+  let service: ReturnType<typeof createBatchService>;
+
+  const SCOPE = { businessId: 'b-1', branchId: 'br-1' };
+
+  function historyLine(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'sbl-1',
+      stockBatchId: 'sb-1',
+      productId: 'p-tequila',
+      purchaseUnit: 'Bottle',
+      purchaseQuantity: decimal(10),
+      purchaseUnitCost: decimal(950),
+      standardUnit: 'pc',
+      standardQuantity: decimal(10),
+      productUnitId: 'pu-bottle',
+      resolvedStandardUnitId: 'su-pc',
+      quantityRemaining: decimal(10),
+      expiryDate: null,
+      createdAt: new Date('2026-02-01T10:00:00.000Z'),
+      updatedAt: new Date('2026-02-01T10:00:00.000Z'),
+      stockBatch: {
+        id: 'sb-1',
+        businessId: 'b-1',
+        branchId: 'br-1',
+        supplierName: 'Awash Mart',
+        referenceNumber: 'INV-42',
+        batchDate: new Date('2026-02-01T09:00:00.000Z'),
+        confirmedAt: new Date('2026-02-01T10:00:00.000Z'),
+        receivedByMemberId: 'm-1',
+        createdAt: new Date('2026-02-01T10:00:00.000Z'),
+        updatedAt: new Date('2026-02-01T10:00:00.000Z'),
+      },
+      ...overrides,
+    };
+  }
+
+  function historyRecord(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'p-tequila',
+      businessId: 'b-1',
+      branchId: 'br-1',
+      categoryId: null,
+      name: 'Sierra Tequila 350 ml',
+      brand: 'Sierra',
+      description: null,
+      photoUrl: null,
+      trackAsPartial: false,
+      lowStockThreshold: decimal(5),
+      currentSealedStock: decimal(10),
+      active: true,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+      productUnits: [unit({ id: 'pu-bottle' })],
+      stockBatchLines: [historyLine()],
+      ...overrides,
+    } as never;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRepo = mockRepository();
+    service = createBatchService(mockRepo);
+    vi.mocked(mockRepo.listProductAttachments).mockResolvedValue([]);
+  });
+
+  it('reads the product of the resolved business, branch and id', async () => {
+    vi.mocked(mockRepo.getProductWithBatchHistory).mockResolvedValue(historyRecord());
+
+    await service.getProductInventoryDetail(SCOPE, 'p-tequila');
+
+    expect(mockRepo.getProductWithBatchHistory).toHaveBeenCalledWith('b-1', 'br-1', 'p-tequila');
+  });
+
+  it('fails with a 404 when the product is outside the caller scope', async () => {
+    vi.mocked(mockRepo.getProductWithBatchHistory).mockResolvedValue(null);
+
+    await expect(service.getProductInventoryDetail(SCOPE, 'missing')).rejects.toEqual(
+      appError(ERROR_CODES.NOT_FOUND, 404),
+    );
+  });
+
+  it('returns the summary header alongside the history', async () => {
+    vi.mocked(mockRepo.getProductWithBatchHistory).mockResolvedValue(historyRecord());
+
+    const result = await service.getProductInventoryDetail(SCOPE, 'p-tequila');
+
+    expect(result).toMatchObject({
+      id: 'p-tequila',
+      name: 'Sierra Tequila 350 ml',
+      brand: 'Sierra',
+      currentSealedStock: 10,
+      lowStockThreshold: 5,
+      active: true,
+      baseUnitLabel: 'Bottle',
+      uploadId: null,
+      totalCost: 9500,
+      numberOfBatches: 1,
+      stockStatus: 'IN_STOCK',
+    });
+  });
+
+  it('maps each grouped line to its purchase figures', async () => {
+    vi.mocked(mockRepo.getProductWithBatchHistory).mockResolvedValue(historyRecord());
+
+    const result = await service.getProductInventoryDetail(SCOPE, 'p-tequila');
+
+    expect(result.batches[0]?.lines[0]).toEqual({
+      id: 'sbl-1',
+      purchaseQuantity: 10,
+      purchaseUnit: 'Bottle',
+      purchaseUnitCost: 950,
+      standardQuantity: 10,
+      standardUnit: 'pc',
+      quantityRemaining: 10,
+      expiryDate: null,
+    });
+  });
+
+  it('groups the lines under the batch that carried them, newest batch first', async () => {
+    const older = historyLine({
+      id: 'sbl-old',
+      stockBatchId: 'sb-old',
+      stockBatch: {
+        ...historyLine().stockBatch,
+        id: 'sb-old',
+        batchDate: new Date('2026-01-01T00:00:00.000Z'),
+      },
+    });
+    const newer = historyLine({
+      id: 'sbl-new',
+      stockBatchId: 'sb-new',
+      stockBatch: {
+        ...historyLine().stockBatch,
+        id: 'sb-new',
+        batchDate: new Date('2026-03-01T00:00:00.000Z'),
+      },
+    });
+    vi.mocked(mockRepo.getProductWithBatchHistory).mockResolvedValue(
+      historyRecord({ stockBatchLines: [older, newer] }),
+    );
+
+    const result = await service.getProductInventoryDetail(SCOPE, 'p-tequila');
+
+    expect(result.batches.map((batch) => batch.id)).toEqual(['sb-new', 'sb-old']);
+    expect(result.batches[0]).toMatchObject({
+      supplierName: 'Awash Mart',
+      referenceNumber: 'INV-42',
+    });
+  });
+
+  it('keeps every line of one batch in a single group', async () => {
+    vi.mocked(mockRepo.getProductWithBatchHistory).mockResolvedValue(
+      historyRecord({
+        stockBatchLines: [historyLine({ id: 'sbl-a' }), historyLine({ id: 'sbl-b' })],
+      }),
+    );
+
+    const result = await service.getProductInventoryDetail(SCOPE, 'p-tequila');
+
+    expect(result.batches).toHaveLength(1);
+    expect(result.batches[0]?.lines.map((line) => line.id)).toEqual(['sbl-a', 'sbl-b']);
+  });
+
+  it('still lists a batch once its lines no longer hold stock', async () => {
+    vi.mocked(mockRepo.getProductWithBatchHistory).mockResolvedValue(
+      historyRecord({
+        stockBatchLines: [
+          historyLine({
+            id: 'sbl-sold',
+            standardQuantity: decimal(10),
+            quantityRemaining: decimal(0),
+          }),
+        ],
+      }),
+    );
+
+    const result = await service.getProductInventoryDetail(SCOPE, 'p-tequila');
+
+    expect(result.batches).toHaveLength(1);
+    expect(result.batches[0]?.lines[0]).toMatchObject({ id: 'sbl-sold', quantityRemaining: 0 });
+    // The header figures still read only the lines holding stock.
+    expect(result.numberOfBatches).toBe(0);
+    expect(result.totalCost).toBe(0);
+  });
+
+  it('returns an empty history for a product with no batches', async () => {
+    vi.mocked(mockRepo.getProductWithBatchHistory).mockResolvedValue(
+      historyRecord({ stockBatchLines: [] }),
+    );
+
+    const result = await service.getProductInventoryDetail(SCOPE, 'p-tequila');
+
+    expect(result.batches).toEqual([]);
+  });
+
+  it('returns the header for an inactive product too', async () => {
+    vi.mocked(mockRepo.getProductWithBatchHistory).mockResolvedValue(
+      historyRecord({ active: false }),
+    );
+
+    const result = await service.getProductInventoryDetail(SCOPE, 'p-tequila');
+
+    expect(result.active).toBe(false);
+  });
+
+  it('attaches the live image uploadId of the product', async () => {
+    vi.mocked(mockRepo.getProductWithBatchHistory).mockResolvedValue(historyRecord());
+    vi.mocked(mockRepo.listProductAttachments).mockResolvedValue([
+      { recordId: 'p-tequila', uploadId: 'u-1' },
+    ] as never);
+
+    const result = await service.getProductInventoryDetail(SCOPE, 'p-tequila');
+
+    expect(result.uploadId).toBe('u-1');
   });
 });

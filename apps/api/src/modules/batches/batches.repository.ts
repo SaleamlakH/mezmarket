@@ -103,6 +103,23 @@ export function createBatchRepository(prisma: PrismaClient): BatchRepository {
       });
     },
 
+    /** One recorded batch of the scope, in the same shape the list reads it. */
+    async getBatchDetail(businessId, branchId, batchId) {
+      return await prisma.stockBatch.findFirst({
+        where: { id: batchId, businessId, branchId },
+        include: {
+          lines: {
+            include: {
+              product: {
+                select: { name: true, brand: true },
+              },
+            },
+          },
+          receivedByMember: true,
+        },
+      });
+    },
+
     /** Active products, with their units and the lines still holding stock. */
     async listProductsWithStockLines(businessId, branchId) {
       return prisma.product.findMany({
@@ -112,6 +129,21 @@ export function createBatchRepository(prisma: PrismaClient): BatchRepository {
           stockBatchLines: { where: { quantityRemaining: { gt: 0 } } },
         },
         orderBy: { name: 'asc' },
+      });
+    },
+
+    /**
+     * One product of the scope with its units and every line of it, each line
+     * carrying the batch that recorded it. Inactive products are read too, so a
+     * product's complete purchase history stays available.
+     */
+    async getProductWithBatchHistory(businessId, branchId, productId) {
+      return await prisma.product.findFirst({
+        where: { id: productId, businessId, branchId },
+        include: {
+          productUnits: { include: { standardUnit: { select: standardUnitSelect } } },
+          stockBatchLines: { include: { stockBatch: true } },
+        },
       });
     },
 

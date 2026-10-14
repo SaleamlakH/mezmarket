@@ -23,7 +23,9 @@ const { verifyJwt, authRepository, businessRepository, batchRepository } = vi.ho
     getProductUnitContext: vi.fn(),
     createBatchAndAdjustStock: vi.fn(),
     listBatches: vi.fn(),
+    getBatchDetail: vi.fn(),
     listProductsWithStockLines: vi.fn(),
+    getProductWithBatchHistory: vi.fn(),
     listProductAttachments: vi.fn(),
   } satisfies BatchRepository,
 }));
@@ -132,6 +134,42 @@ const INVENTORY_PRODUCT_RECORD = {
   ],
 };
 
+const PRODUCT_HISTORY_RECORD = {
+  id: 'p-tequila',
+  businessId: 'b-1',
+  branchId: 'br-1',
+  categoryId: null,
+  name: 'Sierra Tequila 350 ml',
+  brand: 'Sierra',
+  description: null,
+  photoUrl: null,
+  trackAsPartial: false,
+  lowStockThreshold: { toNumber: () => 5 },
+  currentSealedStock: { toNumber: () => 10 },
+  active: true,
+  createdAt: new Date('2026-01-01T00:00:00.000Z'),
+  updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+  productUnits: INVENTORY_PRODUCT_RECORD.productUnits,
+  stockBatchLines: [
+    {
+      ...LINE_RECORD,
+      expiryDate: new Date('2026-03-01T00:00:00.000Z'),
+      stockBatch: {
+        id: 'sb-1',
+        businessId: 'b-1',
+        branchId: 'br-1',
+        supplierName: 'Awash Mart',
+        referenceNumber: 'INV-42',
+        batchDate: new Date('2026-02-01T09:00:00.000Z'),
+        confirmedAt: new Date('2026-02-01T10:00:00.000Z'),
+        receivedByMemberId: 'm-1',
+        createdAt: new Date('2026-02-01T10:00:00.000Z'),
+        updatedAt: new Date('2026-02-01T10:00:00.000Z'),
+      },
+    },
+  ],
+};
+
 const BODY = {
   batchDate: '2026-02-01T09:00:00.000Z',
   supplierName: 'Awash Mart',
@@ -163,7 +201,9 @@ describe('batches.integration', () => {
     batchRepository.getProductUnitContext.mockResolvedValue([PRODUCT]);
     batchRepository.createBatchAndAdjustStock.mockResolvedValue(BATCH_RECORD);
     batchRepository.listBatches.mockResolvedValue([]);
+    batchRepository.getBatchDetail.mockResolvedValue(BATCH_RECORD);
     batchRepository.listProductsWithStockLines.mockResolvedValue([]);
+    batchRepository.getProductWithBatchHistory.mockResolvedValue(PRODUCT_HISTORY_RECORD as never);
     batchRepository.listProductAttachments.mockResolvedValue([]);
   });
 
@@ -328,6 +368,73 @@ describe('batches.integration', () => {
     });
   });
 
+  describe('GET /api/businesses/:businessId/inventory/batches/:batchId', () => {
+    it('rejects an unauthenticated request', async () => {
+      const res = await request(app).get('/api/businesses/b-1/inventory/batches/sb-1');
+
+      expect(res.status).toBe(401);
+      expect(batchRepository.getBatchDetail).not.toHaveBeenCalled();
+    });
+
+    it('reads the batch of the resolved business, branch and id', async () => {
+      await authenticate();
+
+      const res = await request(app)
+        .get('/api/businesses/b-1/inventory/batches/sb-1')
+        .set('Authorization', 'Bearer token');
+
+      expect(res.status).toBe(200);
+      expect(batchRepository.getBatchDetail).toHaveBeenCalledWith('b-1', 'br-1', 'sb-1');
+      expect(res.body).toMatchObject({
+        id: 'sb-1',
+        supplierName: 'Awash Mart',
+        receivedBy: { id: 'm-1', name: 'me', role: 'OWNER' },
+      });
+      expect(res.body.lines[0]).toMatchObject({
+        productName: 'Sierra Tequila 350 ml',
+        productBrand: 'Sierra',
+        standardQuantity: 10,
+      });
+    });
+
+    it('answers 404 when the batch is outside the caller scope', async () => {
+      await authenticate();
+      batchRepository.getBatchDetail.mockResolvedValue(null);
+
+      const res = await request(app)
+        .get('/api/businesses/b-1/inventory/batches/missing')
+        .set('Authorization', 'Bearer token');
+
+      expect(res.status).toBe(404);
+      expect(res.body).toMatchObject({ error: { code: ERROR_CODES.NOT_FOUND } });
+    });
+
+    it.each(['OWNER', 'MANAGER', 'CASHIER', 'SERVER'] as const)(
+      'lets a %s read a batch',
+      async (role) => {
+        await authenticate(role);
+
+        const res = await request(app)
+          .get('/api/businesses/b-1/inventory/batches/sb-1')
+          .set('Authorization', 'Bearer token');
+
+        expect(res.status).toBe(200);
+      },
+    );
+
+    it('answers 404 when the caller has no active member in the business', async () => {
+      await authenticate();
+      businessRepository.getActor.mockResolvedValue(null);
+
+      const res = await request(app)
+        .get('/api/businesses/b-1/inventory/batches/sb-1')
+        .set('Authorization', 'Bearer token');
+
+      expect(res.status).toBe(404);
+      expect(batchRepository.getBatchDetail).not.toHaveBeenCalled();
+    });
+  });
+
   describe('GET /api/businesses/:businessId/inventory/products', () => {
     it('rejects an unauthenticated request', async () => {
       const res = await request(app).get('/api/businesses/b-1/inventory/products');
@@ -437,6 +544,99 @@ describe('batches.integration', () => {
         .set('Authorization', 'Bearer token');
 
       expect(res.status).toBe(500);
+    });
+  });
+
+  describe('GET /api/businesses/:businessId/inventory/products/:productId', () => {
+    it('rejects an unauthenticated request', async () => {
+      const res = await request(app).get('/api/businesses/b-1/inventory/products/p-tequila');
+
+      expect(res.status).toBe(401);
+      expect(batchRepository.getProductWithBatchHistory).not.toHaveBeenCalled();
+    });
+
+    it('reads the product of the resolved business, branch and id', async () => {
+      await authenticate();
+
+      const res = await request(app)
+        .get('/api/businesses/b-1/inventory/products/p-tequila')
+        .set('Authorization', 'Bearer token');
+
+      expect(res.status).toBe(200);
+      expect(batchRepository.getProductWithBatchHistory).toHaveBeenCalledWith(
+        'b-1',
+        'br-1',
+        'p-tequila',
+      );
+      expect(res.body).toMatchObject({
+        id: 'p-tequila',
+        name: 'Sierra Tequila 350 ml',
+        brand: 'Sierra',
+        currentSealedStock: 10,
+        baseUnitLabel: 'Bottle',
+        stockStatus: 'IN_STOCK',
+      });
+    });
+
+    it('answers the product history grouped newest batch first, with each line', async () => {
+      await authenticate();
+
+      const res = await request(app)
+        .get('/api/businesses/b-1/inventory/products/p-tequila')
+        .set('Authorization', 'Bearer token');
+
+      expect(res.body.batches).toHaveLength(1);
+      expect(res.body.batches[0]).toMatchObject({
+        id: 'sb-1',
+        supplierName: 'Awash Mart',
+        referenceNumber: 'INV-42',
+      });
+      expect(res.body.batches[0].lines[0]).toMatchObject({
+        id: 'sbl-1',
+        purchaseUnit: 'Bottle',
+        purchaseQuantity: 10,
+        standardQuantity: 10,
+      });
+      // The rows the detail was worked out from are not leaked.
+      expect(res.body).not.toHaveProperty('productUnits');
+      expect(res.body).not.toHaveProperty('stockBatchLines');
+    });
+
+    it('answers 404 when the product is outside the caller scope', async () => {
+      await authenticate();
+      batchRepository.getProductWithBatchHistory.mockResolvedValue(null);
+
+      const res = await request(app)
+        .get('/api/businesses/b-1/inventory/products/missing')
+        .set('Authorization', 'Bearer token');
+
+      expect(res.status).toBe(404);
+      expect(res.body).toMatchObject({ error: { code: ERROR_CODES.NOT_FOUND } });
+    });
+
+    it.each(['OWNER', 'MANAGER', 'CASHIER', 'SERVER'] as const)(
+      'lets a %s read a product inventory detail',
+      async (role) => {
+        await authenticate(role);
+
+        const res = await request(app)
+          .get('/api/businesses/b-1/inventory/products/p-tequila')
+          .set('Authorization', 'Bearer token');
+
+        expect(res.status).toBe(200);
+      },
+    );
+
+    it('answers 404 when the caller has no active member in the business', async () => {
+      await authenticate();
+      businessRepository.getActor.mockResolvedValue(null);
+
+      const res = await request(app)
+        .get('/api/businesses/b-1/inventory/products/p-tequila')
+        .set('Authorization', 'Bearer token');
+
+      expect(res.status).toBe(404);
+      expect(batchRepository.getProductWithBatchHistory).not.toHaveBeenCalled();
     });
   });
 });

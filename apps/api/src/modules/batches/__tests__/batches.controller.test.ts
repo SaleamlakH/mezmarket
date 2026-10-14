@@ -32,7 +32,9 @@ function mockService(): BatchService {
   return {
     createBatch: vi.fn(),
     listBatches: vi.fn(),
+    getBatchDetail: vi.fn(),
     listProductInventorySummaries: vi.fn(),
+    getProductInventoryDetail: vi.fn(),
   };
 }
 
@@ -46,8 +48,12 @@ describe('batches.controller', () => {
     controller = createBatchController(service);
   });
 
-  function call(auth: Partial<Request['auth']> | undefined, validBody?: unknown) {
-    const req = { auth, validBody } as unknown as Request;
+  function call(
+    auth: Partial<Request['auth']> | undefined,
+    validBody?: unknown,
+    params: Record<string, string> = {},
+  ) {
+    const req = { auth, validBody, params } as unknown as Request;
     const res = {
       locals: {},
       status: vi.fn().mockReturnThis(),
@@ -117,6 +123,38 @@ describe('batches.controller', () => {
     });
   });
 
+  describe('getBatchDetail', () => {
+    it('answers 200 with the batch the service read', async () => {
+      vi.mocked(service.getBatchDetail).mockResolvedValue(CREATED as never);
+      const { req, res } = call(AUTH, undefined, { batchId: 'sb-1' });
+
+      await controller.getBatchDetail(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(CREATED);
+    });
+
+    it('hands the service the resolved scope and the batch id from params', async () => {
+      vi.mocked(service.getBatchDetail).mockResolvedValue(CREATED as never);
+      const { req, res } = call(AUTH, undefined, { batchId: 'sb-1' });
+
+      await controller.getBatchDetail(req, res);
+
+      expect(service.getBatchDetail).toHaveBeenCalledWith(
+        { businessId: 'b-1', branchId: 'br-1' },
+        'sb-1',
+      );
+    });
+
+    it('lets a rejected service call propagate to the error handler', async () => {
+      vi.mocked(service.getBatchDetail).mockRejectedValue(new Error('db down'));
+      const { req, res } = call(AUTH, undefined, { batchId: 'sb-1' });
+
+      await expect(controller.getBatchDetail(req, res)).rejects.toThrow('db down');
+      expect(res.json).not.toHaveBeenCalled();
+    });
+  });
+
   describe('listProductInventorySummaries', () => {
     it('answers 200 with the summaries the service listed', async () => {
       vi.mocked(service.listProductInventorySummaries).mockResolvedValue([]);
@@ -145,6 +183,38 @@ describe('batches.controller', () => {
       const { req, res } = call(AUTH);
 
       await expect(controller.listProductInventorySummaries(req, res)).rejects.toThrow('db down');
+      expect(res.json).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getProductInventoryDetail', () => {
+    it('answers 200 with the product detail the service read', async () => {
+      vi.mocked(service.getProductInventoryDetail).mockResolvedValue(CREATED as never);
+      const { req, res } = call(AUTH, undefined, { productId: 'p-tequila' });
+
+      await controller.getProductInventoryDetail(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(CREATED);
+    });
+
+    it('hands the service the resolved scope and the product id from params', async () => {
+      vi.mocked(service.getProductInventoryDetail).mockResolvedValue(CREATED as never);
+      const { req, res } = call(AUTH, undefined, { productId: 'p-tequila' });
+
+      await controller.getProductInventoryDetail(req, res);
+
+      expect(service.getProductInventoryDetail).toHaveBeenCalledWith(
+        { businessId: 'b-1', branchId: 'br-1' },
+        'p-tequila',
+      );
+    });
+
+    it('lets a rejected service call propagate to the error handler', async () => {
+      vi.mocked(service.getProductInventoryDetail).mockRejectedValue(new Error('db down'));
+      const { req, res } = call(AUTH, undefined, { productId: 'p-tequila' });
+
+      await expect(controller.getProductInventoryDetail(req, res)).rejects.toThrow('db down');
       expect(res.json).not.toHaveBeenCalled();
     });
   });
