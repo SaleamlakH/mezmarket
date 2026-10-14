@@ -34,7 +34,7 @@ The request and response shapes below are the shared contract in `@mez/types` (`
 
 ### POST /api/businesses/:businessId/sales
 
-Creates and confirms a sale in one action — there is no draft. Stock is drawn, the invoice exists, and the payment status is derived as part of the same write.
+Creates and confirms a sale in one action — there is no draft. Stock is drawn, the invoice exists, and the opening payment status is set as part of the same write: `PENDING` when no initial payment is given, otherwise the status the initial payment names.
 
 ```
 Client -> Authorization: Bearer <jwt> + CreateSaleInput body
@@ -68,7 +68,9 @@ Client -> Authorization: Bearer <jwt> + CreateSaleInput body
    -> 201 CreateSaleResponse
 ```
 
-A sale with no initial payment is `PENDING`. When a draw would take sealed stock below zero, the recording still proceeds and the response carries the resulting stock unless the business has `allowNegativeStock` turned off, in which case the whole request is rejected. The warning itself is surfaced by the client, which already holds each product's current stock.
+A sale with no initial payment is `PENDING` and owes its whole total. An `initialPayment` opens the sale at the status it names: `PAID` with no amount settles the whole total, `PARTIALLY_PAID` records the amount it names and keeps a balance, and `PENDING` records nothing. The initial payment block is optional and a blank one is dropped by the shared validation, so the untouched payment section of the new-sale form never trips a required error.
+
+When a draw would take sealed stock below zero, the recording still proceeds and the response carries the resulting stock unless the business has `allowNegativeStock` turned off, in which case the whole request is rejected. The warning itself is surfaced by the client, which already holds each product's current stock.
 
 ### GET /api/businesses/:businessId/sales
 
@@ -133,19 +135,34 @@ Client -> Authorization: Bearer <jwt> + UpdateSaleInput body
 
 Records a payment against a sale and recomputes what is owed. The sale being paid is the `:saleId` in the path — it is not part of `RecordPaymentInput`.
 
+`RecordPaymentInput` carries the `status` the seller chose plus an optional `amount`, `method` and `methodDetail`:
+
+| Status           | Amount                          | Recorded payment                        |
+| ---------------- | ------------------------------- | --------------------------------------- |
+| `PAID`           | optional — omit to settle whole | the balance due, or the amount if named |
+| `PARTIALLY_PAID` | required                        | the amount named                        |
+| `PENDING`        | not allowed                     | none — only when nothing has been paid  |
+
+A `PAID` sale whose amount falls short of the balance is still recorded as `PAID`, and `balanceDue` reports what is left; the client warns rather than the API blocking. An overpayment is kept on `amountPaid` while `balanceDue` floors at zero. Status only moves forward: a sale that is `PAID` cannot be paid again, and a sale that already holds a payment cannot be walked back to `PENDING`.
+
 ```
 Client -> Authorization: Bearer <jwt> + RecordPaymentInput body
    -> auth middleware resolves the owner
    -> business middleware resolves the scope
    -> role middleware requires Owner, Manager or Cashier
-   -> validation middleware applies the shared payment rules
-   -> service loads the sale scoped to the business and rejects a
-      voided one
+   -> validation middleware applies the shared payment rules: a status
+      is required, a partial payment needs an amount, and a pending
+      stamp carries none
+   -> service loads the sale scoped to the business and rejects a sale
+      that is voided, already PAID, or marked PENDING while it already
+      holds a payment
+   -> service resolves the amount to record: the named amount, or the
+      balance due for a PAID payment with no amount
    -> repository runs one transaction:
           1. insert the payment, against the acting member, defaulting
              the method to OTHER when none was given
-          2. recompute amountPaid, balanceDue and paymentStatus from
-             the sale's payments
+          2. sum the sale's payments and restamp amountPaid, balanceDue
+             and the asserted paymentStatus from that sum
           3. write one audit-log row
    -> 201 SaleDetailResponse
 ```
