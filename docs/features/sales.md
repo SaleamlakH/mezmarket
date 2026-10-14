@@ -54,8 +54,8 @@ Client -> Authorization: Bearer <jwt> + CreateSaleInput body
    -> repository runs one transaction:
           1. generate the branch-unique invoice number
           2. insert the sale, confirmed, against the acting member,
-             with subtotal, tax and total computed from the lines and
-             the business tax rate
+             with subtotal, tax and total computed from the lines, the
+             optional whole-sale discount and the business tax rate
           3. insert one sale line per product line
           4. insert each line's FIFO allocation rows (SaleLineCost),
              snapshotting each lot's cost at that moment
@@ -69,6 +69,8 @@ Client -> Authorization: Bearer <jwt> + CreateSaleInput body
 ```
 
 A sale with no initial payment is `PENDING` and owes its whole total. An `initialPayment` opens the sale at the status it names: `PAID` with no amount settles the whole total, `PARTIALLY_PAID` records the amount it names and keeps a balance, and `PENDING` records nothing. The initial payment block is optional and a blank one is dropped by the shared validation, so the untouched payment section of the new-sale form never trips a required error.
+
+`discount` is an optional whole-sale reduction, never a per-line one. It is stored on the sale as entered, subtracted from the line subtotal before the tax rate is applied, so the total is the discounted amount plus tax. A blank field is no discount and leaves the stored value empty. A discount larger than the line subtotal is refused with a `discount` field error rather than swallowed, since it would mean taking off more than the goods are worth.
 
 When a draw would take sealed stock below zero, the recording still proceeds and the response carries the resulting stock unless the business has `allowNegativeStock` turned off, in which case the whole request is rejected. The warning itself is surfaced by the client, which already holds each product's current stock.
 

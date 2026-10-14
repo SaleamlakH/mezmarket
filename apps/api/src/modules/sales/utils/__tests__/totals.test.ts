@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import type { ResolvedSaleLine } from '../../sales.types.js';
+import { ERROR_CODES } from '../../../../shared/errors/app-error.js';
 import { computeSaleTotals } from '../totals.js';
+
+/** A thrown AppError pinned by code and status only. */
+function appError(code: string, statusCode: number) {
+  return expect.objectContaining({ code, statusCode, message: expect.any(String) });
+}
 
 function line(overrides: Partial<ResolvedSaleLine> = {}): ResolvedSaleLine {
   return {
@@ -45,5 +51,41 @@ describe('computeSaleTotals', () => {
       taxAmount: 213.75,
       total: 3063.75,
     });
+  });
+
+  it('subtracts a whole-sale discount before tax', () => {
+    // 2 x 950 = 1900; less 100 = 1800; 15% = 270; total = 2070
+    expect(computeSaleTotals([line()], 0.15, 100)).toEqual({
+      subtotal: 1900,
+      taxAmount: 270,
+      total: 2070,
+    });
+  });
+
+  it('reduces the total by a discount when there is no tax', () => {
+    // subtotal 100, discount 10 -> total 90
+    expect(computeSaleTotals([line({ quantity: 1, unitPrice: 100 })], 0, 10)).toEqual({
+      subtotal: 100,
+      taxAmount: 0,
+      total: 90,
+    });
+  });
+
+  it('refuses a discount larger than the subtotal', () => {
+    expect(() => computeSaleTotals([line()], 0, 5000)).toThrow(
+      appError(ERROR_CODES.BAD_REQUEST, 400),
+    );
+  });
+
+  it('allows a discount equal to the subtotal', () => {
+    expect(computeSaleTotals([line()], 0, 1900)).toEqual({
+      subtotal: 1900,
+      taxAmount: 0,
+      total: 0,
+    });
+  });
+
+  it('treats a missing discount as none', () => {
+    expect(computeSaleTotals([line()], 0.15)).toEqual(computeSaleTotals([line()], 0.15, undefined));
   });
 });

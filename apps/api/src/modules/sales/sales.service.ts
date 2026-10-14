@@ -31,7 +31,11 @@ export function createSaleService(repository: SaleRepository): SaleService {
       const allocated = allocateStock(products, lots, lines, saleConfig.allowNegativeStock);
 
       const taxRateApplied = saleConfig.defaultTaxRate?.toNumber() ?? 0;
-      const { subtotal, taxAmount, total } = computeSaleTotals(allocated, taxRateApplied);
+      const { subtotal, taxAmount, total } = computeSaleTotals(
+        allocated,
+        taxRateApplied,
+        input.discount,
+      );
 
       const initial = resolveInitialPayment(input.initialPayment, total);
 
@@ -40,8 +44,7 @@ export function createSaleService(repository: SaleRepository): SaleService {
         branchId: actor.branchId,
         memberId: actor.memberId,
         saleDatetime: input.saleDatetime ?? new Date(),
-        // Nothing here captures a discount yet; the column stays empty.
-        discount: null,
+        discount: input.discount ?? null,
         taxRateApplied,
         subtotal,
         taxAmount,

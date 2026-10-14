@@ -215,6 +215,12 @@ export const createSaleSchema = z
     saleDatetime: notAfterNow(optionalInstant, 'Sale date cannot be in the future'),
     lines: saleLines(createSaleLineSchema),
     initialPayment: initialPaymentSchema,
+    // The discount is taken as entered; the money it feeds is rounded once, in
+    // the sale's totals, so it is not rounded again here. The pipe is what lets
+    // a blank field's `undefined` through, not just a number.
+    discount: optionalNumberFromString('Discount').pipe(
+      z.number().min(0, 'Discount must be at least 0').optional(),
+    ),
   })
   .transform(withoutUnset) satisfies ZodType<CreateSaleInput, SaleFormValues>;
 
@@ -227,6 +233,9 @@ export const updateSaleSchema = z
   .object({
     saleDatetime: notAfterNow(optionalInstant, 'Sale date cannot be in the future'),
     lines: saleLines(updateSaleLineSchema),
+    discount: optionalNumberFromString('Discount').pipe(
+      z.number().min(0, 'Discount must be at least 0').optional(),
+    ),
   })
   .strict()
   .refine(

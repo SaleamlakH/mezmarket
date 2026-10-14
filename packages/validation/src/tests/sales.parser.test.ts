@@ -268,6 +268,39 @@ describe('validateCreateSale', () => {
 
     expect(result.errors).toEqual({ 'initialPayment.methodDetail': expect.any(String) });
   });
+
+  it('reads a discount as a number', () => {
+    expect(validateCreateSale(sale({ discount: '10' })).data?.discount).toBe(10);
+  });
+
+  it('leaves a blank discount out of the payload', () => {
+    const result = validateCreateSale(sale({ discount: '' }));
+
+    expect(result.errors).toBeNull();
+    expect(result.data).not.toHaveProperty('discount');
+  });
+
+  it('keeps the discount at the precision it was entered, without rounding', () => {
+    expect(validateCreateSale(sale({ discount: '10.126' })).data?.discount).toBe(10.126);
+  });
+
+  it('rejects a negative discount', () => {
+    expect(validateCreateSale(sale({ discount: '-1' })).errors).toEqual({
+      discount: expect.any(String),
+    });
+  });
+
+  it('rejects a discount that is not a number', () => {
+    expect(validateCreateSale(sale({ discount: 'abc' })).errors).toEqual({
+      discount: expect.any(String),
+    });
+  });
+
+  it('rejects a null discount, since a missing discount is an omission', () => {
+    const result = validateCreateSale(sale({ discount: null as unknown as string }));
+
+    expect(result.errors).toEqual({ discount: expect.any(String) });
+  });
 });
 
 describe('validateUpdateSale', () => {
@@ -321,6 +354,16 @@ describe('validateUpdateSale', () => {
 
     expect(validateUpdateSale(payload as UpdateSaleFormValues).errors).toEqual({
       'lines.0': expect.stringContaining('extra'),
+    });
+  });
+
+  it('reads a discount on an edit', () => {
+    expect(validateUpdateSale({ lines: [line()], discount: '7.5' }).data?.discount).toBe(7.5);
+  });
+
+  it('rejects a negative discount on an edit', () => {
+    expect(validateUpdateSale({ lines: [line()], discount: '-1' }).errors).toEqual({
+      discount: expect.any(String),
     });
   });
 });

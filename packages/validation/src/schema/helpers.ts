@@ -55,8 +55,11 @@ export const toStoredPrecision = (decimals: number) => (value: number) =>
  * Required numeric input: text or a number in, number out at the column's
  * precision. The form sends text; the wire also carries numbers a client has
  * already parsed, and both transform alike.
+ *
+ * `decimals` is optional: when it is left out the value is kept as parsed and
+ * never rounded, for the handful of amounts a later money step rounds once.
  */
-export const numberFromString = (label: string, decimals: number) =>
+export const numberFromString = (label: string, decimals?: number) =>
   z
     .custom<string>(
       (value) => typeof value === 'number' || (typeof value === 'string' && value.trim() !== ''),
@@ -67,7 +70,9 @@ export const numberFromString = (label: string, decimals: number) =>
       z
         .number({ error: 'Enter a valid number' })
         .min(0, `${label} must be at least 0`)
-        .transform(toStoredPrecision(decimals)),
+        .transform((value) =>
+          decimals === undefined ? value : toStoredPrecision(decimals)(value),
+        ),
     );
 
 /**
@@ -79,8 +84,10 @@ export const numberFromString = (label: string, decimals: number) =>
  * Follows `numberFromString`'s trick: the declared input is text (or nothing),
  * while the runtime check also accepts an already-parsed number the wire may
  * carry, so the schema's input type is not widened to `unknown`.
+ *
+ * As with `numberFromString`, omitting `decimals` leaves the value unrounded.
  */
-export const optionalNumberFromString = (label: string, decimals: number) =>
+export const optionalNumberFromString = (label: string, decimals?: number) =>
   z
     .union([z.literal(''), numberFromString(label, decimals)])
     .transform((value) => (value === '' ? undefined : value))

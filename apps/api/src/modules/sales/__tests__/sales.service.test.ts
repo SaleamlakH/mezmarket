@@ -247,6 +247,25 @@ describe('sales.service', () => {
       expect(written().discount).toBeNull();
     });
 
+    it('records a discount and lowers the total by it', async () => {
+      await service.createSale(actor(), input({ discount: 100 }));
+
+      // 1900 less 100 = 1800; tax 15% = 270; total = 2070
+      expect(written()).toMatchObject({
+        discount: 100,
+        subtotal: 1900,
+        taxAmount: 270,
+        total: 2070,
+      });
+    });
+
+    it('refuses a discount larger than the sale subtotal', async () => {
+      await expect(service.createSale(actor(), input({ discount: 5000 }))).rejects.toThrow(
+        appError(ERROR_CODES.BAD_REQUEST, 400),
+      );
+      expect(mockRepo.createSale).not.toHaveBeenCalled();
+    });
+
     it('records the initial payment position of a sale confirmed paid', async () => {
       await service.createSale(actor(), input({ initialPayment: { status: 'PAID' } }));
 
