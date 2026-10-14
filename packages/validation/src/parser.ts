@@ -6,6 +6,7 @@ import type {
   BatchFormValues,
   BatchLineFormValues,
   CreateProductInput,
+  CustomerFormValues,
   CreateUploadInput,
   PaymentFormValues,
   RefundSaleFormValues,
@@ -36,6 +37,7 @@ import {
   type CreateBusinessFormValues,
   type UpdateBusinessFormValues,
 } from './schema/business.schema.js';
+import { createCustomerSchema } from './schema/customer.schema.js';
 import { createProductSchema } from './schema/product.schema.js';
 import {
   createSaleLineSchema,
@@ -91,6 +93,10 @@ export function validateUpdateBusiness(
 
 export function validateCreateProduct(values: unknown) {
   return validateInput(createProductSchema, values) as ValidationResult<CreateProductInput>;
+}
+
+export function validateCreateCustomer(values: CustomerFormValues) {
+  return validateInput(createCustomerSchema, values);
 }
 
 export function validateCreateUpload(values: CreateUploadClientInput) {

@@ -280,6 +280,21 @@ describe('validateCreateSale', () => {
     expect(result.data).not.toHaveProperty('discount');
   });
 
+  it('carries the customer the sale is attributed to', () => {
+    expect(validateCreateSale(sale({ customerId: 'cust-1' })).data?.customerId).toBe('cust-1');
+  });
+
+  it('leaves a blank customer selection out of the payload', () => {
+    const result = validateCreateSale(sale({ customerId: '   ' }));
+
+    expect(result.errors).toBeNull();
+    expect(result.data).not.toHaveProperty('customerId');
+  });
+
+  it('leaves a sale that names no customer without one', () => {
+    expect(validateCreateSale(sale()).data).not.toHaveProperty('customerId');
+  });
+
   it('keeps the discount at the precision it was entered, without rounding', () => {
     expect(validateCreateSale(sale({ discount: '10.126' })).data?.discount).toBe(10.126);
   });
@@ -365,6 +380,20 @@ describe('validateUpdateSale', () => {
     expect(validateUpdateSale({ lines: [line()], discount: '-1' }).errors).toEqual({
       discount: expect.any(String),
     });
+  });
+
+  it('carries the customer an edit attributes the sale to', () => {
+    const result = validateUpdateSale({ lines: [line()], customerId: 'cust-1' });
+
+    expect(result.errors).toBeNull();
+    expect(result.data?.customerId).toBe('cust-1');
+  });
+
+  it('leaves a blank customer selection off an edit', () => {
+    const result = validateUpdateSale({ lines: [line()], customerId: '  ' });
+
+    expect(result.errors).toBeNull();
+    expect(result.data).not.toHaveProperty('customerId');
   });
 });
 

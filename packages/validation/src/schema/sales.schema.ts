@@ -215,6 +215,8 @@ export const createSaleSchema = z
     saleDatetime: notAfterNow(optionalInstant, 'Sale date cannot be in the future'),
     lines: saleLines(createSaleLineSchema),
     initialPayment: initialPaymentSchema,
+    /** A customer row selected from the list; a blank selection is no customer. */
+    customerId: z.string().trim().transform(blankIsUnset).optional(),
     // The discount is taken as entered; the money it feeds is rounded once, in
     // the sale's totals, so it is not rounded again here. The pipe is what lets
     // a blank field's `undefined` through, not just a number.
@@ -233,6 +235,8 @@ export const updateSaleSchema = z
   .object({
     saleDatetime: notAfterNow(optionalInstant, 'Sale date cannot be in the future'),
     lines: saleLines(updateSaleLineSchema),
+    /** An omitted customer leaves the attached one untouched; a blank is no change. */
+    customerId: z.string().trim().transform(blankIsUnset).optional(),
     discount: optionalNumberFromString('Discount').pipe(
       z.number().min(0, 'Discount must be at least 0').optional(),
     ),

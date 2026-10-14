@@ -6,6 +6,7 @@ export type {
   CreateBusinessFormValues,
   UpdateBusinessFormValues,
 } from './schema/business.schema.js';
+export { createCustomerSchema } from './schema/customer.schema.js';
 export {
   type CreateProductFormValues,
   type CreateCustomUnitFormValues,
