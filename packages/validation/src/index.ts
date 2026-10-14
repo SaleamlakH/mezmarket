@@ -26,6 +26,7 @@ export {
 } from './schema/batch.schema.js';
 export {
   PAYMENT_METHODS,
+  PAYMENT_STATUSES,
   createSaleSchema,
   updateSaleSchema,
   createSaleLineSchema,

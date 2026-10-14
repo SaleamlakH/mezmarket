@@ -6,6 +6,7 @@ import type {
   PaymentFormValues,
   PaymentInput,
   PaymentMethod,
+  PaymentStatus,
   RecordPaymentInput,
   RefundSaleFormValues,
   RefundSaleInput,
@@ -26,6 +27,7 @@ import {
   numberFromString,
   optionalEnum,
   optionalInstant,
+  optionalNumberFromString,
   optionalText,
   requiredText,
   withoutUnset,
@@ -47,6 +49,17 @@ export const PAYMENT_METHODS = [
   'MOBILE_MONEY',
   'OTHER',
 ] as const satisfies readonly PaymentMethod[];
+
+/**
+ * Mirrors `PaymentStatus` in @mez/types. Every value is accepted from a caller
+ * — the API never derives a status it was not told — so the list is complete
+ * rather than the subset a manual selector happens to offer.
+ */
+export const PAYMENT_STATUSES = [
+  'PAID',
+  'PENDING',
+  'PARTIALLY_PAID',
+] as const satisfies readonly PaymentStatus[];
 
 const saleLineFields = {
   productId: requiredText('Select a product'),
@@ -107,11 +120,39 @@ export const updateSaleLineSchema = z
 >;
 
 const paymentFields = {
-  amount: numberFromString('Amount', MONEY_DECIMALS).pipe(
-    z.number().positive('Amount must be greater than 0'),
+  status: z.enum(PAYMENT_STATUSES, { error: 'Select a payment status' }),
+  amount: optionalNumberFromString('Amount', MONEY_DECIMALS).refine(
+    (value) => value === undefined || value > 0,
+    { error: 'Amount must be greater than 0' },
   ),
   method: optionalEnum(PAYMENT_METHODS, 'Select a valid payment method'),
   methodDetail: optionalText(200, 'Payment detail must be 200 characters or less'),
+};
+
+/**
+ * Ties the amount to the status it is given with: a partial payment cannot be
+ * recorded without an amount, and a pending sale records no payment at all.
+ * A paid sale may omit the amount — the server settles the balance.
+ */
+const checkPaymentAmount = (
+  payment: { status: PaymentStatus; amount?: number | undefined },
+  ctx: z.RefinementCtx,
+) => {
+  if (payment.status === 'PARTIALLY_PAID' && payment.amount === undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['amount'],
+      message: 'Enter the amount received',
+    });
+  }
+
+  if (payment.status === 'PENDING' && payment.amount !== undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['amount'],
+      message: 'A pending sale records no payment',
+    });
+  }
 };
 
 /**
@@ -124,10 +165,10 @@ const paymentFields = {
  * blank select arrives as unset — so the input is asserted here rather than
  * widening the shared contract.
  */
-const paymentSchema = z.strictObject(paymentFields).transform(withoutUnset) as unknown as ZodType<
-  PaymentInput,
-  PaymentFormValues
->;
+const paymentSchema = z
+  .strictObject(paymentFields)
+  .superRefine(checkPaymentAmount)
+  .transform(withoutUnset) as unknown as ZodType<PaymentInput, PaymentFormValues>;
 
 /**
  * A payment recorded against an existing sale. The target sale is named by the
@@ -153,7 +194,7 @@ const dropUnselectedPayment = (value: unknown) => {
   if (
     value &&
     typeof value === 'object' &&
-    !String((value as { amount?: unknown }).amount ?? '').trim()
+    !String((value as { status?: unknown }).status ?? '').trim()
   ) {
     return undefined;
   }

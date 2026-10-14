@@ -64,7 +64,12 @@ describe('validateCreateSale', () => {
     const result = validateCreateSale(
       sale({
         saleDatetime: SALE_DATETIME,
-        initialPayment: { amount: '20.50', method: 'CASH', methodDetail: '  ref 1  ' },
+        initialPayment: {
+          status: 'PARTIALLY_PAID',
+          amount: '20.50',
+          method: 'CASH',
+          methodDetail: '  ref 1  ',
+        },
       }),
     );
 
@@ -72,12 +77,19 @@ describe('validateCreateSale', () => {
     expect(result.data).toEqual({
       saleDatetime: new Date(SALE_DATETIME),
       lines: [{ productId: 'product-1', productUnitId: 'unit-1', quantity: 2 }],
-      initialPayment: { amount: 20.5, method: 'CASH', methodDetail: 'ref 1' },
+      initialPayment: {
+        status: 'PARTIALLY_PAID',
+        amount: 20.5,
+        method: 'CASH',
+        methodDetail: 'ref 1',
+      },
     });
   });
 
   it('drops a payment block that was left untouched', () => {
-    const result = validateCreateSale(sale({ initialPayment: { amount: '' } }));
+    const result = validateCreateSale(
+      sale({ initialPayment: { status: '' } as unknown as PaymentFormValues }),
+    );
 
     expect(result.errors).toBeNull();
     expect(result.data).not.toHaveProperty('initialPayment');
@@ -86,16 +98,47 @@ describe('validateCreateSale', () => {
   it('leaves a blank payment method and detail out', () => {
     const result = validateInput(createSaleSchema, {
       lines: [line({ quantity: '2' })],
-      initialPayment: { amount: '5', method: '', methodDetail: '   ' },
+      initialPayment: { status: 'PAID', amount: '5', method: '', methodDetail: '   ' },
     });
 
     expect(result.errors).toBeNull();
-    expect(result.data?.initialPayment).toEqual({ amount: 5 });
+    expect(result.data?.initialPayment).toEqual({ status: 'PAID', amount: 5 });
+  });
+
+  it('parses a paid payment with no amount, leaving the server to settle it', () => {
+    const result = validateInput(createSaleSchema, {
+      lines: [line({ quantity: '2' })],
+      initialPayment: { status: 'PAID' },
+    });
+
+    expect(result.errors).toBeNull();
+    expect(result.data?.initialPayment).toEqual({ status: 'PAID' });
+  });
+
+  it('requires an amount for a partial payment', () => {
+    const result = validateInput(createSaleSchema, {
+      lines: [line({ quantity: '2' })],
+      initialPayment: { status: 'PARTIALLY_PAID' },
+    });
+
+    expect(result.errors).toEqual({ 'initialPayment.amount': expect.any(String) });
+  });
+
+  it('refuses an amount on a pending sale', () => {
+    const result = validateInput(createSaleSchema, {
+      lines: [line({ quantity: '2' })],
+      initialPayment: { status: 'PENDING', amount: '5' },
+    });
+
+    expect(result.errors).toEqual({ 'initialPayment.amount': expect.any(String) });
   });
 
   it('rounds the quantity and the payment amount to the precision the columns store', () => {
     const result = validateCreateSale(
-      sale({ lines: [line({ quantity: '1.23456789' })], initialPayment: { amount: '10.126' } }),
+      sale({
+        lines: [line({ quantity: '1.23456789' })],
+        initialPayment: { status: 'PARTIALLY_PAID', amount: '10.126' },
+      }),
     );
 
     expect(result.errors).toBeNull();
@@ -129,7 +172,9 @@ describe('validateCreateSale', () => {
   });
 
   it('keys a payment error under the payment field', () => {
-    expect(validateCreateSale(sale({ initialPayment: { amount: '0' } })).errors).toEqual({
+    expect(
+      validateCreateSale(sale({ initialPayment: { status: 'PAID', amount: '0' } })).errors,
+    ).toEqual({
       'initialPayment.amount': expect.any(String),
     });
   });
@@ -209,7 +254,7 @@ describe('validateCreateSale', () => {
   it('rejects a payment amount that is not a number', () => {
     const result = validateInput(createSaleSchema, {
       lines: [line()],
-      initialPayment: { amount: 'abc' },
+      initialPayment: { status: 'PAID', amount: 'abc' },
     });
 
     expect(result.errors).toEqual({ 'initialPayment.amount': expect.any(String) });
@@ -218,7 +263,7 @@ describe('validateCreateSale', () => {
   it('caps the payment detail length', () => {
     const result = validateInput(createSaleSchema, {
       lines: [line()],
-      initialPayment: { amount: '5', methodDetail: 'x'.repeat(201) },
+      initialPayment: { status: 'PAID', amount: '5', methodDetail: 'x'.repeat(201) },
     });
 
     expect(result.errors).toEqual({ 'initialPayment.methodDetail': expect.any(String) });
@@ -281,45 +326,85 @@ describe('validateUpdateSale', () => {
 });
 
 describe('validatePayment', () => {
-  it('parses an amount and a method', () => {
-    const result = validatePayment({ amount: '12.50', method: 'CARD' });
+  it('parses an amount and a method for a partial payment', () => {
+    const result = validatePayment({ status: 'PARTIALLY_PAID', amount: '12.50', method: 'CARD' });
 
     expect(result.errors).toBeNull();
-    expect(result.data).toEqual({ amount: 12.5, method: 'CARD' });
+    expect(result.data).toEqual({ status: 'PARTIALLY_PAID', amount: 12.5, method: 'CARD' });
+  });
+
+  it('parses a paid payment with no amount', () => {
+    const result = validatePayment({ status: 'PAID' });
+
+    expect(result.errors).toBeNull();
+    expect(result.data).toEqual({ status: 'PAID' });
+  });
+
+  it('parses a pending sale with no payment', () => {
+    const result = validatePayment({ status: 'PENDING' });
+
+    expect(result.errors).toBeNull();
+    expect(result.data).toEqual({ status: 'PENDING' });
   });
 
   it('leaves a blank method and detail out', () => {
     const result = validateInput(recordPaymentSchema, {
+      status: 'PARTIALLY_PAID',
       amount: '5',
       method: '',
       methodDetail: '   ',
     });
 
     expect(result.errors).toBeNull();
-    expect(result.data).toEqual({ amount: 5 });
+    expect(result.data).toEqual({ status: 'PARTIALLY_PAID', amount: 5 });
     expect(result.data).not.toHaveProperty('method');
   });
 
-  it('rejects a missing amount', () => {
-    expect(validatePayment({ amount: '' }).errors).toEqual({ amount: expect.any(String) });
+  it('requires a status', () => {
+    const result = validateInput(recordPaymentSchema, { amount: '5' });
+
+    expect(result.errors).toEqual({ status: expect.any(String) });
   });
 
-  it('rejects a non-positive amount', () => {
-    expect(validatePayment({ amount: '0' }).errors).toEqual({ amount: expect.any(String) });
+  it('rejects an unknown status', () => {
+    const result = validateInput(recordPaymentSchema, { status: 'SETTLED', amount: '5' });
+
+    expect(result.errors).toEqual({ status: expect.any(String) });
   });
 
-  it('rejects an amount that is not a number', () => {
-    expect(validatePayment({ amount: 'abc' }).errors).toEqual({ amount: expect.any(String) });
-  });
-
-  it('rejects an unknown method', () => {
-    expect(validatePayment({ amount: '5', method: 'BITCOIN' as PaymentMethod }).errors).toEqual({
-      method: expect.any(String),
+  it('requires an amount for a partial payment', () => {
+    expect(validatePayment({ status: 'PARTIALLY_PAID' }).errors).toEqual({
+      amount: expect.any(String),
     });
   });
 
+  it('refuses an amount on a pending sale', () => {
+    expect(validatePayment({ status: 'PENDING', amount: '5' }).errors).toEqual({
+      amount: expect.any(String),
+    });
+  });
+
+  it('rejects a non-positive amount', () => {
+    expect(validatePayment({ status: 'PARTIALLY_PAID', amount: '0' }).errors).toEqual({
+      amount: expect.any(String),
+    });
+  });
+
+  it('rejects an amount that is not a number', () => {
+    expect(validatePayment({ status: 'PARTIALLY_PAID', amount: 'abc' }).errors).toEqual({
+      amount: expect.any(String),
+    });
+  });
+
+  it('rejects an unknown method', () => {
+    expect(
+      validatePayment({ status: 'PARTIALLY_PAID', amount: '5', method: 'BITCOIN' as PaymentMethod })
+        .errors,
+    ).toEqual({ method: expect.any(String) });
+  });
+
   it('rejects an unrecognized key', () => {
-    const payload = { amount: '5', extra: true };
+    const payload = { status: 'PAID', amount: '5', extra: true };
 
     expect(validatePayment(payload as unknown as PaymentFormValues).errors).toEqual({
       _root: expect.stringContaining('extra'),
@@ -328,7 +413,11 @@ describe('validatePayment', () => {
 
   it('caps the detail length', () => {
     expect(
-      validateInput(recordPaymentSchema, { amount: '5', methodDetail: 'x'.repeat(201) }).errors,
+      validateInput(recordPaymentSchema, {
+        status: 'PAID',
+        amount: '5',
+        methodDetail: 'x'.repeat(201),
+      }).errors,
     ).toEqual({ methodDetail: expect.any(String) });
   });
 });
@@ -530,14 +619,16 @@ describe('sale schemas', () => {
 
     expectTypeOf<CreateOutput['lines'][number]['quantity']>().toEqualTypeOf<number>();
     expectTypeOf<CreateOutput['saleDatetime']>().toEqualTypeOf<Date | undefined>();
-    expectTypeOf<NonNullable<CreateOutput['initialPayment']>['amount']>().toEqualTypeOf<number>();
+    expectTypeOf<NonNullable<CreateOutput['initialPayment']>['amount']>().toEqualTypeOf<
+      number | undefined
+    >();
     expectTypeOf<PaymentOutput['method']>().toEqualTypeOf<PaymentMethod | undefined>();
   });
 
   it('accepts a quantity and amount a client has already parsed', () => {
     const result = createSaleSchema.safeParse({
       lines: [{ productId: 'p', productUnitId: 'u', quantity: 2 }],
-      initialPayment: { amount: 20, method: 'CASH' },
+      initialPayment: { status: 'PARTIALLY_PAID', amount: 20, method: 'CASH' },
     });
 
     expect(result.error).toBeUndefined();

@@ -71,6 +71,22 @@ export const numberFromString = (label: string, decimals: number) =>
     );
 
 /**
+ * Optional numeric input: a blank field reads as "no value" rather than zero,
+ * and anything present is coerced and rounded the way `numberFromString` does.
+ * Used where a value is only required for some of the values another field can
+ * take — a payment amount, for instance, is left out when the sale is pending.
+ *
+ * Follows `numberFromString`'s trick: the declared input is text (or nothing),
+ * while the runtime check also accepts an already-parsed number the wire may
+ * carry, so the schema's input type is not widened to `unknown`.
+ */
+export const optionalNumberFromString = (label: string, decimals: number) =>
+  z
+    .union([z.literal(''), numberFromString(label, decimals)])
+    .transform((value) => (value === '' ? undefined : value))
+    .optional();
+
+/**
  * Optional enum input: a select left on its placeholder is blank, which reads
  * as "no value" rather than an unknown option. The runtime check accepts any
  * text and narrows it; the cast pins the form's own type back on, so the
