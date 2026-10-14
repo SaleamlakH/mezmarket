@@ -50,10 +50,11 @@ export function ProductLineControls({
 }: ProductLineControlsProps) {
   const selectId = useId();
   const activeUnit = units.find((unit) => unit.id === activeLine?.productUnitId);
+  const hasCommitted = lines.some((line) => line.quantity > 0);
 
   return (
     <>
-      <div className="flex items-center gap-3 pt-1 pb-3 md:hidden">
+      <div className="flex items-center gap-3 pt-1 pb-3">
         <ProductThumb
           businessId={businessId}
           uploadId={product.uploadId ?? undefined}
@@ -100,9 +101,11 @@ export function ProductLineControls({
           onQuantityChange={onLineQuantityChange}
         />
 
-        <Button type="button" className="w-full md:hidden" onClick={onClose}>
-          Done
-        </Button>
+        {!hasCommitted && (
+          <Button type="button" className="w-full" onClick={onClose}>
+            Done
+          </Button>
+        )}
       </div>
     </>
   );

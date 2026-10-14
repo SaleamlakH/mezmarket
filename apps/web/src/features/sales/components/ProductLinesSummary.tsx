@@ -12,9 +12,9 @@ export interface ProductLinesSummaryProps {
 }
 
 /**
- * The running list of a product's committed lines with per-line totals — and
- * the per-unit price beneath each — plus a grand total and a hint when nothing
- * has been added yet. Shared by the mobile sheet and the desktop popover.
+ * The running list of a product's committed lines with per-line totals, plus a
+ * grand total and a hint when nothing has been added yet. Shared by the mobile
+ * sheet, the desktop popover, and the inline editor on the sale panel.
  */
 export function ProductLinesSummary({
   units,
@@ -44,9 +44,14 @@ export function ProductLinesSummary({
 
               return (
                 <li key={line.id} className="flex items-center gap-3 py-1">
-                  <span className="w-16 shrink-0 line-clamp-2 font-mono text-xs text-(--text-muted)">
-                    {unit?.name ?? 'unit'}
-                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="m-0 truncate font-mono text-xs text-(--text-muted)">
+                      {unit?.name ?? 'unit'}
+                    </p>
+                    <p className="m-0 font-mono text-xs tabular-nums text-(--text)">
+                      {lineTotal ?? 'No price'}
+                    </p>
+                  </div>
 
                   {onQuantityChange && (
                     <div className="w-24 shrink-0">
@@ -58,17 +63,6 @@ export function ProductLinesSummary({
                       />
                     </div>
                   )}
-
-                  <div className="ml-auto w-28 shrink-0 whitespace-nowrap text-right">
-                    <p className="m-0 font-mono text-xs tabular-nums text-(--text)">
-                      {lineTotal ?? 'No price'}
-                    </p>
-                    {unit?.price != null && (
-                      <p className="m-0 font-mono text-[10px] tabular-nums text-(--text-muted)">
-                        {formatMoney(unit.price, currency)} / U
-                      </p>
-                    )}
-                  </div>
                 </li>
               );
             })}

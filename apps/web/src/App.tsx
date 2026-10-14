@@ -19,7 +19,9 @@ import { DesignSystem } from './DesignSystem';
 import { AppLayout } from './layouts/AppLayout';
 import { DashboardPage } from './features/dashboard/pages/DashboardPage';
 import { ProductsPage } from './features/products/pages/ProductsPage';
+import { SaleDock } from './features/sales/components/SaleDock';
 import { SalesPage } from './features/sales/pages/SalesPage';
+import { SaleDraftProvider } from './features/sales/state/SaleDraftProvider';
 import { InventoryPage } from './features/inventory/pages/InventoryPage';
 import { BatchesPage } from './features/inventory/pages/BatchesPage';
 import { SettingsPage } from './features/settings/pages/SettingsPage';
@@ -48,12 +50,20 @@ const router = createBrowserRouter([
         element: <BusinessGate />,
         children: [
           {
-            element: <AppLayout />,
+            element: (
+              <SaleDraftProvider>
+                <AppLayout />
+              </SaleDraftProvider>
+            ),
             children: [
               { index: true, element: <Navigate to="dashboard" replace /> },
               { path: 'dashboard', element: <DashboardPage /> },
               { path: 'products', element: <ProductsPage /> },
-              { path: 'sales', element: <SalesPage /> },
+              {
+                path: 'sales',
+                element: <SalesPage />,
+                handle: { aside: SaleDock },
+              },
               { path: 'inventory', element: <InventoryPage /> },
               { path: 'inventory/batches', element: <BatchesPage /> },
               { path: 'settings', element: <SettingsPage /> },

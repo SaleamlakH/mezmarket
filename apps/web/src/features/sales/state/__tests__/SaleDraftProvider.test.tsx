@@ -229,10 +229,11 @@ describe('SaleDraftProvider', () => {
   it('removes every line a product holds and closes it', () => {
     const { result } = renderDraft();
 
+    act(() => result.current.setQuantityForProduct('p2', 'u2', 3));
+
     act(() => result.current.openProduct('p1', 'u1'));
     act(() => result.current.setQuantity(activeId(result), 2));
     act(() => result.current.setUnit('u2'));
-    act(() => result.current.setQuantityForProduct('p2', 'u2', 3));
 
     act(() => result.current.removeProduct('p1'));
 
