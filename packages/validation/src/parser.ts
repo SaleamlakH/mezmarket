@@ -13,6 +13,7 @@ import type {
   RefundSaleLineFormValues,
   SaleFormValues,
   SaleLineFormValues,
+  MemberListFilters,
   UpdateBatchFormValues,
   UpdateBatchLineFormValues,
   UpdateSaleFormValues,
@@ -49,6 +50,7 @@ import {
   updateSaleSchema,
   voidSaleSchema,
 } from './schema/sales.schema.js';
+import { memberListQuerySchema } from './schema/member.schema.js';
 
 /**
  * Parses `input` against `schema` and flattens any failure into one
@@ -148,4 +150,8 @@ export function validateRefundSale(values: RefundSaleFormValues) {
 
 export function validateRefundSaleLine(values: RefundSaleLineFormValues) {
   return validateInput(refundSaleLineSchema, values);
+}
+
+export function validateMemberListQuery(values: unknown) {
+  return validateInput(memberListQuerySchema, values) as ValidationResult<MemberListFilters>;
 }

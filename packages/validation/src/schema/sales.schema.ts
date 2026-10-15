@@ -217,6 +217,8 @@ export const createSaleSchema = z
     initialPayment: initialPaymentSchema,
     /** A customer row selected from the list; a blank selection is no customer. */
     customerId: z.string().trim().transform(blankIsUnset).optional(),
+    /** A server selected from the member list; a blank selection is no server. */
+    serverMemberId: z.string().trim().transform(blankIsUnset).optional(),
     // The discount is taken as entered; the money it feeds is rounded once, in
     // the sale's totals, so it is not rounded again here. The pipe is what lets
     // a blank field's `undefined` through, not just a number.

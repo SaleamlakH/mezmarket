@@ -295,6 +295,23 @@ describe('validateCreateSale', () => {
     expect(validateCreateSale(sale()).data).not.toHaveProperty('customerId');
   });
 
+  it('carries the server the sale is attributed to', () => {
+    expect(validateCreateSale(sale({ serverMemberId: 'srv-1' })).data?.serverMemberId).toBe(
+      'srv-1',
+    );
+  });
+
+  it('leaves a blank server selection out of the payload', () => {
+    const result = validateCreateSale(sale({ serverMemberId: '   ' }));
+
+    expect(result.errors).toBeNull();
+    expect(result.data).not.toHaveProperty('serverMemberId');
+  });
+
+  it('leaves a sale that names no server without one', () => {
+    expect(validateCreateSale(sale()).data).not.toHaveProperty('serverMemberId');
+  });
+
   it('keeps the discount at the precision it was entered, without rounding', () => {
     expect(validateCreateSale(sale({ discount: '10.126' })).data?.discount).toBe(10.126);
   });

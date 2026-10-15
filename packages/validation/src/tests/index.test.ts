@@ -43,6 +43,9 @@ import {
   validateVoidSale,
   validateRefundSale,
   validateRefundSaleLine,
+  BUSINESS_MEMBER_ROLES,
+  memberListQuerySchema,
+  validateMemberListQuery,
 } from '../index.js';
 
 describe('index', () => {
@@ -212,6 +215,18 @@ describe('index', () => {
 
   it('exports validateRefundSaleLine', () => {
     expect(validateRefundSaleLine).toBeDefined();
+  });
+
+  it('exports BUSINESS_MEMBER_ROLES', () => {
+    expect(BUSINESS_MEMBER_ROLES).toContain('SERVER');
+  });
+
+  it('exports memberListQuerySchema', () => {
+    expect(memberListQuerySchema).toBeDefined();
+  });
+
+  it('exports validateMemberListQuery', () => {
+    expect(validateMemberListQuery).toBeDefined();
   });
 
   it('exports FieldErrors', () => {
