@@ -74,6 +74,8 @@ A sale with no initial payment is `PENDING` and owes its whole total. An `initia
 
 `customerId` is an optional attribution, independent of the payment: a sale may name an existing customer of the business, with or without a payment, and the link never affects the totals or the payment status. The API rejects an id that is not an active customer of the acting business, so a sale can never be attributed across businesses. A sale with no customer omits the field and stores none; see [customers.md](customers.md).
 
+`serverMemberId` is an optional whole-sale attribution, separate from who processed the sale: it names the member with role `SERVER` who took the order. The API rejects an id that is not an active server of the acting business, so attribution can never cross businesses or point at a member who does not take orders. The acting member recorded as `processedBy` is unchanged; the tagged server reads back as `servedBy` on the sale. A sale with no server omits the field and stores none. The candidates for the picker come from `GET /api/businesses/:businessId/members?role=SERVER`.
+
 When a draw would take sealed stock below zero, the recording still proceeds and the response carries the resulting stock unless the business has `allowNegativeStock` turned off, in which case the whole request is rejected. The warning itself is surfaced by the client, which already holds each product's current stock.
 
 ### GET /api/businesses/:businessId/sales
