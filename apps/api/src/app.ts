@@ -11,6 +11,7 @@ import {
   batchRoutes,
   salesRoutes,
   customersRoutes,
+  membersRoutes,
 } from './composition.js';
 
 const app: Express = express();
@@ -42,6 +43,7 @@ app.use('/api', ownerRoutes);
 app.use('/api', productsRoutes);
 app.use('/api', salesRoutes);
 app.use('/api', customersRoutes);
+app.use('/api', membersRoutes);
 
 app.use(errorHandler);
 

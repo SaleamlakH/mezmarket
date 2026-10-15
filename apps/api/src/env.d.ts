@@ -20,6 +20,7 @@ declare namespace Express {
       role?: import('@mez/types').BusinessMemberRole;
     };
     validBody: unknown;
+    validQuery?: unknown;
     uploadIds?: string[];
   }
 }

@@ -44,6 +44,11 @@ import { createCustomersService } from './modules/customers/customers.service.js
 import { createCustomersController } from './modules/customers/customers.controller.js';
 import { createCustomersRouter } from './modules/customers/customers.routes.js';
 import { validateCustomerInput } from './modules/customers/customers.middleware.js';
+import { createMembersRepository } from './modules/members/members.repository.js';
+import { createMembersService } from './modules/members/members.service.js';
+import { createMembersController } from './modules/members/members.controller.js';
+import { createMembersRouter } from './modules/members/members.routes.js';
+import { validateMemberListFilters } from './modules/members/members.middleware.js';
 import { createUnitsRepository } from './modules/units/units.repository.js';
 import { createUnitsService } from './modules/units/units.service.js';
 import { createUnitsController } from './modules/units/units.controller.js';
@@ -157,6 +162,15 @@ export const customersRoutes = createCustomersRouter(
   authorizeBusiness,
   requireBusinessRole(['OWNER', 'MANAGER', 'CASHIER']),
   validateCustomerInput,
+);
+
+const membersRepository = createMembersRepository(prisma);
+const membersService = createMembersService(membersRepository);
+const membersController = createMembersController(membersService);
+export const membersRoutes = createMembersRouter(
+  membersController,
+  authorizeBusiness,
+  validateMemberListFilters,
 );
 
 const unitsRepository = createUnitsRepository(prisma);
