@@ -20,6 +20,7 @@ function mockRepository(): SaleRepository {
     getProductSellContext: vi.fn(),
     getStockLots: vi.fn(),
     getCustomer: vi.fn(),
+    getServer: vi.fn(),
     getSaleForPayment: vi.fn(),
     createSale: vi.fn(),
     recordPayment: vi.fn(),
@@ -355,6 +356,31 @@ describe('sales.service', () => {
 
       await expect(
         service.createSale(actor(), input({ customerId: 'cust-other' })),
+      ).rejects.toEqual(appError(ERROR_CODES.BAD_REQUEST, 400));
+      expect(mockRepo.createSale).not.toHaveBeenCalled();
+    });
+
+    it('reads a named server within the acting business before writing', async () => {
+      vi.mocked(mockRepo.getServer).mockResolvedValue({ id: 'srv-1' });
+
+      await service.createSale(actor(), input({ serverMemberId: 'srv-1' }));
+
+      expect(mockRepo.getServer).toHaveBeenCalledWith('b-1', 'srv-1');
+      expect(written().serverMemberId).toBe('srv-1');
+    });
+
+    it('never reads a server back for a sale that names none', async () => {
+      await service.createSale(actor(), input());
+
+      expect(mockRepo.getServer).not.toHaveBeenCalled();
+      expect(written().serverMemberId).toBeNull();
+    });
+
+    it('rejects a server that is not an active server of the business', async () => {
+      vi.mocked(mockRepo.getServer).mockResolvedValue(null);
+
+      await expect(
+        service.createSale(actor(), input({ serverMemberId: 'srv-other' })),
       ).rejects.toEqual(appError(ERROR_CODES.BAD_REQUEST, 400));
       expect(mockRepo.createSale).not.toHaveBeenCalled();
     });

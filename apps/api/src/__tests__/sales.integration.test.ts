@@ -24,6 +24,7 @@ const { verifyJwt, authRepository, businessRepository, salesRepository } = vi.ho
     getProductSellContext: vi.fn(),
     getStockLots: vi.fn(),
     getCustomer: vi.fn(),
+    getServer: vi.fn(),
     getSaleForPayment: vi.fn(),
     createSale: vi.fn(),
     recordPayment: vi.fn(),
@@ -231,6 +232,36 @@ describe('sales.integration', () => {
           ],
         }),
       );
+    });
+
+    it('attributes the server named on the sale, separate from who processed it', async () => {
+      await authenticate('CASHIER');
+      salesRepository.getServer.mockResolvedValue({ id: 'srv-1' });
+
+      const res = await request(app)
+        .post('/api/businesses/b-1/sales')
+        .set('Authorization', 'Bearer token')
+        .send({ ...BODY, serverMemberId: 'srv-1' });
+
+      expect(res.status).toBe(201);
+      expect(salesRepository.getServer).toHaveBeenCalledWith('b-1', 'srv-1');
+      expect(salesRepository.createSale).toHaveBeenCalledWith(
+        expect.objectContaining({ memberId: 'm-1', serverMemberId: 'srv-1' }),
+      );
+    });
+
+    it('rejects a server that is not an active server of the business', async () => {
+      await authenticate();
+      salesRepository.getServer.mockResolvedValue(null);
+
+      const res = await request(app)
+        .post('/api/businesses/b-1/sales')
+        .set('Authorization', 'Bearer token')
+        .send({ ...BODY, serverMemberId: 'srv-other' });
+
+      expect(res.status).toBe(400);
+      expect(res.body).toMatchObject({ error: { code: ERROR_CODES.BAD_REQUEST } });
+      expect(salesRepository.createSale).not.toHaveBeenCalled();
     });
 
     it('answers the created sale with exactly the lines entered and computed amounts', async () => {

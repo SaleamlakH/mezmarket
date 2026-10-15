@@ -17,7 +17,7 @@ export function createSaleService(repository: SaleRepository): SaleService {
   return {
     async createSale(actor: Actor, input: CreateSaleInput): Promise<SaleDetailResult> {
       const productIds = [...new Set(input.lines.map((line) => line.productId))];
-      const [saleConfig, products, lots, customer] = await Promise.all([
+      const [saleConfig, products, lots, customer, server] = await Promise.all([
         repository.getBusinessSaleConfig(actor.businessId),
         repository.getProductSellContext(actor.businessId, productIds),
         repository.getStockLots(actor.businessId, productIds),
@@ -26,6 +26,11 @@ export function createSaleService(repository: SaleRepository): SaleService {
         input.customerId === undefined
           ? Promise.resolve(null)
           : repository.getCustomer(actor.businessId, input.customerId),
+        // A server named by the sale must be an active server of the business;
+        // attribution with none named never reads one back.
+        input.serverMemberId === undefined
+          ? Promise.resolve(null)
+          : repository.getServer(actor.businessId, input.serverMemberId),
       ]);
 
       if (!saleConfig) {
@@ -35,6 +40,12 @@ export function createSaleService(repository: SaleRepository): SaleService {
       if (input.customerId !== undefined && customer === null) {
         throw new AppError(ERROR_CODES.BAD_REQUEST, 'Customer not found', 400, {
           customerId: 'Select a valid customer',
+        });
+      }
+
+      if (input.serverMemberId !== undefined && server === null) {
+        throw new AppError(ERROR_CODES.BAD_REQUEST, 'Server not found', 400, {
+          serverMemberId: 'Select a valid server',
         });
       }
 
@@ -64,6 +75,7 @@ export function createSaleService(repository: SaleRepository): SaleService {
         amountPaid: initial.amountPaid,
         balanceDue: initial.balanceDue,
         customerId: customer?.id ?? null,
+        serverMemberId: server?.id ?? null,
         initialPayment: initial.payment,
         lines: allocated,
         stockDecrements: sumBaseByProduct(allocated),

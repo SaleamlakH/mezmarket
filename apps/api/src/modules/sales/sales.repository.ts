@@ -105,6 +105,18 @@ export function createSaleRepository(prisma: PrismaClient): SaleRepository {
       });
     },
 
+    /**
+     * The named server, but only if it is an active member of the business with
+     * the server role, so a sale can never be attributed across businesses or to
+     * a member who does not take orders.
+     */
+    async getServer(businessId, serverMemberId) {
+      return prisma.businessMember.findFirst({
+        where: { id: serverMemberId, businessId, active: true, role: 'SERVER' },
+        select: { id: true },
+      });
+    },
+
     async getSaleForPayment(businessId, saleId) {
       return prisma.sale.findFirst({
         where: { id: saleId, businessId },
@@ -187,6 +199,7 @@ async function writeSale(
       branchId: command.branchId,
       invoiceNumber,
       processedByMemberId: command.memberId,
+      serverMemberId: command.serverMemberId,
       customerId: command.customerId,
       saleDatetime: command.saleDatetime,
       discount: command.discount,

@@ -150,6 +150,8 @@ export type CreateSaleCommand = {
   balanceDue: number;
   /** The customer the sale is attributed to, verified to belong to the business. */
   customerId: string | null;
+  /** The server who took the order, verified to be an active server of the business. */
+  serverMemberId: string | null;
   initialPayment: ResolvedPayment | null;
   lines: ResolvedSaleLine[];
   stockDecrements: StockDecrement[];
@@ -161,6 +163,14 @@ export type CreateSaleCommand = {
  * caller named, confirmed to belong to the acting business.
  */
 export type CustomerRef = {
+  id: string;
+};
+
+/**
+ * A server narrowed to the identity the sale write needs: the server a caller
+ * named, confirmed to be an active server of the acting business.
+ */
+export type ServerRef = {
   id: string;
 };
 
@@ -236,6 +246,7 @@ export type SaleRepository = {
   getProductSellContext(businessId: string, productIds: string[]): Promise<ProductSellContext[]>;
   getStockLots(businessId: string, productIds: string[]): Promise<StockLot[]>;
   getCustomer(businessId: string, customerId: string): Promise<CustomerRef | null>;
+  getServer(businessId: string, serverMemberId: string): Promise<ServerRef | null>;
   getSaleForPayment(businessId: string, saleId: string): Promise<SalePaymentContext | null>;
   createSale(command: CreateSaleCommand): Promise<SaleRecordWithDetail>;
   recordPayment(command: RecordPaymentCommand): Promise<SaleRecordWithDetail>;
