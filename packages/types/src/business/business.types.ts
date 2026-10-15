@@ -86,6 +86,14 @@ export type BusinessMemberResponse = RequireAllKeys<
  */
 export type BusinessMemberSummaryResponse = Pick<BusinessMemberResponse, 'id' | 'name' | 'role'>;
 
+/**
+ * Filters a member-list request may carry. A `role` narrows the list to one
+ * kind of member — `SERVER` for the server picker, for instance.
+ */
+export interface MemberListFilters {
+  role?: BusinessMemberRole | undefined;
+}
+
 export type CreateBusinessInput = Pick<Business, 'name' | 'currencyCode'> & {
   defaultTaxRate?: number;
   taxDisplayMode?: TaxDisplayMode;
