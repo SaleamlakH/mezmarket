@@ -17,6 +17,7 @@ import {
   type UploadMimeType,
 } from '@mez/validation';
 import { ApiError } from '@/lib/apiClient';
+import { catalogKeys } from '@/hooks/useCatalogApi';
 import {
   productsService as defaultProductsService,
   type ProductsService,
@@ -243,6 +244,7 @@ export function useCreateProductForm({
         ...(old ?? []),
       ]);
       void queryClient.invalidateQueries({ queryKey: ['products', businessId] });
+      void queryClient.invalidateQueries({ queryKey: catalogKeys.products(businessId) });
       onCreated(created);
     } catch (error) {
       // A rejection the server can name a field for — a unit name already taken on
