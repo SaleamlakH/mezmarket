@@ -57,7 +57,7 @@ export function SaleLineList({ lines, currency, onEdit, onRemove }: SaleLineList
             <Button
               type="button"
               shape="square"
-              size="sm"
+              size="md"
               variant="field"
               aria-label={`Remove ${productName}`}
               title={`Remove ${productName}`}

@@ -15,13 +15,7 @@ export interface BatchLineListProps {
   onRemove: (index: number) => void;
 }
 
-/**
- * The batch's product lines once added, as plain rows stacked one under the
- * next and separated by a rule — no card around each one, so the list reads as
- * one block rather than a pile of boxes. Tapping a row opens that line's
- * fields again. Names come from the query cache via `useBatchLineList` —
- * the add-batch session already fetched them.
- */
+/** The batch's added product lines as tappable rows. */
 export function BatchLineList({
   lines,
   currency,
@@ -100,7 +94,7 @@ export function BatchLineList({
             <Button
               type="button"
               shape="square"
-              size="sm"
+              size="md"
               variant="field"
               aria-label={`Remove ${row.productName}`}
               title={`Remove ${row.productName}`}

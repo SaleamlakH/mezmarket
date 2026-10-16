@@ -36,6 +36,7 @@ import {
   Field,
   Input,
   PasswordInput,
+  Select,
   ListCard,
   RailCard,
   SectionHeader,
@@ -91,6 +92,12 @@ function Swatch({ bg, name, token }: { bg: string; name: string; token: string }
 }
 
 const mono = 'font-mono';
+
+const selectOptions = [
+  { value: 'cash', label: 'Cash' },
+  { value: 'card', label: 'Card' },
+  { value: 'transfer', label: 'Bank transfer' },
+];
 
 /* ---------- panels ---------- */
 
@@ -344,11 +351,26 @@ function ButtonsPanel() {
         <Button size="md" shape="pill">
           <Plus size={16} aria-hidden /> Add
         </Button>
-        <Button size="sm" shape="square" aria-label="Add">
+        <Button size="lg" shape="pill">
+          <Plus size={16} aria-hidden /> Add
+        </Button>
+        <Button size="sm" shape="square" aria-label="Add (sm)">
           <Plus size={16} aria-hidden />
         </Button>
-        <Button size="md" shape="square" aria-label="Add">
+        <Button size="md" shape="square" aria-label="Add (md)">
           <Plus size={16} aria-hidden />
+        </Button>
+        <Button size="lg" shape="square" aria-label="Add (lg)">
+          <Plus size={16} aria-hidden />
+        </Button>
+      </div>
+      <PanelSub>Sizes · custom via className</PanelSub>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button size="lg" className="h-14 rounded-xl px-8 text-base">
+          Roomier
+        </Button>
+        <Button size="lg" shape="square" className="h-14 w-14 rounded-xl">
+          <Plus size={22} aria-hidden />
         </Button>
       </div>
       <PanelSub>Category chips</PanelSub>
@@ -645,6 +667,37 @@ function LoadingErrorPanel() {
 function FormsPanel() {
   return (
     <Panel span="md:col-span-8" title="Form inputs">
+      <PanelSub>Input sizes</PanelSub>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="w-40">
+          <Input size="sm" placeholder="sm" />
+        </div>
+        <div className="w-40">
+          <Input size="md" placeholder="md" />
+        </div>
+        <div className="w-40">
+          <Input size="lg" placeholder="lg" />
+        </div>
+        <div className="w-56">
+          <Input size="md" placeholder="custom via className" className="rounded-full" />
+        </div>
+      </div>
+      <PanelSub>Select sizes</PanelSub>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="w-40">
+          <Select size="sm" options={selectOptions} />
+        </div>
+        <div className="w-40">
+          <Select size="md" options={selectOptions} />
+        </div>
+        <div className="w-40">
+          <Select size="lg" options={selectOptions} />
+        </div>
+        <div className="w-56">
+          <Select size="md" options={selectOptions} className="rounded-full" />
+        </div>
+      </div>
+      <PanelSub>States</PanelSub>
       <div className="flex max-w-[360px] flex-col gap-4">
         <Field label="Email" hint="Default — rests on --field, --border">
           <Input placeholder="you@business.com" />

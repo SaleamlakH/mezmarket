@@ -8,14 +8,14 @@ import { X } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { ProductThumb } from '@/components/ProductThumb';
 import { formatQuantity } from '@/lib/format';
-import { isCommitted, type SaleDraftLine } from '../state/saleDraft';
+import type { SaleDraftLine } from '../state/saleDraft';
 import { CartItemLines } from './CartItemLines';
 import { ProductQuantityControl } from './ProductQuantityControl';
 
 export interface CartItemEditorProps {
   product: ProductSummaryResponse;
   units: ProductUnitOptionResponse[];
-  /** Every line held for this product; those with a quantity show as text. */
+  /** Every line held for this product. */
   lines: SaleDraftLine[];
   /** The line the selector and stepper edit. */
   activeLine: SaleDraftLine | undefined;
@@ -29,11 +29,7 @@ export interface CartItemEditorProps {
   onClose: () => void;
 }
 
-/**
- * The editor for one cart item: its header, the unit and quantity control, and
- * the list of lines it has built. Rendered inline on large screens and inside
- * the grid card's dialog on mobile — the same markup in both.
- */
+/** The editor for one cart item: header, unit/quantity control and its lines. */
 export function CartItemEditor({
   product,
   units,
@@ -50,11 +46,10 @@ export function CartItemEditor({
 }: CartItemEditorProps) {
   const selectId = useId();
   const activeUnit = units.find((unit) => unit.id === activeLine?.productUnitId);
-  const hasCommitted = lines.some(isCommitted);
 
   return (
     <>
-      <div className="flex items-center gap-3 pt-1 pb-3">
+      <div className="flex items-center gap-3 md:pt-5 pb-3">
         <ProductThumb
           businessId={businessId}
           uploadId={product.uploadId ?? undefined}
@@ -73,7 +68,7 @@ export function CartItemEditor({
         <Button
           type="button"
           shape="square"
-          size="sm"
+          size="lg"
           variant="field"
           aria-label="Close"
           title="Close"
@@ -86,6 +81,7 @@ export function CartItemEditor({
       <div className="mt-3 flex flex-col gap-3">
         <ProductQuantityControl
           selectId={selectId}
+          size="lg"
           units={units}
           unitId={activeLine?.productUnitId ?? ''}
           onUnitChange={onUnitChange}
@@ -102,12 +98,6 @@ export function CartItemEditor({
           onQuantityChange={onLineQuantityChange}
           onRemove={onLineRemove}
         />
-
-        {!hasCommitted && (
-          <Button type="button" className="w-full" onClick={onClose}>
-            Done
-          </Button>
-        )}
       </div>
     </>
   );

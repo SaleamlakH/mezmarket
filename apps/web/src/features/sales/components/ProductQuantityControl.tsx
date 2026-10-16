@@ -9,22 +9,18 @@ export interface ProductQuantityControlProps {
   onUnitChange: (unitId: string) => void;
   quantity: number;
   onQuantityChange: (quantity: number) => void;
-  /** Currency for the unit price note; ignored when `activeUnit` has no price. */
+  /** Currency for the unit price note. */
   currency?: string;
-  /** The chosen unit; its price renders between the selector and the stepper. */
+  /** The chosen unit. */
   activeUnit?: ProductUnitOptionResponse | undefined;
-  /** `md` — the editor's roomy stack (default); `sm` — the grid card's overlay. */
-  size?: 'sm' | 'md';
+  /** The control's size. */
+  size?: 'sm' | 'md' | 'lg';
   selectId?: string;
   placeholder?: string;
   className?: string;
 }
 
-/**
- * The selector-and-stepper control for a product: picks the sellable unit and
- * sets the quantity in one piece. Shared by the docked line editor and the grid
- * card's quick-edit controller.
- */
+/** Picks a product's sellable unit and sets its quantity. */
 export function ProductQuantityControl({
   units,
   unitId,
@@ -33,13 +29,13 @@ export function ProductQuantityControl({
   onQuantityChange,
   currency,
   activeUnit,
-  size = 'md',
+  size = 'lg',
   selectId,
   placeholder = 'Select the unit',
   className = '',
 }: ProductQuantityControlProps) {
   const empty = units.length === 0;
-  const gap = size === 'sm' ? 'gap-1.5' : 'gap-3';
+  const gap = size === 'sm' ? 'gap-1.5' : size === 'md' ? 'gap-2' : 'gap-3';
 
   return (
     <div className={`flex flex-col ${gap} ${className}`}>
@@ -50,9 +46,7 @@ export function ProductQuantityControl({
         disabled={empty}
         onChange={(event) => onUnitChange(event.currentTarget.value)}
         options={units.map((unit) => ({ value: unit.id, label: unit.name }))}
-        className={
-          size === 'sm' ? '[&>select]:px-2.5 [&>select]:py-[7px] [&>select]:text-[13px]' : ''
-        }
+        size={size}
       />
 
       {activeUnit?.price != null && currency && (

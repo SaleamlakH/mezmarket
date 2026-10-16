@@ -16,11 +16,7 @@ export interface CartItemLinesProps {
   onRemove?: ((lineId: string) => void) | undefined;
 }
 
-/**
- * The running list of a product's committed lines with per-line totals, plus a
- * grand total and a hint when nothing has been added yet. Shared by the docked
- * editor, the grid card's review popover, and the mobile editor.
- */
+/** A product's committed lines with per-line totals and a grand total. */
 export function CartItemLines({
   units,
   lines,
@@ -74,7 +70,7 @@ export function CartItemLines({
                     <Button
                       type="button"
                       shape="square"
-                      size="sm"
+                      size="md"
                       variant="field"
                       aria-label={`Remove ${unit?.name ?? 'unit'} line`}
                       title={`Remove ${unit?.name ?? 'unit'} line`}

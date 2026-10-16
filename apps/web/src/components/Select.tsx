@@ -11,28 +11,39 @@ export interface SelectGroup {
   options: SelectOption[];
 }
 
-export interface SelectProps extends ComponentPropsWithRef<'select'> {
+export type SelectSize = 'sm' | 'md' | 'lg';
+
+export interface SelectProps extends Omit<ComponentPropsWithRef<'select'>, 'size'> {
   error?: boolean | undefined;
   placeholder?: string;
   options?: SelectOption[];
   groups?: SelectGroup[];
+  /** The control's size. */
+  size?: SelectSize;
 }
+
+const sizes: Record<SelectSize, string> = {
+  sm: 'h-7 rounded-lg pl-2 pr-8 text-xs',
+  md: 'h-8 rounded-lg pl-2.5 pr-9 text-xs',
+  lg: 'h-10 rounded-[13px] pl-3.5 pr-10 text-sm',
+};
 
 export function Select({
   error,
   placeholder,
   options,
   groups,
+  size = 'lg',
   className = '',
   ...rest
 }: SelectProps) {
   return (
-    <span className={`relative block w-full ${className}`}>
+    <span className="relative block w-full">
       <select
         aria-invalid={error || undefined}
-        className={`w-full cursor-pointer appearance-none rounded-[13px] border bg-(--field) px-3.5 py-3 pr-10 text-sm text-(--text) outline-none transition-colors duration-150 placeholder:text-(--text-muted) focus:border-(--accent) ${
+        className={`w-full cursor-pointer appearance-none border bg-(--field) text-(--text) outline-none transition-colors duration-150 placeholder:text-(--text-muted) focus:border-(--accent) ${sizes[size]} ${
           error ? 'border-(--warning)' : 'border-(--border)'
-        }`}
+        } ${className}`}
         {...rest}
       >
         {placeholder && <option value="">{placeholder}</option>}

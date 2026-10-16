@@ -2,13 +2,12 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'text' | 'ghost' | 'outline' | 'field';
 export type ButtonShape = 'pill' | 'square';
-export type ButtonSize = 'sm' | 'md';
+export type ButtonSize = 'sm' | 'md' | 'lg';
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   /** `pill` — the regular text button (default); `square` — a fixed-size icon chip. */
   shape?: ButtonShape;
-  /** `sm` — compact; `md` — default. Scales the padding and label. */
   size?: ButtonSize;
   isLoading?: boolean;
   children?: ReactNode;
@@ -20,18 +19,21 @@ const base =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]';
 
 const sizes: Record<ButtonSize, string> = {
-  sm: 'gap-1.5 text-xs',
-  md: 'gap-2 text-sm',
+  sm: 'gap-1 text-xs',
+  md: 'gap-1.5 text-xs',
+  lg: 'gap-2 text-sm',
 };
 
 const shapes: Record<ButtonShape, Record<ButtonSize, string>> = {
   pill: {
-    sm: 'px-2.5 py-2',
-    md: 'px-4 py-[9px]',
+    sm: 'px-2 py-1.5',
+    md: 'px-2.5 py-2',
+    lg: 'px-4 py-[9px]',
   },
   square: {
-    sm: 'h-8 w-8',
-    md: 'h-10 w-10',
+    sm: 'h-7 w-7',
+    md: 'h-8 w-8',
+    lg: 'h-10 w-10',
   },
 };
 
@@ -50,7 +52,7 @@ const variants: Record<ButtonVariant, string> = {
 export function Button({
   variant = 'primary',
   shape = 'pill',
-  size = 'md',
+  size = 'lg',
   isLoading = false,
   disabled,
   className = '',

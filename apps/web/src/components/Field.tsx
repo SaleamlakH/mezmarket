@@ -7,6 +7,8 @@ export interface FieldProps {
   muted?: boolean;
   hint?: string | undefined;
   error?: string | undefined;
+  /** Tightens the label-to-control gap for dense rows. */
+  compact?: boolean;
   className?: string;
   children: ReactNode;
 }
@@ -18,15 +20,16 @@ export function Field({
   muted = false,
   hint,
   error,
+  compact = false,
   className,
   children,
 }: FieldProps) {
   return (
-    <div className={`flex flex-col gap-1.5 ${className ?? ''}`}>
+    <div className={`flex flex-col ${compact ? 'gap-1' : 'gap-1.5'} ${className ?? ''}`}>
       {label && (
         <label
           htmlFor={id}
-          className={`block text-[11px] font-semibold uppercase tracking-[0.08em] ${
+          className={`flex-1 block text-[11px] font-semibold uppercase tracking-[0.08em] ${
             muted ? 'text-(--text-muted)' : 'text-(--text)'
           }`}
         >

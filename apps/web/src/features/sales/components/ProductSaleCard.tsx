@@ -29,8 +29,6 @@ export function ProductSaleCard({
   businessId,
   uploadUrls,
 }: ProductSaleCardProps) {
-  // The card owns its image request, so it fills in as soon as this one download
-  // lands and the placeholder above covers the gap until then.
   const imageUrl = useProductImage(businessId, product.uploadId ?? undefined, uploadUrls);
 
   const {
@@ -57,9 +55,6 @@ export function ProductSaleCard({
   const isMobile = useIsMobile();
   const cardRef = useRef<HTMLDivElement>(null);
 
-  // The popover only stands while this product is the one being worked on, and
-  // only renders visibly at `md`+, so touching any other product's quick-edit
-  // controller retires it.
   const thisPopoverOpen = reviewOpen && isActive;
 
   const isLow =
@@ -70,8 +65,6 @@ export function ProductSaleCard({
     closeProduct();
   }, [closeProduct]);
 
-  // One handler for both breakpoints: it activates the product and
-  // flags the review popover, so the two UIs share a single control.
   const handleReview = () => {
     if (!isActive) openProduct(product.id, units[0]?.id ?? '');
     setReviewOpen(true);
@@ -84,9 +77,7 @@ export function ProductSaleCard({
         }`
       : '';
 
-  // What the inline quick-edit controller operates on: the product's active
-  // line when it is the one being edited, otherwise its last committed line, so
-  // the controller reflects what is already in the sale before any interaction.
+  // The line the inline quick-edit controller edits.
   const quickLine = isActive ? activeLine : cartItem.lines.at(-1)?.line;
 
   const quickController = (
@@ -96,7 +87,7 @@ export function ProductSaleCard({
       className="absolute inset-x-1.5 bottom-1.5 hidden flex-col gap-1.5 rounded-xl border border-(--border-strong) bg-(--surface-primary)/95 p-1.5 opacity-0 shadow-(--shadow-md) transition-[opacity,transform] duration-150 pointer-events-none group-hover:translate-y-0 group-hover:opacity-100 group-hover:pointer-events-auto group-focus:translate-y-0 group-focus:opacity-100 group-focus:pointer-events-auto group-focus-within:translate-y-0 group-focus-within:opacity-100 group-focus-within:pointer-events-auto md:flex"
     >
       <ProductQuantityControl
-        size="sm"
+        size="md"
         units={units}
         unitId={quickLine?.productUnitId ?? units[0]?.id ?? ''}
         placeholder="Unit"
@@ -154,7 +145,7 @@ export function ProductSaleCard({
               <Button
                 type="button"
                 shape="pill"
-                size="sm"
+                size="md"
                 variant={committedCount > 0 ? 'outline' : 'secondary'}
                 onClick={handleReview}
                 aria-label={committedCount > 0 ? `Review ${product.name}` : `Add ${product.name}`}
