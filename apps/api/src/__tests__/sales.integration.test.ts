@@ -542,6 +542,32 @@ describe('sales.integration', () => {
       });
     });
 
+    it('carries the attached customer contacts in the detail', async () => {
+      await authenticate();
+      salesRepository.getSale.mockResolvedValue({
+        ...SALE_RECORD,
+        customerId: 'cust-1',
+        customer: {
+          id: 'cust-1',
+          name: 'Grace Gorman',
+          contactEmail: 'ggorman@yahoo.com',
+          contactPhone: '+1 (980) 238-2394',
+        },
+      } as never);
+
+      const res = await request(app)
+        .get('/api/businesses/b-1/sales/sale-1')
+        .set('Authorization', 'Bearer token');
+
+      expect(res.status).toBe(200);
+      expect(res.body.customer).toEqual({
+        id: 'cust-1',
+        name: 'Grace Gorman',
+        contactEmail: 'ggorman@yahoo.com',
+        contactPhone: '+1 (980) 238-2394',
+      });
+    });
+
     it.each(['OWNER', 'MANAGER', 'CASHIER', 'SERVER'] as const)(
       'lets a %s read a sale',
       async (role) => {

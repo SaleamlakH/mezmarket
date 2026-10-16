@@ -129,6 +129,27 @@ describe('toSaleDetail', () => {
   it('carries a null discount through', () => {
     expect(toSaleDetail(saleRecord({ discount: null })).discount).toBeNull();
   });
+
+  it('carries the customer identity and contacts through', () => {
+    const detail = toSaleDetail(
+      saleRecord({
+        customerId: 'cust-1',
+        customer: {
+          id: 'cust-1',
+          name: 'Grace Gorman',
+          contactEmail: 'ggorman@yahoo.com',
+          contactPhone: '+1 (980) 238-2394',
+        } as SaleRecordWithDetail['customer'],
+      }),
+    );
+
+    expect(detail.customer).toEqual({
+      id: 'cust-1',
+      name: 'Grace Gorman',
+      contactEmail: 'ggorman@yahoo.com',
+      contactPhone: '+1 (980) 238-2394',
+    });
+  });
 });
 
 describe('toSaleSummary', () => {

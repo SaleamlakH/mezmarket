@@ -31,7 +31,14 @@ export function toSaleDetail(record: SaleRecordWithDetail): SaleDetailResult {
     })),
     processedBy: processedByMember,
     servedBy: serverMember,
-    customer: customer ? { id: customer.id, name: customer.name } : null,
+    customer: customer
+      ? {
+          id: customer.id,
+          name: customer.name,
+          contactEmail: customer.contactEmail,
+          contactPhone: customer.contactPhone,
+        }
+      : null,
   };
 }
 
