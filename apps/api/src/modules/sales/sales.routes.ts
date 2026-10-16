@@ -13,6 +13,7 @@ export function createSalesRouter(
   const router = Router();
 
   router.get('/businesses/:businessId/sales', authorizeBusiness, controller.listSales);
+  router.get('/businesses/:businessId/sales/:saleId', authorizeBusiness, controller.getSale);
   router.post(
     '/businesses/:businessId/sales',
     authorizeBusiness,

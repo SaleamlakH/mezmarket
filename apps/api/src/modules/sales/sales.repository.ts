@@ -146,6 +146,13 @@ export function createSaleRepository(prisma: PrismaClient): SaleRepository {
       }
     },
 
+    async getSale(businessId, saleId) {
+      return prisma.sale.findFirst({
+        where: { id: saleId, businessId },
+        include: saleDetailInclude,
+      });
+    },
+
     async recordPayment(command) {
       return prisma.$transaction((tx) => writePayment(tx, command));
     },

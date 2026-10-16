@@ -21,6 +21,7 @@ const CREATED = { id: 'sale-1', lines: [{ id: 'sl-1' }] };
 
 function mockService(): SaleService {
   return {
+    getSale: vi.fn(),
     createSale: vi.fn(),
     recordPayment: vi.fn(),
     listSales: vi.fn(),
@@ -50,6 +51,38 @@ describe('sales.controller', () => {
     } as unknown as Response;
     return { req, res };
   }
+
+  describe('getSale', () => {
+    it('answers 200 with the sale the service read', async () => {
+      vi.mocked(service.getSale).mockResolvedValue(CREATED as never);
+      const { req, res } = call(AUTH, undefined, { saleId: 'sale-1' });
+
+      await controller.getSale(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(CREATED);
+    });
+
+    it('hands the service the resolved scope and the sale id from the route', async () => {
+      vi.mocked(service.getSale).mockResolvedValue(CREATED as never);
+      const { req, res } = call(AUTH, undefined, { saleId: 'sale-9' });
+
+      await controller.getSale(req, res);
+
+      expect(service.getSale).toHaveBeenCalledWith(
+        { businessId: 'b-1', branchId: 'br-1', memberId: 'm-1' },
+        'sale-9',
+      );
+    });
+
+    it('lets a rejected service call propagate to the error handler', async () => {
+      vi.mocked(service.getSale).mockRejectedValue(new Error('db down'));
+      const { req, res } = call(AUTH, undefined, { saleId: 'sale-1' });
+
+      await expect(controller.getSale(req, res)).rejects.toThrow('db down');
+      expect(res.json).not.toHaveBeenCalled();
+    });
+  });
 
   describe('createSale', () => {
     it('answers 201 with the sale the service created', async () => {

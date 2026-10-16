@@ -15,6 +15,14 @@ import { toSaleDetail, toSaleSummary } from './utils/mappers.js';
 
 export function createSaleService(repository: SaleRepository): SaleService {
   return {
+    async getSale(actor: Actor, saleId: string): Promise<SaleDetailResult> {
+      const record = await repository.getSale(actor.businessId, saleId);
+      if (!record) {
+        throw new AppError(ERROR_CODES.NOT_FOUND, 'Sale not found', 404);
+      }
+      return toSaleDetail(record);
+    },
+
     async createSale(actor: Actor, input: CreateSaleInput): Promise<SaleDetailResult> {
       const productIds = [...new Set(input.lines.map((line) => line.productId))];
       const [saleConfig, products, lots, customer, server] = await Promise.all([

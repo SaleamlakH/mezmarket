@@ -3,6 +3,7 @@ import type { CreateSaleInput, RecordPaymentInput, SaleService } from './sales.t
 import type { Actor, Scope } from '../../shared/types/session.types.js';
 
 export type SaleController = {
+  getSale(req: Request, res: Response): Promise<void>;
   createSale(req: Request, res: Response): Promise<void>;
   recordPayment(req: Request, res: Response): Promise<void>;
   listSales(req: Request, res: Response): Promise<void>;
@@ -24,6 +25,11 @@ function scopeOf(req: Request): Scope {
 
 export function createSaleController(service: SaleService): SaleController {
   return {
+    async getSale(req, res) {
+      const sale = await service.getSale(actorOf(req), req.params.saleId as string);
+      res.status(200).json(sale);
+    },
+
     async createSale(req, res) {
       const sale = await service.createSale(actorOf(req), req.validBody as CreateSaleInput);
       res.status(201).json(sale);

@@ -248,12 +248,14 @@ export type SaleRepository = {
   getCustomer(businessId: string, customerId: string): Promise<CustomerRef | null>;
   getServer(businessId: string, serverMemberId: string): Promise<ServerRef | null>;
   getSaleForPayment(businessId: string, saleId: string): Promise<SalePaymentContext | null>;
+  getSale(businessId: string, saleId: string): Promise<SaleRecordWithDetail | null>;
   createSale(command: CreateSaleCommand): Promise<SaleRecordWithDetail>;
   recordPayment(command: RecordPaymentCommand): Promise<SaleRecordWithDetail>;
   listSales(businessId: string, branchId: string): Promise<SaleRecordSummary[]>;
 };
 
 export type SaleService = {
+  getSale(actor: Actor, saleId: string): Promise<SaleDetailResult>;
   createSale(actor: Actor, input: CreateSaleInput): Promise<SaleDetailResult>;
   recordPayment(actor: Actor, saleId: string, input: RecordPaymentInput): Promise<SaleDetailResult>;
   listSales(scope: Scope): Promise<SaleSummaryResult[]>;

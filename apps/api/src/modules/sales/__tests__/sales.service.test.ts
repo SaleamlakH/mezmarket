@@ -22,6 +22,7 @@ function mockRepository(): SaleRepository {
     getCustomer: vi.fn(),
     getServer: vi.fn(),
     getSaleForPayment: vi.fn(),
+    getSale: vi.fn(),
     createSale: vi.fn(),
     recordPayment: vi.fn(),
     listSales: vi.fn(),
@@ -183,6 +184,45 @@ describe('sales.service', () => {
     vi.mocked(mockRepo.createSale).mockResolvedValue(saleRecord());
     vi.mocked(mockRepo.recordPayment).mockResolvedValue(saleRecord());
     vi.mocked(mockRepo.getSaleForPayment).mockResolvedValue(paymentContext());
+  });
+
+  describe('getSale', () => {
+    it('reads the sale within the acting business', async () => {
+      vi.mocked(mockRepo.getSale).mockResolvedValue(saleRecord());
+
+      await service.getSale(actor(), 'sale-1');
+
+      expect(mockRepo.getSale).toHaveBeenCalledWith('b-1', 'sale-1');
+    });
+
+    it('answers the sale narrowed to the wire contract', async () => {
+      vi.mocked(mockRepo.getSale).mockResolvedValue(saleRecord());
+
+      const sale = await service.getSale(actor(), 'sale-1');
+
+      expect(sale).toMatchObject({
+        id: 'sale-1',
+        invoiceNumber: '1',
+        subtotal: 1900,
+        taxAmount: 285,
+        total: 2185,
+        amountPaid: 0,
+        balanceDue: 2185,
+        lines: [],
+        payments: [],
+        processedBy: { id: 'm-1', name: 'me', role: 'OWNER' },
+        servedBy: null,
+        customer: null,
+      });
+    });
+
+    it('answers 404 when the sale is not in the business', async () => {
+      vi.mocked(mockRepo.getSale).mockResolvedValue(null);
+
+      await expect(service.getSale(actor(), 'sale-1')).rejects.toEqual(
+        appError(ERROR_CODES.NOT_FOUND, 404),
+      );
+    });
   });
 
   describe('createSale', () => {

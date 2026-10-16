@@ -26,6 +26,7 @@ const { verifyJwt, authRepository, businessRepository, salesRepository } = vi.ho
     getCustomer: vi.fn(),
     getServer: vi.fn(),
     getSaleForPayment: vi.fn(),
+    getSale: vi.fn(),
     createSale: vi.fn(),
     recordPayment: vi.fn(),
     listSales: vi.fn(),
@@ -496,6 +497,87 @@ describe('sales.integration', () => {
 
       expect(res.status).toBe(404);
       expect(salesRepository.listSales).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('GET /api/businesses/:businessId/sales/:saleId', () => {
+    it('rejects an unauthenticated request', async () => {
+      const res = await request(app).get('/api/businesses/b-1/sales/sale-1');
+
+      expect(res.status).toBe(401);
+      expect(salesRepository.getSale).not.toHaveBeenCalled();
+    });
+
+    it('answers the sale detail with its lines, payments and relations', async () => {
+      await authenticate();
+      salesRepository.getSale.mockResolvedValue(SALE_RECORD as never);
+
+      const res = await request(app)
+        .get('/api/businesses/b-1/sales/sale-1')
+        .set('Authorization', 'Bearer token');
+
+      expect(res.status).toBe(200);
+      expect(salesRepository.getSale).toHaveBeenCalledWith('b-1', 'sale-1');
+      expect(res.body).toMatchObject({
+        id: 'sale-1',
+        invoiceNumber: '1',
+        subtotal: 1900,
+        taxAmount: 285,
+        total: 2185,
+        amountPaid: 0,
+        balanceDue: 2185,
+        lines: [
+          expect.objectContaining({
+            id: 'sl-1',
+            productId: 'p-tequila',
+            quantity: 2,
+            unitPrice: 950,
+            productBrand: 'Sierra',
+          }),
+        ],
+        payments: [],
+        processedBy: { id: 'm-1', name: 'me', role: 'OWNER' },
+        servedBy: null,
+        customer: null,
+      });
+    });
+
+    it.each(['OWNER', 'MANAGER', 'CASHIER', 'SERVER'] as const)(
+      'lets a %s read a sale',
+      async (role) => {
+        await authenticate(role);
+        salesRepository.getSale.mockResolvedValue(SALE_RECORD as never);
+
+        const res = await request(app)
+          .get('/api/businesses/b-1/sales/sale-1')
+          .set('Authorization', 'Bearer token');
+
+        expect(res.status).toBe(200);
+      },
+    );
+
+    it('answers 404 when the sale is not in the business', async () => {
+      await authenticate();
+      salesRepository.getSale.mockResolvedValue(null);
+
+      const res = await request(app)
+        .get('/api/businesses/b-1/sales/sale-1')
+        .set('Authorization', 'Bearer token');
+
+      expect(res.status).toBe(404);
+      expect(res.body).toMatchObject({ error: { code: ERROR_CODES.NOT_FOUND } });
+    });
+
+    it('answers 404 when the caller has no active member in the business', async () => {
+      await authenticate();
+      businessRepository.getActor.mockResolvedValue(null);
+
+      const res = await request(app)
+        .get('/api/businesses/b-1/sales/sale-1')
+        .set('Authorization', 'Bearer token');
+
+      expect(res.status).toBe(404);
+      expect(salesRepository.getSale).not.toHaveBeenCalled();
     });
   });
 

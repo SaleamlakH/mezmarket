@@ -368,6 +368,44 @@ describe('sales.repository', () => {
     });
   });
 
+  describe('getSale', () => {
+    it('reads the sale within the business with the detail relations included', async () => {
+      const { prisma, sale } = createPrismaStub();
+      const repo = createSaleRepository(prisma);
+      sale.findFirst.mockResolvedValue(null);
+
+      await repo.getSale('b-1', 'sale-1');
+
+      expect(sale.findFirst).toHaveBeenCalledWith({
+        where: { id: 'sale-1', businessId: 'b-1' },
+        include: {
+          lines: { include: { product: { select: { brand: true } } } },
+          payments: true,
+          processedByMember: { select: { id: true, name: true, role: true } },
+          serverMember: { select: { id: true, name: true, role: true } },
+          customer: true,
+        },
+      });
+    });
+
+    it('answers null when the sale is not in the business', async () => {
+      const { prisma, sale } = createPrismaStub();
+      const repo = createSaleRepository(prisma);
+      sale.findFirst.mockResolvedValue(null);
+
+      await expect(repo.getSale('b-1', 'sale-1')).resolves.toBeNull();
+    });
+
+    it('returns the sale row the query answered with', async () => {
+      const { prisma, sale } = createPrismaStub();
+      const repo = createSaleRepository(prisma);
+      const record = createdSale();
+      sale.findFirst.mockResolvedValue(record);
+
+      await expect(repo.getSale('b-1', 'sale-1')).resolves.toBe(record);
+    });
+  });
+
   describe('createSale', () => {
     it('writes the sale, its lines and the stock movement in one transaction', async () => {
       const { prisma, tx, $transaction } = createPrismaStub();
