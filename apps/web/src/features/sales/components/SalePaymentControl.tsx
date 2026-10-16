@@ -3,18 +3,10 @@ import { Chip } from '@/components/Chip';
 import { Field } from '@/components/Field';
 import { Input } from '@/components/Input';
 import { Select } from '@/components/Select';
-import { PAYMENT_LABELS, PAYMENT_TONES } from '../lib/saleDisplay';
+import { PAYMENT_LABELS, PAYMENT_METHOD_OPTIONS, PAYMENT_TONES } from '../lib/saleDisplay';
 import { useSaleDraft } from '../state/useSaleDraft';
 
 const STATUSES: PaymentStatus[] = ['PAID', 'PENDING', 'PARTIALLY_PAID'];
-
-const METHODS: { value: PaymentMethod; label: string }[] = [
-  { value: 'CASH', label: 'Cash' },
-  { value: 'CARD', label: 'Card' },
-  { value: 'BANK_TRANSFER', label: 'Bank transfer' },
-  { value: 'MOBILE_MONEY', label: 'Mobile money' },
-  { value: 'OTHER', label: 'Other' },
-];
 
 export interface SalePaymentControlProps {
   /** The sale's running total. */
@@ -86,7 +78,7 @@ export function SalePaymentControl({ total }: SalePaymentControlProps) {
                 onChange={(event) =>
                   setPaymentMethod(event.currentTarget.value as PaymentMethod | '')
                 }
-                options={METHODS}
+                options={PAYMENT_METHOD_OPTIONS}
               />
             </Field>
           </div>
