@@ -1,13 +1,11 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
+import { referenceQueryPolicy } from '@/lib/queryPolicy';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
 import { useCatalogService } from '@/providers/catalog/useCatalogService';
 
 /**
- * The catalog reference data shared by the screens that pick products and
- * their units — the add-batch and new-sale sheets. The product list and each
- * product's units are requested once per open sheet and read back from the
- * cache while it is open; the owning sheet drops the whole tree on close via
- * `catalogKeys.products`.
+ * Catalog reference data (the products and each one's units): fetched once per
+ * session, cached under `catalogKeys`, refreshed only by owning mutations.
  */
 export const catalogKeys = {
   all: (businessId: string) => ['catalog', businessId] as const,
@@ -30,14 +28,16 @@ export function useBusinessProducts() {
       return catalogService.listProducts(businessId);
     },
     enabled: Boolean(businessId),
-    // Reference data: kept for the whole sheet session so row names can be
-    // read back from the cache; emptied when the owning sheet closes.
-    staleTime: Infinity,
-    gcTime: Infinity,
+    ...referenceQueryPolicy,
   });
 }
 
-export function useProductUnits(productId: string | undefined) {
+export interface UseProductUnitsOptions {
+  /** Pass `false` until the UI wants the units. */
+  enabled?: boolean | undefined;
+}
+
+export function useProductUnits(productId: string | undefined, options?: UseProductUnitsOptions) {
   const { currentBusiness } = useBusinessContext();
   const catalogService = useCatalogService();
   const businessId = currentBusiness?.id;
@@ -53,9 +53,38 @@ export function useProductUnits(productId: string | undefined) {
       }
       return catalogService.getProductUnits(businessId, productId);
     },
-    enabled: Boolean(businessId && productId),
-    // Reference data: always read from cache, never re-requested or evicted.
-    staleTime: Infinity,
-    gcTime: Infinity,
+    enabled: Boolean(businessId && productId && (options?.enabled ?? true)),
+    ...referenceQueryPolicy,
   });
+}
+
+/**
+ * The units of each drafted product, still keyed by id — the cart reads them as
+ * observers so a product's prices stay in step while its units arrive.
+ */
+export function useProductUnitsSnapshot(productIds: string[]) {
+  const { currentBusiness } = useBusinessContext();
+  const catalogService = useCatalogService();
+  const businessId = currentBusiness?.id;
+
+  const queries = useQueries({
+    queries: productIds.map((productId) => ({
+      queryKey: businessId
+        ? catalogKeys.productUnits(businessId, productId)
+        : ['catalog', 'units', 'disabled', productId],
+      queryFn: () => {
+        if (!businessId) {
+          throw new Error('No business selected');
+        }
+        return catalogService.getProductUnits(businessId, productId);
+      },
+      enabled: Boolean(businessId && productId),
+      ...referenceQueryPolicy,
+    })),
+  });
+
+  return productIds.map((productId, index) => ({
+    productId,
+    units: queries[index]?.data ?? [],
+  }));
 }
