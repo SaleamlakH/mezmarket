@@ -21,6 +21,7 @@ import { DashboardPage } from './features/dashboard/pages/DashboardPage';
 import { ProductsPage } from './features/products/pages/ProductsPage';
 import { SaleDock } from './features/sales/components/SaleDock';
 import { SalesPage } from './features/sales/pages/SalesPage';
+import { SaleDetailPage } from './features/sales/pages/SaleDetailPage';
 import { SaleDraftProvider } from './features/sales/state/SaleDraftProvider';
 import { InventoryPage } from './features/inventory/pages/InventoryPage';
 import { BatchesPage } from './features/inventory/pages/BatchesPage';
@@ -63,6 +64,10 @@ const router = createBrowserRouter([
                 path: 'sales',
                 element: <SalesPage />,
                 handle: { aside: SaleDock },
+              },
+              {
+                path: 'sales/:saleId',
+                element: <SaleDetailPage />,
               },
               { path: 'inventory', element: <InventoryPage /> },
               { path: 'inventory/batches', element: <BatchesPage /> },

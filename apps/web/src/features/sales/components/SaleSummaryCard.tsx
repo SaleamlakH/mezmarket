@@ -1,4 +1,5 @@
 import type { SaleSummaryResponse } from '@mez/types';
+import { Link } from 'react-router';
 import { Badge, type BadgeTone } from '@/components/Badge';
 import { RailCard } from '@/components/RailCard';
 import { formatDate, formatMoney, formatTime, pluralize } from '@/lib/format';
@@ -21,26 +22,30 @@ export function SaleSummaryCard({ sale, currency, className = '' }: SaleSummaryC
 
   return (
     <article className={className}>
-      <RailCard
-        className="h-full shadow-(--shadow-md)"
-        badge={<Badge tone={status.tone}>{status.label}</Badge>}
-        badgePosition="inline"
-        footer={<p className="m-0 truncate text-xs text-(--text-muted)">{sale.processedBy.name}</p>}
-      >
-        <p className="m-0 pt-1 text-xs font-bold text-(--text)"># {sale.invoiceNumber}</p>
-        <div className="mt-0.5">
-          <p className="m-0 font-mono text-base font-semibold whitespace-nowrap tabular-nums text-(--text)">
-            {formatMoney(sale.total, currency)}
-          </p>
-          <p className="m-0 text-xs font-semibold text-(--text)">
-            {sale.itemCount} {pluralize(sale.itemCount, 'item')}
-          </p>
-        </div>
-        <div className="mt-1 space-y-0.5 text-xs leading-tight text-(--text-muted)">
-          <p className="m-0">{formatDate(sale.saleDatetime)}</p>
-          <p className="m-0 tabular-nums">{formatTime(sale.saleDatetime)}</p>
-        </div>
-      </RailCard>
+      <Link to={`/sales/${sale.id}`} className="block h-full">
+        <RailCard
+          className="h-full shadow-(--shadow-md)"
+          badge={<Badge tone={status.tone}>{status.label}</Badge>}
+          badgePosition="inline"
+          footer={
+            <p className="m-0 truncate text-xs text-(--text-muted)">{sale.processedBy.name}</p>
+          }
+        >
+          <p className="m-0 pt-1 text-xs font-bold text-(--text)"># {sale.invoiceNumber}</p>
+          <div className="mt-0.5">
+            <p className="m-0 font-mono text-base font-semibold whitespace-nowrap tabular-nums text-(--text)">
+              {formatMoney(sale.total, currency)}
+            </p>
+            <p className="m-0 text-xs font-semibold text-(--text)">
+              {sale.itemCount} {pluralize(sale.itemCount, 'item')}
+            </p>
+          </div>
+          <div className="mt-1 space-y-0.5 text-xs leading-tight text-(--text-muted)">
+            <p className="m-0">{formatDate(sale.saleDatetime)}</p>
+            <p className="m-0 tabular-nums">{formatTime(sale.saleDatetime)}</p>
+          </div>
+        </RailCard>
+      </Link>
     </article>
   );
 }

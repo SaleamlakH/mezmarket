@@ -124,7 +124,12 @@ export const sale: SaleDetailResponse = {
   ],
   processedBy: { id: 'member_owner', name: 'Demo Owner', role: 'OWNER' },
   servedBy: null,
-  customer: null,
+  customer: {
+    id: 'cust_grace',
+    name: 'Grace Gorman',
+    contactEmail: 'ggorman@yahoo.com',
+    contactPhone: '+1 (980) 238-2394',
+  },
 };
 
 export const products: ProductSummaryResponse[] = [
