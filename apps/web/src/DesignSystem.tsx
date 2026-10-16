@@ -418,14 +418,22 @@ function ControlsPanel() {
       <PanelSub>Stepper · custom via className</PanelSub>
       <Stepper size="lg" value={count} onChange={setCount} className="w-80 gap-4" />
       <PanelSub>Status toggle</PanelSub>
-      <StatusToggle
-        options={[
-          { value: 'pending', label: 'Pending' },
-          { value: 'paid', label: 'Paid' },
-        ]}
-        value={status}
-        onChange={(v) => setStatus(v as 'pending' | 'paid')}
-      />
+      <StatusToggle value={status} onChange={setStatus}>
+        <Button
+          value="pending"
+          variant="secondary"
+          className="flex-1 aria-pressed:border-(--warning) aria-pressed:bg-(--warning) aria-pressed:text-white aria-pressed:hover:border-(--warning) aria-pressed:hover:bg-(--warning)"
+        >
+          Pending
+        </Button>
+        <Button
+          value="paid"
+          variant="secondary"
+          className="flex-1 aria-pressed:border-(--positive) aria-pressed:bg-(--positive) aria-pressed:text-white aria-pressed:hover:border-(--positive) aria-pressed:hover:bg-(--positive)"
+        >
+          Paid
+        </Button>
+      </StatusToggle>
     </Panel>
   );
 }

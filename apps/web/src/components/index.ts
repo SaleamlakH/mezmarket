@@ -18,7 +18,7 @@ export type { StepperProps } from './Stepper';
 export { Disclosure } from './Disclosure';
 export type { DisclosureProps } from './Disclosure';
 export { StatusToggle } from './StatusToggle';
-export type { StatusToggleProps, StatusOption } from './StatusToggle';
+export type { StatusToggleProps } from './StatusToggle';
 export { Switch } from './Switch';
 export type { SwitchProps } from './Switch';
 export { Badge } from './Badge';
