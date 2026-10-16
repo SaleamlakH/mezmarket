@@ -46,6 +46,7 @@ import {
   LoadingState,
   ErrorState,
   EmptyState,
+  SuccessState,
   StateSwitcher,
   type SectionState,
   Table,
@@ -659,10 +660,29 @@ function LoadingErrorPanel() {
           }
         />
       )}
+      {state === 'success' && (
+        <SuccessState>
+          <div className="flex flex-col gap-1">
+            <p className="m-0 text-[13px] font-semibold text-(--text)">Product saved</p>
+            <p className="m-0 text-xs text-(--text-muted)">It now shows in your catalog.</p>
+          </div>
+
+          <dl className="m-0 flex w-full flex-col gap-1.5 rounded-lg border border-(--border) bg-(--surface-primary) p-3 text-left">
+            <div className="flex items-baseline justify-between gap-3">
+              <dt className="text-[11px] text-(--text-muted)">Product</dt>
+              <dd className="m-0 font-mono text-xs tabular-nums text-(--text)">Product Name</dd>
+            </div>
+            <div className="flex items-baseline justify-between gap-3">
+              <dt className="text-[11px] text-(--text-muted)">Stock</dt>
+              <dd className="m-0 font-mono text-xs tabular-nums text-(--text)">24 cases</dd>
+            </div>
+          </dl>
+        </SuccessState>
+      )}
       <p className="mt-3.5 font-mono text-[11px] text-(--text-muted)">
         The switcher is dev scaffolding — it previews each state by hand until query status drives
-        them, then it goes away. Loading / error / empty share the dashed EmptyState card, so they
-        swap in place.
+        them, then it goes away. Loading / error / empty / success share the dashed-state card
+        footprint, so they swap in place.
       </p>
     </Panel>
   );
