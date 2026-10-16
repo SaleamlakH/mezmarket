@@ -3,6 +3,8 @@ import { createBrowserRouter, Navigate } from 'react-router';
 import { AuthProvider } from './providers/auth-provider/AuthProvider';
 import { BusinessProvider } from './providers/business/BusinessProvider';
 import { CatalogProvider } from './providers/catalog/CatalogProvider';
+import { CustomersProvider } from './providers/customers/CustomersProvider';
+import { MembersProvider } from './providers/members/MembersProvider';
 import { ThemeProvider } from './providers/theme/ThemeProvider';
 import { useAuthContext } from './providers/auth-provider/useAuthContext';
 import { RouterProvider } from 'react-router/dom';
@@ -29,6 +31,8 @@ import { SettingsPage } from './features/settings/pages/SettingsPage';
 import { BusinessProfilePage } from './features/business/pages/BusinessProfilePage';
 import { businessService } from './features/business/api/businessService';
 import { productsService } from './features/products/api/productsService';
+import { customersService } from './features/customers/api/customersService';
+import { membersService } from './features/members/api/membersService';
 import { CreateBusinessPage } from './features/business/pages/CreateBusinessPage';
 import { OwnerProfilePage } from './features/owner-profile/pages/OwnerProfilePage';
 import { ownerApi } from './features/owner-profile/api/ownerApi';
@@ -129,11 +133,15 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider authService={supabaseAuthService}>
         <CatalogProvider catalogService={productsService}>
-          <AppProviders>
-            <ThemeProvider>
-              <RouterProvider router={router} />
-            </ThemeProvider>
-          </AppProviders>
+          <CustomersProvider customersService={customersService}>
+            <MembersProvider membersService={membersService}>
+              <AppProviders>
+                <ThemeProvider>
+                  <RouterProvider router={router} />
+                </ThemeProvider>
+              </AppProviders>
+            </MembersProvider>
+          </CustomersProvider>
         </CatalogProvider>
       </AuthProvider>
     </QueryClientProvider>
