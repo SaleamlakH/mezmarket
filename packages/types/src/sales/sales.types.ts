@@ -143,7 +143,12 @@ export type SaleDetailResponse = SaleResponse & {
   /** Server attribution — the member who took the order, if any. */
   servedBy: BusinessMemberSummaryResponse | null;
   /** Inline summary of the attached customer; deliberately not a named type. */
-  customer: { id: string; name: string } | null;
+  customer: {
+    id: string;
+    name: string;
+    contactEmail: string | null;
+    contactPhone: string | null;
+  } | null;
 };
 
 /**
@@ -216,7 +221,12 @@ export type SaleDetailResult = Sale & {
   /** Server attribution — the member who took the order, if any. */
   servedBy: BusinessMemberSummaryResponse | null;
   /** Inline summary of the attached customer; deliberately not a named type. */
-  customer: { id: string; name: string } | null;
+  customer: {
+    id: string;
+    name: string;
+    contactEmail: string | null;
+    contactPhone: string | null;
+  } | null;
 };
 
 /**
