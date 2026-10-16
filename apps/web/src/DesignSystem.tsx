@@ -402,16 +402,20 @@ function ControlsPanel() {
       <PanelSub>Search + filter</PanelSub>
       <SearchInput placeholder="Search batch and items" onFilter={() => {}} />
       <PanelSub>Quantity stepper</PanelSub>
-      <div className="flex flex-col self-start gap-5">
-        <Stepper value={count} onChange={setCount} />
-        <Stepper size="sm" value={count} onChange={setCount} />
-        <Stepper size="sm" variant="text" value={count} onChange={setCount} />
+      <div className="flex flex-col self-start gap-4">
+        <Stepper size="sm" value={count} onChange={setCount} className="w-64" />
+        <Stepper size="md" value={count} onChange={setCount} className="w-64" />
+        <Stepper size="lg" value={count} onChange={setCount} className="w-64" />
+        <Stepper size="sm" variant="text" value={count} onChange={setCount} className="w-64" />
       </div>
-      <div className="mt-1.5 grid grid-cols-3 gap-2 font-mono text-[10px] text-(--text-muted)">
-        <span>field · md</span>
+      <div className="mt-1.5 grid grid-cols-4 gap-2 font-mono text-[10px] text-(--text-muted)">
         <span>field · sm</span>
+        <span>field · md</span>
+        <span>field · lg</span>
         <span>text · sm</span>
       </div>
+      <PanelSub>Stepper · custom via className</PanelSub>
+      <Stepper size="lg" value={count} onChange={setCount} className="w-80 gap-4" />
       <PanelSub>Status toggle</PanelSub>
       <StatusToggle
         options={[
