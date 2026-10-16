@@ -38,10 +38,7 @@ const QUANTITY_DECIMALS = 4;
 /** `Decimal(10, 2)` — the precision an amount is stored at. */
 const MONEY_DECIMALS = 2;
 
-/**
- * Mirrors `PaymentMethod` in @mez/types, so the two cannot drift. Exported for
- * the forms that offer the choices.
- */
+/** Mirrors `PaymentMethod` in @mez/types, so the two cannot drift. */
 export const PAYMENT_METHODS = [
   'CASH',
   'CARD',
@@ -51,9 +48,8 @@ export const PAYMENT_METHODS = [
 ] as const satisfies readonly PaymentMethod[];
 
 /**
- * Mirrors `PaymentStatus` in @mez/types. Every value is accepted from a caller
- * — the API never derives a status it was not told — so the list is complete
- * rather than the subset a manual selector happens to offer.
+ * Mirrors `PaymentStatus` in @mez/types; complete, since a caller's status is
+ * always accepted.
  */
 export const PAYMENT_STATUSES = [
   'PAID',
@@ -130,12 +126,18 @@ const paymentFields = {
 };
 
 /**
- * Ties the amount to the status it is given with: a partial payment cannot be
- * recorded without an amount, and a pending sale records no payment at all.
- * A paid sale may omit the amount — the server settles the balance.
+ * Ties the amount and method to the status they are given with: a partial
+ * payment cannot be recorded without an amount, a pending sale records no
+ * payment at all, and a recorded payment must name how it was taken — a
+ * pending sale carries no method. A paid sale may omit the amount — the
+ * server settles the balance.
  */
-const checkPaymentAmount = (
-  payment: { status: PaymentStatus; amount?: number | undefined },
+const checkPayment = (
+  payment: {
+    status: PaymentStatus;
+    amount?: number | undefined;
+    method?: PaymentMethod | undefined;
+  },
   ctx: z.RefinementCtx,
 ) => {
   if (payment.status === 'PARTIALLY_PAID' && payment.amount === undefined) {
@@ -153,21 +155,24 @@ const checkPaymentAmount = (
       message: 'A pending sale records no payment',
     });
   }
+
+  if (payment.status !== 'PENDING' && payment.method === undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['method'],
+      message: 'Select a payment method',
+    });
+  }
 };
 
 /**
- * A payment as submitted. The form holds the amount as text and the wire
- * carries it as a number; both parse to the same `PaymentInput`.
- *
- * Zod's `.optional()` types an omitted field as `x | undefined`, which
- * `exactOptionalPropertyTypes` will not accept against the published
- * `PaymentInput`'s plain `?:`. The runtime shape is exactly the form's — a
- * blank select arrives as unset — so the input is asserted here rather than
- * widening the shared contract.
+ * A payment as submitted. The cast pins the form shape (a blank select arrives
+ * as unset) back on so the `satisfies` guards stay meaningful without widening
+ * `PaymentInput` for `exactOptionalPropertyTypes`.
  */
 const paymentSchema = z
   .strictObject(paymentFields)
-  .superRefine(checkPaymentAmount)
+  .superRefine(checkPayment)
   .transform(withoutUnset) as unknown as ZodType<PaymentInput, PaymentFormValues>;
 
 /**
@@ -180,15 +185,9 @@ export const recordPaymentSchema = paymentSchema satisfies ZodType<
 >;
 
 /**
- * A blank payment block arrives when the new-sale form's payment section is
- * left untouched. Dropping it here keeps the optional payment out of both
- * validation and the payload, instead of reporting a required error for a
- * payment nobody entered.
- *
- * This is the one place a `z.preprocess` earns its keep: dropping a block can
- * only be decided before the block is parsed, and `preprocess` widens the input
- * to `unknown`. The cast below pins the form shape back on so the create
- * schema's `satisfies` guard stays meaningful.
+ * A blank payment block means the form's payment section was left untouched;
+ * dropped before parsing so no required error fires for a payment nobody
+ * entered (`z.preprocess` is the only stage that can decide this).
  */
 const dropUnselectedPayment = (value: unknown) => {
   if (
@@ -207,8 +206,7 @@ const initialPaymentSchema = z.preprocess(
 ) as unknown as z.ZodOptional<ZodType<PaymentInput, PaymentFormValues>>;
 
 /**
- * Records a sale and confirms it in one action. The parsed output is the API's
- * `CreateSaleInput`.
+ * Records a sale and confirms it in one action.
  */
 export const createSaleSchema = z
   .object({
@@ -219,9 +217,7 @@ export const createSaleSchema = z
     customerId: z.string().trim().transform(blankIsUnset).optional(),
     /** A server selected from the member list; a blank selection is no server. */
     serverMemberId: z.string().trim().transform(blankIsUnset).optional(),
-    // The discount is taken as entered; the money it feeds is rounded once, in
-    // the sale's totals, so it is not rounded again here. The pipe is what lets
-    // a blank field's `undefined` through, not just a number.
+    // The discount feeds the sale's totals, which round it once — not here.
     discount: optionalNumberFromString('Discount').pipe(
       z.number().min(0, 'Discount must be at least 0').optional(),
     ),
@@ -229,9 +225,8 @@ export const createSaleSchema = z
   .transform(withoutUnset) satisfies ZodType<CreateSaleInput, SaleFormValues>;
 
 /**
- * Edits a recorded sale in place. A line carrying an `id` updates that existing
- * line, a line without one is inserted, and existing lines absent from the
- * payload are removed. The parsed output is the API's `UpdateSaleInput`.
+ * Edits a recorded sale in place: a line with an `id` updates, one without is
+ * added, and lines absent from the payload are removed.
  */
 export const updateSaleSchema = z
   .object({
@@ -266,21 +261,16 @@ export const voidSaleSchema = z.object({
   reason: reasonSchema,
 }) satisfies ZodType<VoidSaleInput, VoidSaleFormValues>;
 
-/**
- * One line's restock choice in a refund. The parsed output is the API's
- * `RefundSaleLineInput`.
- */
+/** One line's restock choice in a refund. */
 export const refundSaleLineSchema = z.strictObject({
   lineId: requiredText('Select a line'),
   restock: z.boolean(),
 }) satisfies ZodType<RefundSaleLineInput, RefundSaleLineFormValues>;
 
 /**
- * Refunds a sale that did happen. A line left out follows its product's default
- * restock behavior. The parsed output is the API's `RefundSaleInput`.
- *
- * Same `optional`/`exactOptionalPropertyTypes` mismatch as the payment above:
- * `lines` is asserted so an omitted list reads as the API's plain `?:`.
+ * Refunds a sale. A line left out follows its product's default restock
+ * behavior; `lines` is asserted because zod's `optional` hands over an
+ * `undefined` the plain contract will not admit.
  */
 export const refundSaleSchema = z
   .object({

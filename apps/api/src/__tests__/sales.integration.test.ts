@@ -325,7 +325,7 @@ describe('sales.integration', () => {
       const res = await request(app)
         .post('/api/businesses/b-1/sales')
         .set('Authorization', 'Bearer token')
-        .send({ ...BODY, initialPayment: { status: 'PAID' } });
+        .send({ ...BODY, initialPayment: { status: 'PAID', method: 'CASH' } });
 
       expect(res.status).toBe(201);
       expect(salesRepository.createSale).toHaveBeenCalledWith(
@@ -333,7 +333,7 @@ describe('sales.integration', () => {
           paymentStatus: 'PAID',
           amountPaid: 2185,
           balanceDue: 0,
-          initialPayment: { amount: 2185, method: 'OTHER', methodDetail: null },
+          initialPayment: { amount: 2185, method: 'CASH', methodDetail: null },
         }),
       );
     });
@@ -674,7 +674,7 @@ describe('sales.integration', () => {
       const res = await request(app)
         .post('/api/businesses/b-1/sales/sale-1/payments')
         .set('Authorization', 'Bearer token')
-        .send({ status: 'PAID' });
+        .send({ status: 'PAID', method: 'CASH' });
 
       expect(res.status).toBe(404);
       expect(salesRepository.recordPayment).not.toHaveBeenCalled();

@@ -95,30 +95,39 @@ describe('validateCreateSale', () => {
     expect(result.data).not.toHaveProperty('initialPayment');
   });
 
-  it('leaves a blank payment method and detail out', () => {
+  it('fails a recorded payment with no method', () => {
     const result = validateInput(createSaleSchema, {
       lines: [line({ quantity: '2' })],
       initialPayment: { status: 'PAID', amount: '5', method: '', methodDetail: '   ' },
     });
 
+    expect(result.errors).toEqual({ 'initialPayment.method': 'Select a payment method' });
+  });
+
+  it('strips a blank payment detail', () => {
+    const result = validateInput(createSaleSchema, {
+      lines: [line({ quantity: '2' })],
+      initialPayment: { status: 'PAID', amount: '5', method: 'CASH', methodDetail: '   ' },
+    });
+
     expect(result.errors).toBeNull();
-    expect(result.data?.initialPayment).toEqual({ status: 'PAID', amount: 5 });
+    expect(result.data?.initialPayment).toEqual({ status: 'PAID', amount: 5, method: 'CASH' });
   });
 
   it('parses a paid payment with no amount, leaving the server to settle it', () => {
     const result = validateInput(createSaleSchema, {
       lines: [line({ quantity: '2' })],
-      initialPayment: { status: 'PAID' },
+      initialPayment: { status: 'PAID', method: 'CASH' },
     });
 
     expect(result.errors).toBeNull();
-    expect(result.data?.initialPayment).toEqual({ status: 'PAID' });
+    expect(result.data?.initialPayment).toEqual({ status: 'PAID', method: 'CASH' });
   });
 
   it('requires an amount for a partial payment', () => {
     const result = validateInput(createSaleSchema, {
       lines: [line({ quantity: '2' })],
-      initialPayment: { status: 'PARTIALLY_PAID' },
+      initialPayment: { status: 'PARTIALLY_PAID', method: 'CASH' },
     });
 
     expect(result.errors).toEqual({ 'initialPayment.amount': expect.any(String) });
@@ -137,7 +146,7 @@ describe('validateCreateSale', () => {
     const result = validateCreateSale(
       sale({
         lines: [line({ quantity: '1.23456789' })],
-        initialPayment: { status: 'PARTIALLY_PAID', amount: '10.126' },
+        initialPayment: { status: 'PARTIALLY_PAID', amount: '10.126', method: 'CASH' },
       }),
     );
 
@@ -173,7 +182,8 @@ describe('validateCreateSale', () => {
 
   it('keys a payment error under the payment field', () => {
     expect(
-      validateCreateSale(sale({ initialPayment: { status: 'PAID', amount: '0' } })).errors,
+      validateCreateSale(sale({ initialPayment: { status: 'PAID', amount: '0', method: 'CASH' } }))
+        .errors,
     ).toEqual({
       'initialPayment.amount': expect.any(String),
     });
@@ -254,7 +264,7 @@ describe('validateCreateSale', () => {
   it('rejects a payment amount that is not a number', () => {
     const result = validateInput(createSaleSchema, {
       lines: [line()],
-      initialPayment: { status: 'PAID', amount: 'abc' },
+      initialPayment: { status: 'PAID', amount: 'abc', method: 'CASH' },
     });
 
     expect(result.errors).toEqual({ 'initialPayment.amount': expect.any(String) });
@@ -263,7 +273,12 @@ describe('validateCreateSale', () => {
   it('caps the payment detail length', () => {
     const result = validateInput(createSaleSchema, {
       lines: [line()],
-      initialPayment: { status: 'PAID', amount: '5', methodDetail: 'x'.repeat(201) },
+      initialPayment: {
+        status: 'PAID',
+        amount: '5',
+        method: 'CASH',
+        methodDetail: 'x'.repeat(201),
+      },
     });
 
     expect(result.errors).toEqual({ 'initialPayment.methodDetail': expect.any(String) });
@@ -423,10 +438,10 @@ describe('validatePayment', () => {
   });
 
   it('parses a paid payment with no amount', () => {
-    const result = validatePayment({ status: 'PAID' });
+    const result = validatePayment({ status: 'PAID', method: 'CASH' });
 
     expect(result.errors).toBeNull();
-    expect(result.data).toEqual({ status: 'PAID' });
+    expect(result.data).toEqual({ status: 'PAID', method: 'CASH' });
   });
 
   it('parses a pending sale with no payment', () => {
@@ -436,7 +451,7 @@ describe('validatePayment', () => {
     expect(result.data).toEqual({ status: 'PENDING' });
   });
 
-  it('leaves a blank method and detail out', () => {
+  it('fails a recorded payment with no method', () => {
     const result = validateInput(recordPaymentSchema, {
       status: 'PARTIALLY_PAID',
       amount: '5',
@@ -444,9 +459,20 @@ describe('validatePayment', () => {
       methodDetail: '   ',
     });
 
+    expect(result.errors).toEqual({ method: 'Select a payment method' });
+  });
+
+  it('strips a blank detail', () => {
+    const result = validateInput(recordPaymentSchema, {
+      status: 'PARTIALLY_PAID',
+      amount: '5',
+      method: 'CARD',
+      methodDetail: '   ',
+    });
+
     expect(result.errors).toBeNull();
-    expect(result.data).toEqual({ status: 'PARTIALLY_PAID', amount: 5 });
-    expect(result.data).not.toHaveProperty('method');
+    expect(result.data).toEqual({ status: 'PARTIALLY_PAID', amount: 5, method: 'CARD' });
+    expect(result.data).not.toHaveProperty('methodDetail');
   });
 
   it('requires a status', () => {
@@ -462,7 +488,7 @@ describe('validatePayment', () => {
   });
 
   it('requires an amount for a partial payment', () => {
-    expect(validatePayment({ status: 'PARTIALLY_PAID' }).errors).toEqual({
+    expect(validatePayment({ status: 'PARTIALLY_PAID', method: 'CASH' }).errors).toEqual({
       amount: expect.any(String),
     });
   });
@@ -474,15 +500,17 @@ describe('validatePayment', () => {
   });
 
   it('rejects a non-positive amount', () => {
-    expect(validatePayment({ status: 'PARTIALLY_PAID', amount: '0' }).errors).toEqual({
+    expect(
+      validatePayment({ status: 'PARTIALLY_PAID', amount: '0', method: 'CASH' }).errors,
+    ).toEqual({
       amount: expect.any(String),
     });
   });
 
   it('rejects an amount that is not a number', () => {
-    expect(validatePayment({ status: 'PARTIALLY_PAID', amount: 'abc' }).errors).toEqual({
-      amount: expect.any(String),
-    });
+    expect(
+      validatePayment({ status: 'PARTIALLY_PAID', amount: 'abc', method: 'CASH' }).errors,
+    ).toEqual({ amount: expect.any(String) });
   });
 
   it('rejects an unknown method', () => {
@@ -505,6 +533,7 @@ describe('validatePayment', () => {
       validateInput(recordPaymentSchema, {
         status: 'PAID',
         amount: '5',
+        method: 'CASH',
         methodDetail: 'x'.repeat(201),
       }).errors,
     ).toEqual({ methodDetail: expect.any(String) });
