@@ -1,15 +1,12 @@
 import { useState } from 'react';
-import { Package, Plus, ShoppingCart } from 'lucide-react';
-import { Button } from '@/components/Button';
+import { Package, ShoppingCart } from 'lucide-react';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState } from '@/components/ErrorState';
 import { LoadingState } from '@/components/LoadingState';
 import { SectionHeader } from '@/components/SectionHeader';
-import { Toast } from '@/components/Toast';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useProductUploadUrls } from '@/hooks/useProductUploadUrls';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
-import { NewSaleSheet } from '../components/NewSaleSheet';
 import { ProductSaleCard } from '../components/ProductSaleCard';
 import { SaleCartTrigger } from '../components/SaleCartTrigger';
 import { SaleReviewSheet } from '../components/SaleReviewSheet';
@@ -28,9 +25,7 @@ export function SalesPage() {
   const businessId = currentBusiness?.id;
   const { data: uploadUrls } = useProductUploadUrls(businessId);
   const { hasLines } = useSaleDraftView();
-  const [isNewSaleOpen, setIsNewSaleOpen] = useState(false);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Confirm is wired to the sale API and the success step in a later pass; for
   // now it just retires the mobile review sheet.
@@ -39,11 +34,8 @@ export function SalesPage() {
   return (
     <div className={`mx-auto max-w-7xl ${hasLines ? 'pb-28 md:pb-4' : 'pb-4'}`}>
       <div className="min-w-0">
-        <div className="flex items-center justify-between gap-3 pt-1">
+        <div className="pt-1">
           <h2 className="m-0 text-lg font-bold text-(--text)">Sales</h2>
-          <Button type="button" onClick={() => setIsNewSaleOpen(true)}>
-            <Plus size={14} aria-hidden /> New sale
-          </Button>
         </div>
 
         <SectionHeader icon={<ShoppingCart size={14} aria-hidden />} title="Recent sales" />
@@ -103,12 +95,6 @@ export function SalesPage() {
         )}
       </div>
 
-      <NewSaleSheet
-        open={isNewSaleOpen}
-        onClose={() => setIsNewSaleOpen(false)}
-        onRecorded={() => setSuccessMessage('Sale recorded')}
-      />
-
       <SaleCartTrigger onReview={() => setIsReviewOpen(true)} />
       <SaleReviewSheet
         open={isReviewOpen}
@@ -117,16 +103,6 @@ export function SalesPage() {
         uploadUrls={uploadUrls}
         onConfirm={handleConfirm}
       />
-
-      {successMessage && (
-        <Toast
-          message={successMessage}
-          variant="success"
-          duration={3000}
-          position="top-center"
-          onDismiss={() => setSuccessMessage(null)}
-        />
-      )}
     </div>
   );
 }
