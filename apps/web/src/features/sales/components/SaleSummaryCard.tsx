@@ -2,18 +2,7 @@ import type { SaleSummaryResponse } from '@mez/types';
 import { Badge, type BadgeTone } from '@/components/Badge';
 import { RailCard } from '@/components/RailCard';
 import { formatDate, formatMoney, formatTime, pluralize } from '@/lib/format';
-
-const PAYMENT_LABELS: Record<SaleSummaryResponse['paymentStatus'], string> = {
-  PAID: 'Paid',
-  PENDING: 'Pending',
-  PARTIALLY_PAID: 'Partially paid',
-};
-
-const PAYMENT_TONES: Record<SaleSummaryResponse['paymentStatus'], BadgeTone> = {
-  PAID: 'positive',
-  PENDING: 'neutral',
-  PARTIALLY_PAID: 'warning',
-};
+import { PAYMENT_LABELS, PAYMENT_TONES } from '../lib/saleDisplay';
 
 function statusFor(sale: SaleSummaryResponse): { label: string; tone: BadgeTone } {
   if (sale.voidStatus === 'VOIDED') return { label: 'Voided', tone: 'danger' };

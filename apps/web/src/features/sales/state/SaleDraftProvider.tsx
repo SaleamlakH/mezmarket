@@ -1,11 +1,26 @@
 import type { ReactNode } from 'react';
 import { useCallback, useMemo, useReducer } from 'react';
-import { SaleDraftContext, type SaleDraftContextValue, type SaleDraftLine } from './saleDraft';
+import type {
+  BusinessMemberSummaryResponse,
+  CustomerSummaryResponse,
+  PaymentMethod,
+  PaymentStatus,
+} from '@mez/types';
+import {
+  EMPTY_PAYMENT,
+  SaleDraftContext,
+  type SaleDraftContextValue,
+  type SaleDraftLine,
+  type SalePaymentDraft,
+} from './saleDraft';
 
 interface SaleDraftState {
   lines: SaleDraftLine[];
   activeProductId: string | null;
   activeLineId: string | null;
+  customer: CustomerSummaryResponse | null;
+  server: BusinessMemberSummaryResponse | null;
+  payment: SalePaymentDraft;
 }
 
 type SaleDraftAction =
@@ -18,7 +33,15 @@ type SaleDraftAction =
   | { type: 'removeProduct'; productId: string }
   | { type: 'clear' }
   | { type: 'setUnitForProduct'; productId: string; unitId: string }
-  | { type: 'setQuantityForProduct'; productId: string; defaultUnitId: string; quantity: number };
+  | { type: 'setQuantityForProduct'; productId: string; defaultUnitId: string; quantity: number }
+  | { type: 'attachCustomer'; customer: CustomerSummaryResponse }
+  | { type: 'clearCustomer' }
+  | { type: 'attachServer'; server: BusinessMemberSummaryResponse }
+  | { type: 'clearServer' }
+  | { type: 'setPaymentStatus'; status: PaymentStatus }
+  | { type: 'setPaymentAmount'; amount: string }
+  | { type: 'setPaymentMethod'; method: PaymentMethod | '' }
+  | { type: 'setPaymentDetail'; detail: string };
 
 let lineCounter = 0;
 const nextLineId = () => `sale-line-${++lineCounter}`;
@@ -27,12 +50,7 @@ function lastLineOf(lines: SaleDraftLine[], productId: string): SaleDraftLine | 
   return lines.filter((line) => line.productId === productId).at(-1);
 }
 
-/**
- * The `setUnit` rules against one line of a product: a unit the product already
- * holds a line for is picked by re-activating that line; a unit chosen after a
- * quantity was set starts a sister line for that unit; otherwise the active
- * line's own unit is swapped.
- */
+/** Applies a unit choice to one line of a product. */
 function withUnit(state: SaleDraftState, active: SaleDraftLine, unitId: string): SaleDraftState {
   const existing = state.lines.find(
     (line) => line.productId === active.productId && line.productUnitId === unitId,
@@ -49,6 +67,7 @@ function withUnit(state: SaleDraftState, active: SaleDraftLine, unitId: string):
       quantity: 0,
     };
     return {
+      ...state,
       lines: [...state.lines, line],
       activeProductId: active.productId,
       activeLineId: line.id,
@@ -63,9 +82,7 @@ function withUnit(state: SaleDraftState, active: SaleDraftLine, unitId: string):
   };
 }
 
-/** The line the quick-edit controller of a product edits: its own line when
- * that product is the one being worked on, otherwise its last committed line,
- * falling back to no line so the controller opens the product on first use. */
+/** The line a product's quick-edit controller edits. */
 function editableLineOf(
   state: SaleDraftState,
   productId: string,
@@ -77,10 +94,7 @@ function editableLineOf(
   return lastLineOf(state.lines, productId);
 }
 
-/**
- * Drops one line. When it was the active line, the product's remaining last
- * line takes over — or, with none left, the product closes.
- */
+/** Drops one line. */
 function withoutLine(state: SaleDraftState, lineId: string): SaleDraftState {
   const target = state.lines.find((line) => line.id === lineId);
   if (!target) return state;
@@ -90,23 +104,21 @@ function withoutLine(state: SaleDraftState, lineId: string): SaleDraftState {
 
   const remaining = lastLineOf(lines, target.productId);
   return {
+    ...state,
     lines,
     activeProductId: remaining ? target.productId : null,
     activeLineId: remaining?.id ?? null,
   };
 }
 
-/**
- * Drops every line a product holds. When that product was the active one, its
- * editor closes with it; other products and their active line are untouched.
- */
+/** Drops every line a product holds. */
 function withoutProduct(state: SaleDraftState, productId: string): SaleDraftState {
   if (!state.lines.some((line) => line.productId === productId)) return state;
 
   const lines = state.lines.filter((line) => line.productId !== productId);
   if (state.activeProductId !== productId) return { ...state, lines };
 
-  return { lines, activeProductId: null, activeLineId: null };
+  return { ...state, lines, activeProductId: null, activeLineId: null };
 }
 
 function reducer(state: SaleDraftState, action: SaleDraftAction): SaleDraftState {
@@ -123,6 +135,7 @@ function reducer(state: SaleDraftState, action: SaleDraftAction): SaleDraftState
         quantity: 0,
       };
       return {
+        ...state,
         lines: [...state.lines, line],
         activeProductId: action.productId,
         activeLineId: line.id,
@@ -133,8 +146,7 @@ function reducer(state: SaleDraftState, action: SaleDraftAction): SaleDraftState
       return { ...state, activeProductId: null, activeLineId: null };
 
     case 'setUnit': {
-      // The selector's placeholder is an empty id; picking it means "no unit",
-      // which must not swap the line or start a new one.
+      // An empty unit id means "no unit".
       if (!action.unitId) return state;
       const active = state.lines.find((line) => line.id === state.activeLineId);
       if (!active) return state;
@@ -152,6 +164,7 @@ function reducer(state: SaleDraftState, action: SaleDraftAction): SaleDraftState
           quantity: 0,
         };
         return {
+          ...state,
           lines: [...state.lines, line],
           activeProductId: action.productId,
           activeLineId: line.id,
@@ -171,12 +184,14 @@ function reducer(state: SaleDraftState, action: SaleDraftAction): SaleDraftState
           quantity,
         };
         return {
+          ...state,
           lines: [...state.lines, line],
           activeProductId: action.productId,
           activeLineId: line.id,
         };
       }
       return {
+        ...state,
         lines: state.lines.map((line) => (line.id === active.id ? { ...line, quantity } : line)),
         activeProductId: action.productId,
         activeLineId: active.id,
@@ -203,7 +218,35 @@ function reducer(state: SaleDraftState, action: SaleDraftAction): SaleDraftState
       return withoutProduct(state, action.productId);
 
     case 'clear':
-      return { lines: [], activeProductId: null, activeLineId: null };
+      return INITIAL_STATE;
+
+    case 'attachCustomer':
+      return { ...state, customer: action.customer };
+
+    case 'clearCustomer':
+      return { ...state, customer: null };
+
+    case 'attachServer':
+      return { ...state, server: action.server };
+
+    case 'clearServer':
+      return { ...state, server: null };
+
+    case 'setPaymentStatus':
+      // Switching status clears any typed amount.
+      return {
+        ...state,
+        payment: { ...state.payment, status: action.status, amount: '', amountEdited: false },
+      };
+
+    case 'setPaymentAmount':
+      return { ...state, payment: { ...state.payment, amount: action.amount, amountEdited: true } };
+
+    case 'setPaymentMethod':
+      return { ...state, payment: { ...state.payment, method: action.method } };
+
+    case 'setPaymentDetail':
+      return { ...state, payment: { ...state.payment, methodDetail: action.detail } };
 
     default:
       return state;
@@ -214,6 +257,9 @@ const INITIAL_STATE: SaleDraftState = {
   lines: [],
   activeProductId: null,
   activeLineId: null,
+  customer: null,
+  server: null,
+  payment: EMPTY_PAYMENT,
 };
 
 export function SaleDraftProvider({ children }: { children: ReactNode }) {
@@ -229,6 +275,9 @@ export function SaleDraftProvider({ children }: { children: ReactNode }) {
       lines: state.lines,
       activeProductId: state.activeProductId,
       activeLineId: state.activeLineId,
+      customer: state.customer,
+      server: state.server,
+      payment: state.payment,
       openProduct: (productId, defaultUnitId) =>
         dispatch({ type: 'open', productId, defaultUnitId }),
       closeProduct: () => dispatch({ type: 'close' }),
@@ -239,12 +288,28 @@ export function SaleDraftProvider({ children }: { children: ReactNode }) {
       removeProduct: (productId) => dispatch({ type: 'removeProduct', productId }),
       clear: () => dispatch({ type: 'clear' }),
       linesForProduct,
+      attachCustomer: (customer) => dispatch({ type: 'attachCustomer', customer }),
+      clearCustomer: () => dispatch({ type: 'clearCustomer' }),
+      attachServer: (server) => dispatch({ type: 'attachServer', server }),
+      clearServer: () => dispatch({ type: 'clearServer' }),
+      setPaymentStatus: (status) => dispatch({ type: 'setPaymentStatus', status }),
+      setPaymentAmount: (amount) => dispatch({ type: 'setPaymentAmount', amount }),
+      setPaymentMethod: (method) => dispatch({ type: 'setPaymentMethod', method }),
+      setPaymentDetail: (detail) => dispatch({ type: 'setPaymentDetail', detail }),
       setUnitForProduct: (productId, unitId) =>
         dispatch({ type: 'setUnitForProduct', productId, unitId }),
       setQuantityForProduct: (productId, defaultUnitId, quantity) =>
         dispatch({ type: 'setQuantityForProduct', productId, defaultUnitId, quantity }),
     }),
-    [state.lines, state.activeProductId, state.activeLineId, linesForProduct],
+    [
+      state.lines,
+      state.activeProductId,
+      state.activeLineId,
+      state.customer,
+      state.server,
+      state.payment,
+      linesForProduct,
+    ],
   );
 
   return <SaleDraftContext.Provider value={value}>{children}</SaleDraftContext.Provider>;

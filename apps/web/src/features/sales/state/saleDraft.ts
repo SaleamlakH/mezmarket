@@ -1,10 +1,12 @@
 import { createContext } from 'react';
+import type {
+  BusinessMemberSummaryResponse,
+  CustomerSummaryResponse,
+  PaymentMethod,
+  PaymentStatus,
+} from '@mez/types';
 
-/**
- * A line being built for the new sale, before any request is made. This is the
- * UI-only draft: the unit is a catalog id and the quantity a plain number.
- * Validation and the API payload come later.
- */
+/** A line being built for the new sale (UI-only). */
 export interface SaleDraftLine {
   id: string;
   productId: string;
@@ -17,33 +19,67 @@ export function isCommitted(line: { quantity: number }): boolean {
   return line.quantity > 0;
 }
 
+/** The payment being recorded for the draft. */
+export interface SalePaymentDraft {
+  status: PaymentStatus;
+  /** The amount as typed. */
+  amount: string;
+  /** Whether the cashier typed an amount. */
+  amountEdited: boolean;
+  /** How the sale is paid. */
+  method: PaymentMethod | '';
+  methodDetail: string;
+}
+
+export const EMPTY_PAYMENT: SalePaymentDraft = {
+  status: 'PAID',
+  amount: '',
+  amountEdited: false,
+  method: 'CASH',
+  methodDetail: '',
+};
+
 export interface SaleDraftContextValue {
   lines: SaleDraftLine[];
-  /** The product whose controls are open — one at a time. */
+  /** The product whose controls are open. */
   activeProductId: string | null;
-  /** The line the unit selector and stepper are bound to. */
+  /** The line the unit selector and stepper edit. */
   activeLineId: string | null;
+  /** The customer attached to the sale. */
+  customer: CustomerSummaryResponse | null;
+  /** The server attached to the sale. */
+  server: BusinessMemberSummaryResponse | null;
+  /** The payment being recorded. */
+  payment: SalePaymentDraft;
   openProduct: (productId: string, defaultUnitId: string) => void;
   closeProduct: () => void;
   setUnit: (unitId: string) => void;
   setQuantity: (lineId: string, quantity: number) => void;
   removeActiveLine: () => void;
-  /** Removes one line by id, whether or not it is the active one. */
+  /** Removes one line by id. */
   removeLine: (lineId: string) => void;
-  /** Drops every line the product holds in the sale, closing it when it is
-   * the product being worked on. */
+  /** Removes every line the product holds. */
   removeProduct: (productId: string) => void;
-  /** Drops every line and closes the open product. */
+  /** Drops every line. */
   clear: () => void;
   linesForProduct: (productId: string) => SaleDraftLine[];
-  /** Switches a product's active line to a unit, opening the product first if
-   * its lines are not the ones being edited right now. Used by the inline
-   * quick-edit controller, whose first interaction has to both activate a line
-   * and pick the unit in one go. */
+  /** Attaches the customer. */
+  attachCustomer: (customer: CustomerSummaryResponse) => void;
+  /** Detaches the customer. */
+  clearCustomer: () => void;
+  /** Attaches the server. */
+  attachServer: (server: BusinessMemberSummaryResponse) => void;
+  /** Detaches the server. */
+  clearServer: () => void;
+  /** Picks the payment status. */
+  setPaymentStatus: (status: PaymentStatus) => void;
+  /** Writes the amount. */
+  setPaymentAmount: (amount: string) => void;
+  setPaymentMethod: (method: PaymentMethod | '') => void;
+  setPaymentDetail: (detail: string) => void;
+  /** Sets a product's active line unit. */
   setUnitForProduct: (productId: string, unitId: string) => void;
-  /** Sets a product's active line quantity, opening the product first if its
-   * lines are not the ones being edited right now. The `defaultUnitId` is what
-   * a brand-new line starts with when the product was never opened before. */
+  /** Sets a product's active line quantity. */
   setQuantityForProduct: (productId: string, defaultUnitId: string, quantity: number) => void;
 }
 

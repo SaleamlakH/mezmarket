@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { ShoppingCart, X } from 'lucide-react';
 import { Badge } from '@/components/Badge';
 import { Button } from '@/components/Button';
+import { Dialog } from '@/components/Dialog';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { unitsForProduct } from '../lib/saleDraftView';
@@ -13,26 +14,33 @@ import { useSaleDraftView } from '../hooks/useSaleDraftView';
 import { useSaleDraft } from '../state/useSaleDraft';
 import { CartItem } from './CartItem';
 import { CartItemEditor } from './CartItemEditor';
+import { CustomerPickerDialog } from './CustomerPickerDialog';
+import { ServerPickerDialog } from './ServerPickerDialog';
+import { SaleActionBar } from './SaleActionBar';
+import { SaleCustomerAction } from './SaleCustomerAction';
+import { SaleServerAction } from './SaleServerAction';
+import { SalePaymentControl } from './SalePaymentControl';
 import { SaleTotalsCard } from './SaleTotalsCard';
 
 export interface SalePanelProps {
   businessId?: string | undefined;
   uploadUrls?: DownloadUrlsResponse | undefined;
-  /** Confirm the draft sale — wired up in a later step. */
+  /** Confirms the draft sale. */
   onConfirm: () => void;
-  /** Container styles — supplied by whichever host renders the panel. */
+  /** Container styles. */
   className?: string;
-  /** Dismisses the panel; renders a close control when given (mobile sheet). */
+  /** Dismisses the panel; renders a close control when given. */
   onClose?: (() => void) | undefined;
 }
 
-/**
- * The sale sheet: every committed line of the draft, one cart item per product,
- * editable in place, with the running totals and a confirm button. It owns no
- * outer container — the host supplies the class that docks it beside the page
- * or embeds it in the mobile review dialog.
- */
-export function SalePanel({
+/** The sale sheet: the draft's cart items, totals, payment and confirm button. */
+export function SalePanel(props: SalePanelProps) {
+  const { hasLines } = useSaleDraftView();
+  if (!hasLines) return null;
+  return <SalePanelContent {...props} />;
+}
+
+function SalePanelContent({
   businessId,
   uploadUrls,
   onConfirm,
@@ -40,7 +48,7 @@ export function SalePanel({
   onClose,
 }: SalePanelProps) {
   const currency = useCurrency();
-  const { cartItems, itemCount, hasLines } = useSaleDraftView();
+  const { cartItems, itemCount } = useSaleDraftView();
   const totals = useSaleDraftTotals();
   const {
     clear,
@@ -51,15 +59,19 @@ export function SalePanel({
     setQuantityForProduct,
     setQuantity,
     removeLine,
+    customer,
+    attachCustomer,
+    clearCustomer,
+    server,
+    attachServer,
+    clearServer,
   } = useSaleDraft();
   const isMobile = useIsMobile();
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [isCustomerPickerOpen, setIsCustomerPickerOpen] = useState(false);
+  const [isServerPickerOpen, setIsServerPickerOpen] = useState(false);
   const editor = useProductDraftView(editingProductId ?? '');
 
-  if (!hasLines) return null;
-
-  // Mobile reviews in the picker's product dialog; desktop edits inline in the
-  // docked editor — driven by the shared draft state either way.
   const handleEdit = (productId: string) => {
     if (isMobile) {
       openProduct(productId, unitsForProduct(productId)[0]?.id ?? '');
@@ -68,8 +80,6 @@ export function SalePanel({
     }
   };
 
-  // Dropping a product also retires its docked editor, since the lines the
-  // editor was working on are gone with it.
   const handleRemove = (productId: string) => {
     removeProduct(productId);
     if (editingProductId === productId) setEditingProductId(null);
@@ -81,38 +91,45 @@ export function SalePanel({
   };
 
   return (
-    <div className={`flex min-h-0 flex-col md:mr-3.5 ${className ?? ''}`}>
-      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-(--border) py-2 md:px-2">
-        <span className="flex min-w-0 items-center gap-2 text-sm font-bold text-(--text)">
-          <ShoppingCart size={16} aria-hidden /> Current sale
-          <Badge tone="accent">{formatLineCount(itemCount)}</Badge>
-        </span>
-        <span className="flex shrink-0 items-center gap-1">
-          <Button
-            type="button"
-            variant="text"
-            size="sm"
-            onClick={() => {
-              clear();
-              setEditingProductId(null);
-            }}
-          >
-            Clear
-          </Button>
-          {onClose && (
-            <Button
-              type="button"
-              shape="square"
-              size="sm"
-              variant="field"
-              aria-label="Close"
-              title="Close"
-              onClick={onClose}
-            >
-              <X size={15} aria-hidden />
+    <div className={`flex min-h-0 flex-col md:mr-3.5 pb-2 ${className ?? ''}`}>
+      <header className="sticky top-0 z-10 flex shrink-0 flex-col gap-2 border-b border-(--border) bg-(--surface-primary) py-2 md:px-2">
+        <div className="flex items-center justify-between gap-3">
+          <span className="flex min-w-0 items-center gap-2 text-sm font-bold text-(--text)">
+            <ShoppingCart size={16} aria-hidden /> Current sale
+            <Badge tone="accent">{formatLineCount(itemCount)}</Badge>
+          </span>
+          <span className="flex shrink-0 items-center gap-1">
+            <Button type="button" variant="secondary" size="md" onClick={clear}>
+              Clear
             </Button>
-          )}
-        </span>
+            {onClose && (
+              <Button
+                type="button"
+                shape="square"
+                size="md"
+                variant="field"
+                aria-label="Close"
+                title="Close"
+                onClick={onClose}
+              >
+                <X size={15} aria-hidden />
+              </Button>
+            )}
+          </span>
+        </div>
+
+        <SaleActionBar>
+          <SaleCustomerAction
+            customer={customer}
+            onAttach={() => setIsCustomerPickerOpen(true)}
+            onClear={clearCustomer}
+          />
+          <SaleServerAction
+            server={server}
+            onAttach={() => setIsServerPickerOpen(true)}
+            onClear={clearServer}
+          />
+        </SaleActionBar>
       </header>
 
       <div className="min-h-0 grow overflow-y-auto py-2 md:px-2">
@@ -133,7 +150,7 @@ export function SalePanel({
       </div>
 
       {editingProductId && editor.product && (
-        <section className="flex shrink-0 flex-col rounded-t-2xl border-x border-t border-(--border) bg-(--surface-primary) p-2 shadow-(--shadow-lg)">
+        <Dialog open onClose={handleEditorClose} size="md">
           <CartItemEditor
             product={editor.product}
             units={editor.units}
@@ -150,15 +167,30 @@ export function SalePanel({
             onLineRemove={removeLine}
             onClose={handleEditorClose}
           />
-        </section>
+        </Dialog>
       )}
 
       <footer className="flex shrink-0 flex-col gap-2 border-t border-(--border) py-2 md:px-2">
         <SaleTotalsCard totals={totals} currency={currency} />
+        <SalePaymentControl total={totals.total} />
         <Button type="button" className="w-full" onClick={onConfirm}>
           Confirm sale
         </Button>
       </footer>
+
+      <CustomerPickerDialog
+        open={isCustomerPickerOpen}
+        onClose={() => setIsCustomerPickerOpen(false)}
+        onSelect={attachCustomer}
+        selectedCustomerId={customer?.id ?? null}
+      />
+      <ServerPickerDialog
+        open={isServerPickerOpen}
+        businessId={businessId ?? null}
+        onClose={() => setIsServerPickerOpen(false)}
+        onSelect={attachServer}
+        selectedServerId={server?.id ?? null}
+      />
     </div>
   );
 }

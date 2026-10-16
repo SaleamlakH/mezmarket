@@ -10,15 +10,11 @@ export interface SaleReviewSheetProps {
   onClose: () => void;
   businessId?: string | undefined;
   uploadUrls?: DownloadUrlsResponse | undefined;
-  /** Confirm the draft sale — wired up in a later step. */
+  /** Confirms the draft sale. */
   onConfirm: () => void;
 }
 
-/**
- * The mobile review sheet. Opened from the sticky sale bar, it reuses the
- * `SalePanel` markup inside a modal dialog so both breakpoints share one sale
- * sheet.
- */
+/** The mobile review sheet: the SalePanel inside a modal dialog. */
 export function SaleReviewSheet({
   open,
   onClose,
@@ -29,8 +25,7 @@ export function SaleReviewSheet({
   const isMobile = useIsMobile();
   const { hasLines } = useSaleDraftView();
 
-  // The draft can empty underneath the open sheet — clearing it or dropping its
-  // last product — which retires the panel itself, so the dialog goes with it.
+  // Close the sheet when the draft empties.
   useEffect(() => {
     if (open && !hasLines) onClose();
   }, [open, hasLines, onClose]);
@@ -43,7 +38,6 @@ export function SaleReviewSheet({
         businessId={businessId}
         uploadUrls={uploadUrls}
         onConfirm={onConfirm}
-        className="max-h-[calc(92dvh-3rem)]"
         onClose={onClose}
       />
     </Dialog>

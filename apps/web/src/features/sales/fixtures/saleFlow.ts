@@ -1,14 +1,11 @@
-import type { ProductSummaryResponse, ProductUnitOptionResponse } from '@mez/types';
+import type {
+  BusinessMemberSummaryResponse,
+  CustomerSummaryResponse,
+  ProductSummaryResponse,
+  ProductUnitOptionResponse,
+} from '@mez/types';
 
-/**
- * Placeholder catalog for the new-sale UI while it is being built. This is a
- * runtime fixture, not test data — it stands in for `useBusinessProducts()`
- * until the sale flow is wired to the API, and mirrors that call's shape
- * (`ProductSummaryResponse`) so the cards need no change when it is swapped in.
- *
- * `uploadId` is left null so each card shows its image placeholder rather than
- * waiting on a signed download that has no backing upload here.
- */
+/** Placeholder products for the new-sale UI. */
 export const saleProductsFixture: ProductSummaryResponse[] = [
   {
     id: 'prod_tequila',
@@ -72,11 +69,7 @@ export const saleProductsFixture: ProductSummaryResponse[] = [
   },
 ];
 
-/**
- * Placeholder sellable units per product for the new-sale UI. Stands in for
- * `useProductUnits()` until the flow is wired, mirroring that call's shape
- * (`ProductUnitOptionResponse`) so the controls need no change when it swaps in.
- */
+/** Placeholder sellable units per product. */
 export const saleProductUnitsFixture: Record<string, ProductUnitOptionResponse[]> = {
   prod_tequila: [
     {
@@ -206,3 +199,50 @@ export const saleProductUnitsFixture: Record<string, ProductUnitOptionResponse[]
 export function getSaleProductUnits(productId: string): ProductUnitOptionResponse[] {
   return saleProductUnitsFixture[productId] ?? [];
 }
+
+/** Placeholder customers for the attach-customer picker. */
+export const saleCustomersFixture: CustomerSummaryResponse[] = [
+  {
+    id: 'cust_abebe',
+    name: 'Abebe Kebede',
+    contactPhone: '+251 911 234 567',
+    contactEmail: null,
+  },
+  {
+    id: 'cust_hanna',
+    name: 'Hanna Tesfaye',
+    contactPhone: '+251 912 345 678',
+    contactEmail: 'hanna@example.com',
+  },
+  {
+    id: 'cust_dawit',
+    name: 'Dawit Alemu',
+    contactPhone: null,
+    contactEmail: 'dawit.alemu@example.com',
+  },
+  {
+    id: 'cust_meron',
+    name: 'Meron Girma',
+    contactPhone: '+251 913 456 789',
+    contactEmail: null,
+  },
+];
+
+/** Placeholder servers for the attach-server picker. */
+export const saleServersFixture: BusinessMemberSummaryResponse[] = [
+  {
+    id: 'srv_abel',
+    name: 'Abel Yohannes',
+    role: 'SERVER',
+  },
+  {
+    id: 'srv_fikir',
+    name: 'Fikir Tadesse',
+    role: 'SERVER',
+  },
+  {
+    id: 'srv_samuel',
+    name: 'Samuel Getahun',
+    role: 'SERVER',
+  },
+];
