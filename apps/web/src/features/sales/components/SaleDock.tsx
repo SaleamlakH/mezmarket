@@ -12,7 +12,6 @@ export function SaleDock() {
     <SalePanel
       businessId={businessId}
       uploadUrls={uploadUrls}
-      onConfirm={() => undefined}
       className="overflow-hidden rounded-2xl border border-(--border) bg-(--surface-primary) shadow-(--shadow-md) md:sticky md:top-6 md:max-h-[calc(100dvh-6rem)] lg:max-h-[calc(100dvh-3rem)] md:min-h-[calc(100dvh-6rem)] md:w-[18rem] lg:w-[20rem]"
     />
   );

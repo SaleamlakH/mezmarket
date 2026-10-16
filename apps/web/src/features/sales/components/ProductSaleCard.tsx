@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DownloadUrlsResponse, ProductSummaryResponse } from '@mez/types';
 import { Eye, Plus } from 'lucide-react';
 import { Badge } from '@/components/Badge';
@@ -43,6 +43,9 @@ export function ProductSaleCard({
 
   const {
     units,
+    unitsLoading,
+    unitsReady,
+    requestUnits,
     lines: productLines,
     cartItem,
     activeLine,
@@ -60,12 +63,20 @@ export function ProductSaleCard({
   const isLow =
     product.lowStockThreshold != null && product.currentSealedStock <= product.lowStockThreshold;
 
+  // The first unit stands in when a line was opened before its units arrived.
+  useEffect(() => {
+    if (isActive && activeLine && !activeLine.productUnitId && units[0]) {
+      setUnitForProduct(product.id, units[0].id);
+    }
+  }, [isActive, activeLine, units, product.id, setUnitForProduct]);
+
   const handleClose = useCallback(() => {
     setReviewOpen(false);
     closeProduct();
   }, [closeProduct]);
 
   const handleReview = () => {
+    requestUnits();
     if (!isActive) openProduct(product.id, units[0]?.id ?? '');
     setReviewOpen(true);
   };
@@ -77,7 +88,7 @@ export function ProductSaleCard({
         }`
       : '';
 
-  // The line the inline quick-edit controller edits.
+  // The line the quick-edit controller edits.
   const quickLine = isActive ? activeLine : cartItem.lines.at(-1)?.line;
 
   const quickController = (
@@ -89,6 +100,9 @@ export function ProductSaleCard({
       <ProductQuantityControl
         size="md"
         units={units}
+        unitsLoading={unitsLoading}
+        unitsReady={unitsReady}
+        onUnitsRequested={requestUnits}
         unitId={quickLine?.productUnitId ?? units[0]?.id ?? ''}
         placeholder="Unit"
         onUnitChange={(unitId) => setUnitForProduct(product.id, unitId)}
@@ -169,6 +183,9 @@ export function ProductSaleCard({
           <CartItemEditor
             product={product}
             units={units}
+            unitsLoading={unitsLoading}
+            unitsReady={unitsReady}
+            onUnitsRequested={requestUnits}
             lines={productLines}
             activeLine={activeLine}
             currency={currency}

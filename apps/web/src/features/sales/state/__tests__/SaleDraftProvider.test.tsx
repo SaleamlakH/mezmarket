@@ -297,6 +297,47 @@ describe('SaleDraftProvider', () => {
     expect(result.current.linesForProduct('missing')).toHaveLength(0);
   });
 
+  describe('payment', () => {
+    it('starts paid in cash with nothing keyed in', () => {
+      const { result } = renderDraft();
+
+      expect(result.current.payment).toEqual({
+        status: 'PAID',
+        amount: '',
+        amountEdited: false,
+        method: 'CASH',
+        methodDetail: '',
+      });
+    });
+
+    it('takes whatever the picker fields set', () => {
+      const { result } = renderDraft();
+
+      act(() => result.current.setPaymentStatus('PARTIALLY_PAID'));
+      act(() => result.current.setPaymentAmount('12.5'));
+      act(() => result.current.setPaymentMethod('CARD'));
+      act(() => result.current.setPaymentDetail('ref 42'));
+
+      expect(result.current.payment).toEqual({
+        status: 'PARTIALLY_PAID',
+        amount: '12.5',
+        amountEdited: true,
+        method: 'CARD',
+        methodDetail: 'ref 42',
+      });
+    });
+
+    it('lets the method go back to no selection', () => {
+      const { result } = renderDraft();
+
+      act(() => result.current.setPaymentMethod(''));
+      act(() => result.current.setPaymentStatus('PENDING'));
+
+      expect(result.current.payment.status).toBe('PENDING');
+      expect(result.current.payment.method).toBe('');
+    });
+  });
+
   it('throws when used outside the provider', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
 

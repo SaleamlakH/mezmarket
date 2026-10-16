@@ -10,18 +10,10 @@ export interface SaleReviewSheetProps {
   onClose: () => void;
   businessId?: string | undefined;
   uploadUrls?: DownloadUrlsResponse | undefined;
-  /** Confirms the draft sale. */
-  onConfirm: () => void;
 }
 
 /** The mobile review sheet: the SalePanel inside a modal dialog. */
-export function SaleReviewSheet({
-  open,
-  onClose,
-  businessId,
-  uploadUrls,
-  onConfirm,
-}: SaleReviewSheetProps) {
+export function SaleReviewSheet({ open, onClose, businessId, uploadUrls }: SaleReviewSheetProps) {
   const isMobile = useIsMobile();
   const { hasLines } = useSaleDraftView();
 
@@ -34,12 +26,7 @@ export function SaleReviewSheet({
 
   return (
     <Dialog open onClose={onClose} size="md">
-      <SalePanel
-        businessId={businessId}
-        uploadUrls={uploadUrls}
-        onConfirm={onConfirm}
-        onClose={onClose}
-      />
+      <SalePanel businessId={businessId} uploadUrls={uploadUrls} onClose={onClose} />
     </Dialog>
   );
 }

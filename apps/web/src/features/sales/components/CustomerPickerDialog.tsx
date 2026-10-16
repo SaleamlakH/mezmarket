@@ -10,9 +10,8 @@ import { Field } from '@/components/Field';
 import { Input } from '@/components/Input';
 import { ListCard } from '@/components/ListCard';
 import { LoadingState } from '@/components/LoadingState';
-import { type SectionState } from '@/components/StateSwitcher';
 import { SuccessState } from '@/components/SuccessState';
-import { saleCustomersFixture } from '../fixtures/saleFlow';
+import { useCreateCustomer, useCustomers } from '@/hooks/useCustomersApi';
 
 type Step = 'list' | 'new';
 
@@ -25,9 +24,6 @@ export interface CustomerPickerDialogProps {
   selectedCustomerId?: string | null;
 }
 
-/** A local id for a customer added from the form. */
-const nextCustomerId = () => `customer-local-${Date.now()}`;
-
 /** Attaches a customer to the sale: a picker list and a fast new-customer form. */
 export function CustomerPickerDialog({
   open,
@@ -35,20 +31,21 @@ export function CustomerPickerDialog({
   onSelect,
   selectedCustomerId,
 }: CustomerPickerDialogProps) {
+  const { data: customers = [], isPending, isError, refetch } = useCustomers({ enabled: open });
+  const createCustomer = useCreateCustomer();
+
   const [step, setStep] = useState<Step>('list');
-  const [state, setState] = useState<SectionState>('ready');
-  const [customers, setCustomers] = useState<CustomerSummaryResponse[]>(saleCustomersFixture);
+  const [created, setCreated] = useState<CustomerSummaryResponse | null>(null);
   const [localSelectedId, setLocalSelectedId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
 
   const activeId = localSelectedId ?? selectedCustomerId ?? null;
-  const attached = customers.find((customer) => customer.id === activeId) ?? null;
 
   const close = () => {
     setStep('list');
-    setState('ready');
+    setCreated(null);
     setName('');
     setPhone('');
     setEmail('');
@@ -62,20 +59,24 @@ export function CustomerPickerDialog({
   };
 
   const saveNew = () => {
-    const customer: CustomerSummaryResponse = {
-      id: nextCustomerId(),
-      name,
-      contactPhone: phone || null,
-      contactEmail: email || null,
-    };
-    setCustomers((prev) => [customer, ...prev]);
-    setLocalSelectedId(customer.id);
-    onSelect(customer);
-    setName('');
-    setPhone('');
-    setEmail('');
-    setStep('list');
-    setState('success');
+    createCustomer.mutate(
+      {
+        name: name.trim(),
+        ...(phone.trim() !== '' ? { contactPhone: phone.trim() } : {}),
+        ...(email.trim() !== '' ? { contactEmail: email.trim() } : {}),
+      },
+      {
+        onSuccess: (customer) => {
+          setLocalSelectedId(customer.id);
+          setCreated(customer);
+          onSelect(customer);
+          setName('');
+          setPhone('');
+          setEmail('');
+          setStep('list');
+        },
+      },
+    );
   };
 
   return (
@@ -86,7 +87,7 @@ export function CustomerPickerDialog({
         </h2>
 
         <div className="flex gap-3">
-          {step !== 'new' && (
+          {step !== 'new' && !created && (
             <Button variant="primary" size="sm" onClick={() => setStep('new')}>
               <Plus size={14} aria-hidden /> Add New
             </Button>
@@ -98,83 +99,7 @@ export function CustomerPickerDialog({
         </div>
       </header>
 
-      {step === 'list' ? (
-        <div className="flex flex-col gap-3 pb-1">
-          {state === 'loading' && <LoadingState label="Loading customers…" />}
-
-          {state === 'error' && (
-            <ErrorState
-              title="Could not load customers"
-              description="Something went wrong while fetching your customers."
-              onRetry={() => setState('ready')}
-            />
-          )}
-
-          {state === 'empty' && (
-            <EmptyState
-              title="No customers yet"
-              description="Add a customer to attach it to the sale."
-              action={
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="w-full"
-                  onClick={() => setStep('new')}
-                >
-                  <Plus size={14} aria-hidden /> Add new customer
-                </Button>
-              }
-            />
-          )}
-
-          {state === 'success' && attached && (
-            <SuccessState>
-              <p className="m-0 text-[13px] font-semibold text-(--text)">Customer added</p>
-
-              <div className="flex flex-col">
-                <span className="text-sm font-semibold text-(--text)">{attached.name}</span>
-                {attached.contactPhone && (
-                  <span className="font-mono text-xs text-(--text-muted)">
-                    {attached.contactPhone}
-                  </span>
-                )}
-                {attached.contactEmail && (
-                  <span className="font-mono text-xs text-(--text-muted)">
-                    {attached.contactEmail}
-                  </span>
-                )}
-              </div>
-
-              <Button type="button" variant="secondary" onClick={close}>
-                Done
-              </Button>
-            </SuccessState>
-          )}
-
-          {state === 'ready' && (
-            <ul className="m-0 flex list-none flex-col gap-2 p-0">
-              {customers.map((customer) => (
-                <li key={customer.id}>
-                  <button
-                    type="button"
-                    onClick={() => pick(customer)}
-                    className="focus-ring block w-full cursor-pointer rounded-xl text-left"
-                  >
-                    <ListCard
-                      title={customer.name}
-                      meta={customer.contactPhone ?? customer.contactEmail ?? 'No contact'}
-                      icon={<User size={18} aria-hidden />}
-                      trailing={
-                        activeId === customer.id ? <Badge tone="accent">Attached</Badge> : undefined
-                      }
-                    />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      ) : (
+      {step === 'new' ? (
         <form
           className="flex flex-col gap-4 pb-1"
           onSubmit={(event) => {
@@ -210,6 +135,14 @@ export function CustomerPickerDialog({
             />
           </Field>
 
+          {createCustomer.isError && (
+            <p role="alert" className="m-0 text-[13px] font-semibold text-(--danger)">
+              {createCustomer.error instanceof Error
+                ? createCustomer.error.message
+                : 'Could not save the customer'}
+            </p>
+          )}
+
           <div className="flex gap-2">
             <Button
               type="button"
@@ -219,11 +152,85 @@ export function CustomerPickerDialog({
             >
               Back
             </Button>
-            <Button type="submit" className="grow">
-              Save customer
+            <Button
+              type="submit"
+              className="grow"
+              disabled={name.trim() === '' || createCustomer.isPending}
+            >
+              {createCustomer.isPending ? 'Saving…' : 'Save customer'}
             </Button>
           </div>
         </form>
+      ) : (
+        <div className="flex flex-col gap-3 pb-1">
+          {created ? (
+            <SuccessState>
+              <p className="m-0 text-[13px] font-semibold text-(--text)">Customer added</p>
+
+              <div className="flex flex-col">
+                <span className="text-sm font-semibold text-(--text)">{created.name}</span>
+                {created.contactPhone && (
+                  <span className="font-mono text-xs text-(--text-muted)">
+                    {created.contactPhone}
+                  </span>
+                )}
+                {created.contactEmail && (
+                  <span className="font-mono text-xs text-(--text-muted)">
+                    {created.contactEmail}
+                  </span>
+                )}
+              </div>
+
+              <Button type="button" variant="secondary" onClick={close}>
+                Done
+              </Button>
+            </SuccessState>
+          ) : isPending ? (
+            <LoadingState label="Loading customers…" />
+          ) : isError ? (
+            <ErrorState
+              title="Could not load customers"
+              description="Something went wrong while fetching your customers."
+              onRetry={() => void refetch()}
+            />
+          ) : customers.length === 0 ? (
+            <EmptyState
+              title="No customers yet"
+              description="Add a customer to attach it to the sale."
+              action={
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full"
+                  onClick={() => setStep('new')}
+                >
+                  <Plus size={14} aria-hidden /> Add new customer
+                </Button>
+              }
+            />
+          ) : (
+            <ul className="m-0 flex list-none flex-col gap-2 p-0">
+              {customers.map((customer) => (
+                <li key={customer.id}>
+                  <button
+                    type="button"
+                    onClick={() => pick(customer)}
+                    className="focus-ring block w-full cursor-pointer rounded-xl text-left"
+                  >
+                    <ListCard
+                      title={customer.name}
+                      meta={customer.contactPhone ?? customer.contactEmail ?? 'No contact'}
+                      icon={<User size={18} aria-hidden />}
+                      trailing={
+                        activeId === customer.id ? <Badge tone="accent">Attached</Badge> : undefined
+                      }
+                    />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
     </Dialog>
   );

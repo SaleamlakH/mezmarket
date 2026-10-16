@@ -18,6 +18,12 @@ export interface ProductQuantityControlProps {
   selectId?: string;
   placeholder?: string;
   className?: string;
+  /** A units request is in flight. */
+  unitsLoading?: boolean | undefined;
+  /** The units request has settled, so an empty `units` means the product has none. */
+  unitsReady?: boolean | undefined;
+  /** Asks for the units — wired to the selector's first touch. */
+  onUnitsRequested?: (() => void) | undefined;
 }
 
 /** Picks a product's sellable unit and sets its quantity. */
@@ -33,17 +39,32 @@ export function ProductQuantityControl({
   selectId,
   placeholder = 'Select the unit',
   className = '',
+  unitsLoading = false,
+  unitsReady = false,
+  onUnitsRequested,
 }: ProductQuantityControlProps) {
   const empty = units.length === 0;
   const gap = size === 'sm' ? 'gap-1.5' : size === 'md' ? 'gap-2' : 'gap-3';
+
+  // Keep the selector reachable until its units settle — touching it asks for them.
+  const selectPlaceholder = empty
+    ? unitsLoading
+      ? 'Loading units…'
+      : unitsReady
+        ? 'No units available'
+        : placeholder
+    : placeholder;
 
   return (
     <div className={`flex flex-col ${gap} ${className}`}>
       <Select
         id={selectId}
         value={unitId}
-        placeholder={empty ? 'No units available' : placeholder}
-        disabled={empty}
+        placeholder={selectPlaceholder}
+        disabled={empty && (unitsLoading || unitsReady)}
+        onFocus={onUnitsRequested}
+        onPointerDown={onUnitsRequested}
+        onClick={onUnitsRequested}
         onChange={(event) => onUnitChange(event.currentTarget.value)}
         options={units.map((unit) => ({ value: unit.id, label: unit.name }))}
         size={size}
@@ -58,7 +79,7 @@ export function ProductQuantityControl({
         </p>
       )}
 
-      <Stepper size={size} value={quantity} onChange={onQuantityChange} />
+      <Stepper size={size} value={quantity} onChange={onQuantityChange} disabled={empty} />
     </div>
   );
 }

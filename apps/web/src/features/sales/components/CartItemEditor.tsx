@@ -15,6 +15,12 @@ import { ProductQuantityControl } from './ProductQuantityControl';
 export interface CartItemEditorProps {
   product: ProductSummaryResponse;
   units: ProductUnitOptionResponse[];
+  /** A units request is in flight. */
+  unitsLoading?: boolean;
+  /** The units request has settled, so an empty `units` means the product has none. */
+  unitsReady?: boolean;
+  /** Asks for the units — wired to the selector's first touch. */
+  onUnitsRequested?: (() => void) | undefined;
   /** Every line held for this product. */
   lines: SaleDraftLine[];
   /** The line the selector and stepper edit. */
@@ -33,6 +39,9 @@ export interface CartItemEditorProps {
 export function CartItemEditor({
   product,
   units,
+  unitsLoading,
+  unitsReady,
+  onUnitsRequested,
   lines,
   activeLine,
   currency,
@@ -83,6 +92,9 @@ export function CartItemEditor({
           selectId={selectId}
           size="lg"
           units={units}
+          unitsLoading={unitsLoading}
+          unitsReady={unitsReady}
+          onUnitsRequested={onUnitsRequested}
           unitId={activeLine?.productUnitId ?? ''}
           onUnitChange={onUnitChange}
           quantity={activeLine?.quantity ?? 0}

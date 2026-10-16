@@ -8,12 +8,10 @@ import { EmptyState } from '@/components/EmptyState';
 import { ErrorState } from '@/components/ErrorState';
 import { ListCard } from '@/components/ListCard';
 import { LoadingState } from '@/components/LoadingState';
-import { type SectionState } from '@/components/StateSwitcher';
-import { saleServersFixture } from '../fixtures/saleFlow';
+import { useMembers } from '@/hooks/useMembersApi';
 
 export interface ServerPickerDialogProps {
   open: boolean;
-  businessId?: string | null;
   onClose: () => void;
   /** Attaches the picked server. */
   onSelect: (server: BusinessMemberSummaryResponse) => void;
@@ -28,14 +26,18 @@ export function ServerPickerDialog({
   onSelect,
   selectedServerId,
 }: ServerPickerDialogProps) {
-  const [state, setState] = useState<SectionState>('ready');
-  const [servers] = useState<BusinessMemberSummaryResponse[]>(saleServersFixture);
+  const {
+    data: servers = [],
+    isPending,
+    isError,
+    refetch,
+  } = useMembers({ role: 'SERVER' }, { enabled: open });
   const [localSelectedId, setLocalSelectedId] = useState<string | null>(null);
 
   const activeId = localSelectedId ?? selectedServerId ?? null;
 
   const close = () => {
-    setState('ready');
+    setLocalSelectedId(null);
     onClose();
   };
 
@@ -57,20 +59,20 @@ export function ServerPickerDialog({
       </header>
 
       <div className="flex flex-col gap-3 pb-1">
-        {state === 'loading' && <LoadingState label="Loading servers…" />}
-
-        {state === 'error' && (
+        {isPending ? (
+          <LoadingState label="Loading servers…" />
+        ) : isError ? (
           <ErrorState
             title="Could not load servers"
             description="Something went wrong while fetching your servers."
-            onRetry={() => setState('ready')}
+            onRetry={() => void refetch()}
           />
-        )}
-
-        {state === 'empty' && (
-          <EmptyState title="No servers yet" description="No servers available in fixtures." />
-        )}
-        {state === 'ready' && servers.length > 0 && (
+        ) : servers.length === 0 ? (
+          <EmptyState
+            title="No servers yet"
+            description="Invite a member with the server role to attach one to a sale."
+          />
+        ) : (
           <ul className="m-0 flex list-none flex-col gap-2 p-0">
             {servers.map((server) => (
               <li key={server.id}>

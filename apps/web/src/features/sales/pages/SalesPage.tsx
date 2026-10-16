@@ -4,6 +4,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { ErrorState } from '@/components/ErrorState';
 import { LoadingState } from '@/components/LoadingState';
 import { SectionHeader } from '@/components/SectionHeader';
+import { useBusinessProducts } from '@/hooks/useCatalogApi';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useProductUploadUrls } from '@/hooks/useProductUploadUrls';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
@@ -11,25 +12,23 @@ import { ProductSaleCard } from '../components/ProductSaleCard';
 import { SaleCartTrigger } from '../components/SaleCartTrigger';
 import { SaleReviewSheet } from '../components/SaleReviewSheet';
 import { SaleSummaryCard } from '../components/SaleSummaryCard';
-import { saleProductsFixture } from '../fixtures/saleFlow';
 import { useSaleDraftView } from '../hooks/useSaleDraftView';
 import { useSales } from '../hooks/useSalesApi';
 
-type ProductsStatus = 'loading' | 'error' | 'empty' | 'ready';
-const PRODUCTS_STATUS: ProductsStatus = 'ready';
-
 export function SalesPage() {
   const { isPending, isError, refetch, data: sales = [] } = useSales();
+  const {
+    isPending: productsPending,
+    isError: productsError,
+    refetch: refetchProducts,
+    data: products = [],
+  } = useBusinessProducts();
   const currency = useCurrency();
   const { currentBusiness } = useBusinessContext();
   const businessId = currentBusiness?.id;
   const { data: uploadUrls } = useProductUploadUrls(businessId);
   const { hasLines } = useSaleDraftView();
   const [isReviewOpen, setIsReviewOpen] = useState(false);
-
-  // Confirm is wired to the sale API and the success step in a later pass; for
-  // now it just retires the mobile review sheet.
-  const handleConfirm = () => setIsReviewOpen(false);
 
   return (
     <div className={`mx-auto max-w-7xl ${hasLines ? 'pb-28 md:pb-4' : 'pb-4'}`}>
@@ -68,21 +67,22 @@ export function SalesPage() {
 
         <SectionHeader icon={<Package size={14} aria-hidden />} title="Products" />
 
-        {PRODUCTS_STATUS === 'loading' ? (
+        {productsPending ? (
           <LoadingState label="Loading products…" />
-        ) : PRODUCTS_STATUS === 'error' ? (
+        ) : productsError ? (
           <ErrorState
             title="Could not load products"
             description="Something went wrong while fetching your products."
+            onRetry={() => void refetchProducts()}
           />
-        ) : PRODUCTS_STATUS === 'empty' || saleProductsFixture.length === 0 ? (
+        ) : products.length === 0 ? (
           <EmptyState
             title="No products yet"
             description="Add a product to your catalog to sell it here."
           />
         ) : (
           <div className="grid grid-cols-2 gap-2 min-[480px]:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] md:grid-cols-[repeat(auto-fill,minmax(200px,1fr))] sm:gap-2.5">
-            {saleProductsFixture.map((product) => (
+            {products.map((product) => (
               <ProductSaleCard
                 key={product.id}
                 product={product}
@@ -101,7 +101,6 @@ export function SalesPage() {
         onClose={() => setIsReviewOpen(false)}
         businessId={businessId}
         uploadUrls={uploadUrls}
-        onConfirm={handleConfirm}
       />
     </div>
   );

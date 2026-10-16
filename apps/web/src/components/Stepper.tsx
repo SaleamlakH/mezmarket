@@ -12,6 +12,8 @@ export interface StepperProps {
   size?: StepperSize;
   /** `field` renders an editable input; `text` renders a plain value. */
   variant?: 'field' | 'text';
+  /** Locks the whole control — no step, no typed value. */
+  disabled?: boolean;
   className?: string;
 }
 
@@ -28,6 +30,7 @@ export function Stepper({
   min = 0,
   size = 'lg',
   variant = 'field',
+  disabled = false,
   className = 'w-full',
 }: StepperProps) {
   const clamp = (next: number) => (Number.isNaN(next) ? min : Math.max(min, next));
@@ -42,6 +45,7 @@ export function Stepper({
         shape="square"
         size={size}
         variant="field"
+        disabled={disabled}
         aria-label="Decrease"
         onClick={dec}
       >
@@ -60,6 +64,7 @@ export function Stepper({
           step="any"
           min={min}
           value={value}
+          disabled={disabled}
           aria-label="Quantity"
           onChange={(event) => onChange(clamp(Number(event.currentTarget.value)))}
           size={size}
@@ -71,6 +76,7 @@ export function Stepper({
         shape="square"
         size={size}
         variant="field"
+        disabled={disabled}
         aria-label="Increase"
         onClick={inc}
       >
