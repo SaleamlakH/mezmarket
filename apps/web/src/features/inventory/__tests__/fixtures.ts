@@ -1,4 +1,5 @@
 import type {
+  ProductInventoryDetailResponse,
   ProductInventorySummaryResponse,
   ProductUnitOptionResponse,
   StockBatchDetailResponse,
@@ -46,6 +47,83 @@ export const products: ProductInventorySummaryResponse[] = [
     stockStatus: 'IN_STOCK',
   }),
 ];
+
+/**
+ * One product's inventory detail: 70 kg of rice across three batch lines, one
+ * already expired and one expiring within the week, bought partly by the sack.
+ * Batches are newest batch date first, the order the API returns them in.
+ */
+export const productInventoryDetail: ProductInventoryDetailResponse = {
+  id: 'prod_rice',
+  name: 'Rice',
+  brand: 'Generics',
+  baseUnitLabel: 'Kilogram',
+  uploadId: null,
+  currentSealedStock: 70,
+  lowStockThreshold: 10,
+  active: true,
+  totalCost: 134.2,
+  earliestExpiry: '2026-10-09T00:00:00.000Z',
+  expiryCount: 2,
+  numberOfBatches: 3,
+  stockStatus: 'IN_STOCK',
+  batches: [
+    {
+      id: 'batch_rice_0042',
+      batchDate: '2026-10-17T00:00:00.000Z',
+      supplierName: 'Mango Wholesale',
+      referenceNumber: '0042',
+      lines: [
+        {
+          id: 'line_rice_0042',
+          purchaseQuantity: 12,
+          purchaseUnit: 'Kilogram',
+          purchaseUnitCost: 2,
+          standardQuantity: 12,
+          standardUnit: 'kg',
+          quantityRemaining: 12,
+          expiryDate: null,
+        },
+      ],
+    },
+    {
+      id: 'batch_rice_0038',
+      batchDate: '2026-10-03T00:00:00.000Z',
+      supplierName: 'Mango Wholesale',
+      referenceNumber: '0038',
+      lines: [
+        {
+          id: 'line_rice_0038',
+          purchaseQuantity: 2,
+          purchaseUnit: 'Sack',
+          purchaseUnitCost: 95,
+          standardQuantity: 100,
+          standardUnit: 'kg',
+          quantityRemaining: 50,
+          expiryDate: '2026-10-24T00:00:00.000Z',
+        },
+      ],
+    },
+    {
+      id: 'batch_rice_0031',
+      batchDate: '2026-09-12T00:00:00.000Z',
+      supplierName: 'Mango Wholesale',
+      referenceNumber: '0031',
+      lines: [
+        {
+          id: 'line_rice_0031',
+          purchaseQuantity: 20,
+          purchaseUnit: 'Kilogram',
+          purchaseUnitCost: 1.9,
+          standardQuantity: 20,
+          standardUnit: 'kg',
+          quantityRemaining: 8,
+          expiryDate: '2026-10-09T00:00:00.000Z',
+        },
+      ],
+    },
+  ],
+};
 
 type PurchasableUnit = Omit<ProductUnitOptionResponse, 'purchaseCapable'> & {
   purchaseCapable: true;

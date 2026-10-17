@@ -2,7 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
-import type { BusinessResponse, CreateBatchInput, StockBatchDetailResponse } from '@mez/types';
+import type {
+  BusinessResponse,
+  CreateBatchInput,
+  ProductInventoryDetailResponse,
+  StockBatchDetailResponse,
+} from '@mez/types';
 import type { BusinessContextValue } from '@/providers/business/types';
 import { inventoryService } from '../../api/inventoryService';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
@@ -13,14 +18,16 @@ import {
   useCreateBatch,
   useInventoryBatches,
   useInventoryProducts,
+  useProductInventoryDetail,
 } from '../useInventoryApi';
-import { batches, products } from '../../__tests__/fixtures';
+import { batches, productInventoryDetail, products } from '../../__tests__/fixtures';
 
 vi.mock('../../api/inventoryService', () => ({
   inventoryService: {
     getBatches: vi.fn(),
     getBatch: vi.fn(),
     getInventoryProducts: vi.fn(),
+    getInventoryProduct: vi.fn(),
     createBatch: vi.fn(),
   },
 }));
@@ -162,6 +169,38 @@ describe('useInventoryApi', () => {
       renderHook(() => useInventoryProducts(), { wrapper });
 
       expect(inventoryService.getInventoryProducts).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('useProductInventoryDetail', () => {
+    it('fetches the requested product of the current business', async () => {
+      const detail = productInventoryDetail as ProductInventoryDetailResponse;
+      vi.mocked(inventoryService.getInventoryProduct).mockResolvedValue(detail);
+
+      const { result } = renderHook(() => useProductInventoryDetail('prod_1'), { wrapper });
+
+      expect(result.current.isPending).toBe(true);
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(inventoryService.getInventoryProduct).toHaveBeenCalledWith('b1', 'prod_1');
+      expect(result.current.data).toEqual(detail);
+      expect(queryClient.getQueryData(inventoryKeys.inventoryProduct('b1', 'prod_1'))).toEqual(
+        detail,
+      );
+    });
+
+    it('stays idle without a selected business', () => {
+      setBusiness(null);
+
+      renderHook(() => useProductInventoryDetail('prod_1'), { wrapper });
+
+      expect(inventoryService.getInventoryProduct).not.toHaveBeenCalled();
+    });
+
+    it('stays idle without a product id', () => {
+      renderHook(() => useProductInventoryDetail(undefined), { wrapper });
+
+      expect(inventoryService.getInventoryProduct).not.toHaveBeenCalled();
     });
   });
 

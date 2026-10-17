@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ApiClient } from '@/lib/apiClient';
 import type {
   CreateBatchInput,
+  ProductInventoryDetailResponse,
   ProductInventorySummaryResponse,
   StockBatchDetailResponse,
 } from '@mez/types';
@@ -49,6 +50,16 @@ describe('createInventoryService', () => {
 
     expect(client.get).toHaveBeenCalledWith('/api/businesses/biz_1/inventory/products');
     expect(result).toEqual([product]);
+  });
+
+  it('getInventoryProduct calls GET /api/businesses/:businessId/inventory/products/:productId and returns it', async () => {
+    const product = {} as ProductInventoryDetailResponse;
+    vi.mocked(client.get).mockResolvedValue(product);
+
+    const result = await service.getInventoryProduct('biz_1', 'prod_1');
+
+    expect(client.get).toHaveBeenCalledWith('/api/businesses/biz_1/inventory/products/prod_1');
+    expect(result).toBe(product);
   });
 
   it('createBatch posts to /api/businesses/:businessId/inventory/batches and returns response', async () => {

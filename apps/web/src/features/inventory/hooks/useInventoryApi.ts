@@ -11,6 +11,8 @@ export const inventoryKeys = {
     [...inventoryKeys.batches(businessId), 'detail', batchId] as const,
   inventoryProducts: (businessId: string) =>
     [...inventoryKeys.all(businessId), 'inventory-products'] as const,
+  inventoryProduct: (businessId: string, productId: string) =>
+    [...inventoryKeys.inventoryProducts(businessId), 'detail', productId] as const,
 } as const;
 
 export function useInventoryBatches() {
@@ -66,6 +68,28 @@ export function useInventoryProducts() {
       return inventoryService.getInventoryProducts(businessId);
     },
     enabled: Boolean(businessId),
+  });
+}
+
+export function useProductInventoryDetail(productId: string | undefined) {
+  const { currentBusiness } = useBusinessContext();
+  const businessId = currentBusiness?.id;
+
+  return useQuery({
+    queryKey:
+      businessId && productId
+        ? inventoryKeys.inventoryProduct(businessId, productId)
+        : ['inventory', 'product', 'disabled'],
+    queryFn: () => {
+      if (!businessId) {
+        throw new Error('No business selected');
+      }
+      if (!productId) {
+        throw new Error('No product selected');
+      }
+      return inventoryService.getInventoryProduct(businessId, productId);
+    },
+    enabled: Boolean(businessId && productId),
   });
 }
 

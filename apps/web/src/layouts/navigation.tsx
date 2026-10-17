@@ -19,6 +19,9 @@ export const BATCHES_PATH = '/inventory/batches';
 export const SALES_PATH = '/sales';
 export const SALES_ALL_PATH = '/sales/all';
 
+/** Where a product's inventory detail lives, for links into it. */
+export const productInventoryPath = (productId: string) => `/inventory/products/${productId}`;
+
 export const NAV_TABS: NavTab[] = [
   { key: 'dashboard', label: 'Dashboard', path: '/dashboard', icon: <LayoutGrid aria-hidden /> },
   { key: 'sales', label: 'Sales', path: SALES_PATH, icon: <ShoppingCart aria-hidden /> },

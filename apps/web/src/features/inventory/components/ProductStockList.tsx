@@ -3,6 +3,8 @@ import type {
   ProductInventorySummaryResponse,
   StockStatus,
 } from '@mez/types';
+import type { KeyboardEvent } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { Badge, type BadgeTone } from '@/components/Badge';
 import { ProductThumb } from '@/components/ProductThumb';
 import { RailCard } from '@/components/RailCard';
@@ -16,6 +18,7 @@ import {
 } from '@/components/Table';
 import { useProductImage } from '@/hooks/useProductImage';
 import { formatDateTime, formatMoney, formatQuantity } from '@/lib/format';
+import { productInventoryPath } from '@/layouts/navigation';
 
 const STATUS_PRESENTATION: Record<StockStatus, { label: string; tone: BadgeTone }> = {
   OUT_OF_STOCK: { label: 'Out of stock', tone: 'danger' },
@@ -84,27 +87,30 @@ function ProductStockCard({
   // The card owns its image request, so it fills in as soon as this one download
   // lands and the placeholder covers the gap until then.
   const imageUrl = useProductImage(businessId, product.uploadId ?? undefined, uploadUrls);
+  const { pathname } = useLocation();
 
   return (
-    <RailCard
-      variant="thumbnail"
-      thumbVariant="wide"
-      className="shadow-(--shadow-md)"
-      badge={<StatusBadge product={product} />}
-      badgePosition="overlay"
-      thumb={{ imageUrl: imageUrl ?? null, imageAlt: product.name }}
-    >
-      <p className="m-0 truncate text-[15px] font-semibold text-(--text)">{product.name}</p>
-      <p className="m-0 truncate font-mono text-[11px] text-(--text-muted)">
-        {product.brand ?? 'No brand'}
-      </p>
-      <p className="m-0 truncate font-mono text-[13px] font-semibold tabular-nums text-(--text)">
-        {formatMoney(product.totalCost, currency)}
-      </p>
-      <p className="m-0 truncate font-mono text-[11px] text-(--text-muted)">
-        <OnHand product={product} />
-      </p>
-    </RailCard>
+    <Link to={productInventoryPath(product.id)} state={{ from: pathname }} className="block h-full">
+      <RailCard
+        variant="thumbnail"
+        thumbVariant="wide"
+        className="h-full shadow-(--shadow-md)"
+        badge={<StatusBadge product={product} />}
+        badgePosition="overlay"
+        thumb={{ imageUrl: imageUrl ?? null, imageAlt: product.name }}
+      >
+        <p className="m-0 truncate text-[15px] font-semibold text-(--text)">{product.name}</p>
+        <p className="m-0 truncate font-mono text-[11px] text-(--text-muted)">
+          {product.brand ?? 'No brand'}
+        </p>
+        <p className="m-0 truncate font-mono text-[13px] font-semibold tabular-nums text-(--text)">
+          {formatMoney(product.totalCost, currency)}
+        </p>
+        <p className="m-0 truncate font-mono text-[11px] text-(--text-muted)">
+          <OnHand product={product} />
+        </p>
+      </RailCard>
+    </Link>
   );
 }
 
@@ -119,6 +125,20 @@ export function ProductStockList({
   businessId,
   uploadUrls,
 }: ProductStockListProps) {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+
+  const openProduct = (productId: string) => {
+    void navigate(productInventoryPath(productId), { state: { from: pathname } });
+  };
+
+  const handleRowKeyDown = (event: KeyboardEvent<HTMLTableRowElement>, productId: string) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openProduct(productId);
+    }
+  };
+
   return (
     <>
       <div className="hidden md:block">
@@ -136,7 +156,15 @@ export function ProductStockList({
 
           <TableBody>
             {products.map((product) => (
-              <TableRow key={product.id}>
+              <TableRow
+                key={product.id}
+                role="link"
+                tabIndex={0}
+                aria-label={`View ${product.name} inventory`}
+                className="cursor-pointer transition-colors hover:bg-(--field)"
+                onClick={() => openProduct(product.id)}
+                onKeyDown={(event) => handleRowKeyDown(event, product.id)}
+              >
                 <TableCell>
                   <span className="flex items-center gap-2.5">
                     <ProductThumb

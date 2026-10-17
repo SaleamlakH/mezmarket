@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router';
 import type { DownloadUrlsResponse } from '@mez/types';
 import { ProductStockList } from '../ProductStockList';
 import { products } from '../../__tests__/fixtures';
@@ -11,16 +12,18 @@ const uploadUrls: DownloadUrlsResponse = [
 
 function renderList() {
   render(
-    <QueryClientProvider
-      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
-    >
-      <ProductStockList
-        products={products}
-        currency="ETB"
-        businessId="b1"
-        uploadUrls={uploadUrls}
-      />
-    </QueryClientProvider>,
+    <MemoryRouter>
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      >
+        <ProductStockList
+          products={products}
+          currency="ETB"
+          businessId="b1"
+          uploadUrls={uploadUrls}
+        />
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
 }
 
