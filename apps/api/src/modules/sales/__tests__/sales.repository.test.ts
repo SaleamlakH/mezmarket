@@ -752,7 +752,7 @@ describe('sales.repository', () => {
   });
 
   describe('listSales', () => {
-    it('reads the branch sales newest first with the relations included', async () => {
+    it('reads the branch sales status-first, newest first within a status', async () => {
       const { prisma, sale } = createPrismaStub();
       const repo = createSaleRepository(prisma);
       sale.findMany.mockResolvedValue([]);
@@ -767,7 +767,7 @@ describe('sales.repository', () => {
           serverMember: true,
           customer: true,
         },
-        orderBy: { saleDatetime: 'desc' },
+        orderBy: [{ paymentStatus: 'asc' }, { saleDatetime: 'desc' }],
       });
     });
 

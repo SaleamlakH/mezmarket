@@ -166,7 +166,9 @@ export function createSaleRepository(prisma: PrismaClient): SaleRepository {
           serverMember: true,
           customer: true,
         },
-        orderBy: { saleDatetime: 'desc' },
+        // Status first so the sales still needing attention lead, newest-first
+        // within each status.
+        orderBy: [{ paymentStatus: 'asc' }, { saleDatetime: 'desc' }],
       });
     },
   };
