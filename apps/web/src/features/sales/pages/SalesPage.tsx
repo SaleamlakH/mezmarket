@@ -42,7 +42,7 @@ export function SalesPage() {
 
         <SectionHeader
           icon={<ShoppingCart size={14} aria-hidden />}
-          title="Recent sales"
+          title="Sales Transactions"
           onSeeMore={() => navigate(SALES_ALL_PATH)}
           seeMoreLabel="See more"
         />
