@@ -41,9 +41,9 @@ enum ContainerStatus {
 }
 
 enum PaymentStatus {
-  PAID
   PENDING
   PARTIALLY_PAID
+  PAID
 }
 
 enum VoidStatus {
