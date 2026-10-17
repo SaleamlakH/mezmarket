@@ -208,7 +208,7 @@ function SalePanelContent({ businessId, uploadUrls, className, onClose }: SalePa
 
         <footer className="flex shrink-0 flex-col gap-2 border-t border-(--border) py-2 md:px-2">
           <SaleTotalsCard totals={totals} currency={currency} />
-          <SalePaymentControl total={totals.total} />
+          <SalePaymentControl total={totals.total} errors={checkout.paymentErrors} />
           {checkout.error && (
             <p role="alert" className="m-0 text-[11px] font-semibold text-(--danger)">
               {checkout.error}

@@ -1,20 +1,21 @@
-import type { PaymentMethod, PaymentStatus } from '@mez/types';
+import type { FieldErrors } from '@mez/validation';
+import type { PaymentFormValues, PaymentMethod, PaymentStatus } from '@mez/types';
 import { Chip } from '@/components/Chip';
-import { Field } from '@/components/Field';
-import { Input } from '@/components/Input';
-import { Select } from '@/components/Select';
-import { PAYMENT_LABELS, PAYMENT_METHOD_OPTIONS, PAYMENT_TONES } from '../lib/saleDisplay';
+import { PAYMENT_LABELS, PAYMENT_TONES } from '../lib/saleDisplay';
 import { useSaleDraft } from '../state/useSaleDraft';
+import { PaymentFields } from './PaymentFields';
 
 const STATUSES: PaymentStatus[] = ['PAID', 'PENDING', 'PARTIALLY_PAID'];
 
 export interface SalePaymentControlProps {
   /** The sale's running total. */
   total: number;
+  /** The checkout's errors for the draft's payment. */
+  errors: FieldErrors<PaymentFormValues>;
 }
 
 /** The sale panel's payment section: status, amount, method and detail. */
-export function SalePaymentControl({ total }: SalePaymentControlProps) {
+export function SalePaymentControl({ total, errors }: SalePaymentControlProps) {
   const { payment, setPaymentStatus, setPaymentAmount, setPaymentMethod, setPaymentDetail } =
     useSaleDraft();
 
@@ -25,7 +26,6 @@ export function SalePaymentControl({ total }: SalePaymentControlProps) {
   const showDetail = payment.method !== '' && payment.method !== 'CASH';
 
   const paidDefault = total > 0 ? total.toFixed(2) : '';
-  const amountValue = amountEditable ? payment.amount : paidDefault;
 
   return (
     <div className="flex flex-col gap-2">
@@ -52,49 +52,24 @@ export function SalePaymentControl({ total }: SalePaymentControlProps) {
       {isPending ? (
         <p className="m-0 text-[11px] text-(--text-muted)">A pending sale records no payment</p>
       ) : (
-        <div className="flex flex-col gap-2">
-          <div className="grid grid-cols-2 gap-2">
-            <Field id="sale-payment-amount" label="Amount" compact muted={!amountEditable}>
-              <Input
-                id="sale-payment-amount"
-                size="lg"
-                type="number"
-                inputMode="decimal"
-                step="any"
-                min="0"
-                placeholder="0"
-                value={amountValue}
-                disabled={!amountEditable}
-                onChange={(event) => setPaymentAmount(event.currentTarget.value)}
-              />
-            </Field>
-
-            <Field id="sale-payment-method" label="Method" compact>
-              <Select
-                id="sale-payment-method"
-                size="lg"
-                value={payment.method}
-                placeholder="Select"
-                onChange={(event) =>
-                  setPaymentMethod(event.currentTarget.value as PaymentMethod | '')
-                }
-                options={PAYMENT_METHOD_OPTIONS}
-              />
-            </Field>
-          </div>
-
-          {showDetail && (
-            <Field id="sale-payment-detail" label="Payment detail" compact>
-              <Input
-                id="sale-payment-detail"
-                size="lg"
-                value={payment.methodDetail}
-                placeholder="Reference, cheque no., etc."
-                onChange={(event) => setPaymentDetail(event.currentTarget.value)}
-              />
-            </Field>
-          )}
-        </div>
+        <PaymentFields
+          value={{
+            status: payment.status,
+            amount: payment.amount,
+            methodDetail: payment.methodDetail,
+            ...(payment.method ? { method: payment.method } : {}),
+          }}
+          errors={errors}
+          amountEditable={amountEditable}
+          amountDisplay={paidDefault}
+          showDetail={showDetail}
+          idPrefix="sale-payment"
+          onChange={(field, value) => {
+            if (field === 'amount') setPaymentAmount(value);
+            else if (field === 'method') setPaymentMethod(value as PaymentMethod | '');
+            else setPaymentDetail(value);
+          }}
+        />
       )}
     </div>
   );

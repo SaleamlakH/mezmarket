@@ -6,9 +6,11 @@ import type {
   CreateSaleInput,
   CreateSaleResponse,
   CustomerSummaryResponse,
+  PaymentFormValues,
   SaleFormValues,
   SaleLineFormValues,
 } from '@mez/types';
+import type { FieldErrors } from '@mez/validation';
 import { createSaleSchema } from '@mez/validation';
 import { paymentPayload } from '../lib/paymentPayload';
 import type { SaleDraftCatalog } from '../lib/saleDraftView';
@@ -42,7 +44,12 @@ export function draftSaleValues(
 
   return {
     lines: formLines,
-    initialPayment: paymentPayload(payment),
+    initialPayment: paymentPayload({
+      status: payment.status,
+      amount: payment.amount,
+      methodDetail: payment.methodDetail,
+      ...(payment.method ? { method: payment.method } : {}),
+    }),
     ...(customer ? { customerId: customer.id } : {}),
     ...(server ? { serverMemberId: server.id } : {}),
   };
@@ -67,6 +74,8 @@ export interface SaleCheckout {
   sale: CreateSaleResponse | undefined;
   /** The first reason the draft could not be recorded, if any. */
   error: string | null;
+  /** The payment's per-field errors, for the payment fields to point at. */
+  paymentErrors: FieldErrors<PaymentFormValues>;
   /** Clears the draft and the checkout — the success step's Done. */
   finish: () => void;
 }
@@ -103,11 +112,16 @@ export function useSaleCheckout(): SaleCheckout {
   }, [reset, clear]);
 
   const { errors } = form.formState;
-  const validationError =
-    rootMessage(errors.lines) ??
-    errors.initialPayment?.amount?.message ??
-    errors.initialPayment?.method?.message ??
-    undefined;
+  const validationError = rootMessage(errors.lines) ?? undefined;
+
+  const paymentError = errors.initialPayment;
+  const paymentErrors: FieldErrors<PaymentFormValues> = {
+    ...(paymentError?.amount?.message ? { amount: paymentError.amount.message } : {}),
+    ...(paymentError?.method?.message ? { method: paymentError.method.message } : {}),
+    ...(paymentError?.methodDetail?.message
+      ? { methodDetail: paymentError.methodDetail.message }
+      : {}),
+  };
 
   const requestError = isError
     ? error instanceof Error
@@ -121,6 +135,7 @@ export function useSaleCheckout(): SaleCheckout {
     isSuccess,
     sale: data,
     error: validationError ?? requestError ?? null,
+    paymentErrors,
     finish,
   };
 }

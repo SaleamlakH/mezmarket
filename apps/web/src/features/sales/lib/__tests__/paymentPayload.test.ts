@@ -1,12 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import type { SalePaymentDraft } from '../../state/saleDraft';
-import { EMPTY_PAYMENT } from '../../state/saleDraft';
+import type { PaymentFormValues } from '@mez/types';
 import { paymentPayload } from '../paymentPayload';
 
-const methodless: SalePaymentDraft = { ...EMPTY_PAYMENT, method: '' };
-
-function payment(overrides: Partial<SalePaymentDraft> = {}): SalePaymentDraft {
-  return { ...EMPTY_PAYMENT, ...overrides };
+function payment(overrides: Partial<PaymentFormValues> = {}): PaymentFormValues {
+  return { status: 'PAID', ...overrides };
 }
 
 describe('paymentPayload', () => {
@@ -21,24 +18,30 @@ describe('paymentPayload', () => {
   });
 
   it('sends a paid sale\u2019s method and detail only when they were chosen', () => {
-    expect(paymentPayload(methodless)).toEqual({ status: 'PAID' });
-    expect(paymentPayload(payment({ methodDetail: 'ref 42' }))).toEqual({
+    expect(paymentPayload(payment())).toEqual({ status: 'PAID' });
+    expect(paymentPayload(payment({ method: 'CASH', methodDetail: 'ref 42' }))).toEqual({
       status: 'PAID',
       method: 'CASH',
       methodDetail: 'ref 42',
     });
   });
 
-  it('sends a partial sale\u2019s amount only when one was keyed in', () => {
-    expect(paymentPayload(payment({ status: 'PARTIALLY_PAID', amount: '300' }))).toEqual({
+  it('sends a partial sale\u2019s amount and lets a blank one ride along', () => {
+    expect(
+      paymentPayload(payment({ status: 'PARTIALLY_PAID', amount: '300', method: 'CASH' })),
+    ).toEqual({
       status: 'PARTIALLY_PAID',
       amount: '300',
       method: 'CASH',
     });
 
-    const blank = paymentPayload(payment({ status: 'PARTIALLY_PAID', amount: '   ' }));
-    expect(blank).not.toHaveProperty('amount');
-    expect(blank).toEqual({ status: 'PARTIALLY_PAID', method: 'CASH' });
+    expect(
+      paymentPayload(payment({ status: 'PARTIALLY_PAID', amount: '   ', method: 'CASH' })),
+    ).toEqual({
+      status: 'PARTIALLY_PAID',
+      amount: '   ',
+      method: 'CASH',
+    });
   });
 
   it('sends nothing but the status for a pending sale', () => {

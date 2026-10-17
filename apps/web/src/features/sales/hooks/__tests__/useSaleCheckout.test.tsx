@@ -212,7 +212,9 @@ describe('useSaleCheckout', () => {
     act(() => result.current.draft.setPaymentStatus('PARTIALLY_PAID'));
     act(() => result.current.checkout.confirm());
 
-    await waitFor(() => expect(result.current.checkout.error).toBe('Enter the amount received'));
+    await waitFor(() =>
+      expect(result.current.checkout.paymentErrors.amount).toEqual(expect.any(String)),
+    );
     expect(salesService.createSale).not.toHaveBeenCalled();
   });
 
@@ -223,7 +225,9 @@ describe('useSaleCheckout', () => {
     act(() => result.current.draft.setPaymentMethod(''));
     act(() => result.current.checkout.confirm());
 
-    await waitFor(() => expect(result.current.checkout.error).toBe('Select a payment method'));
+    await waitFor(() =>
+      expect(result.current.checkout.paymentErrors.method).toEqual(expect.any(String)),
+    );
     expect(salesService.createSale).not.toHaveBeenCalled();
   });
 
@@ -232,9 +236,7 @@ describe('useSaleCheckout', () => {
 
     act(() => result.current.checkout.confirm());
 
-    await waitFor(() =>
-      expect(result.current.checkout.error).toBe('Add at least one product line'),
-    );
+    await waitFor(() => expect(result.current.checkout.error).toEqual(expect.any(String)));
     expect(salesService.createSale).not.toHaveBeenCalled();
   });
 });

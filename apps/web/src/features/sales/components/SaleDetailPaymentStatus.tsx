@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import type { SaleDetailResponse } from '@mez/types';
 import { Button, StatusToggle } from '@/components';
+import type { PaymentMode } from '../hooks/usePaymentForm';
 import { RecordPaymentForm } from './RecordPaymentForm';
-
-type PaymentMode = 'paid' | 'partial';
 
 const PAID_ACTIVE =
   'aria-pressed:border-(--positive) aria-pressed:bg-(--positive) aria-pressed:text-white aria-pressed:hover:border-(--positive) aria-pressed:hover:bg-(--positive)';
