@@ -9,6 +9,7 @@ import { useBusinessContext } from '@/providers/business/useBusinessContext';
 import { catalogKeys } from '@/hooks/useCatalogApi';
 import {
   inventoryKeys,
+  useBatchDetail,
   useCreateBatch,
   useInventoryBatches,
   useInventoryProducts,
@@ -18,6 +19,7 @@ import { batches, products } from '../../__tests__/fixtures';
 vi.mock('../../api/inventoryService', () => ({
   inventoryService: {
     getBatches: vi.fn(),
+    getBatch: vi.fn(),
     getInventoryProducts: vi.fn(),
     createBatch: vi.fn(),
   },
@@ -106,6 +108,38 @@ describe('useInventoryApi', () => {
       expect(result.current.isPending).toBe(true);
       expect(result.current.fetchStatus).toBe('idle');
       expect(inventoryService.getBatches).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('useBatchDetail', () => {
+    it('fetches the requested batch of the current business', async () => {
+      const batch = batches[0] as StockBatchDetailResponse;
+      vi.mocked(inventoryService.getBatch).mockResolvedValue(batch);
+
+      const { result } = renderHook(() => useBatchDetail('batch_1'), { wrapper });
+
+      expect(result.current.isPending).toBe(true);
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(inventoryService.getBatch).toHaveBeenCalledWith('b1', 'batch_1');
+      expect(result.current.data).toEqual(batch);
+      expect(queryClient.getQueryData(inventoryKeys.batch('b1', 'batch_1'))).toEqual(batch);
+    });
+
+    it('stays idle without a selected business', () => {
+      setBusiness(null);
+
+      const { result } = renderHook(() => useBatchDetail('batch_1'), { wrapper });
+
+      expect(result.current.fetchStatus).toBe('idle');
+      expect(inventoryService.getBatch).not.toHaveBeenCalled();
+    });
+
+    it('stays idle without a batch id', () => {
+      const { result } = renderHook(() => useBatchDetail(undefined), { wrapper });
+
+      expect(result.current.fetchStatus).toBe('idle');
+      expect(inventoryService.getBatch).not.toHaveBeenCalled();
     });
   });
 

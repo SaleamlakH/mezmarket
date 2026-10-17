@@ -31,6 +31,16 @@ describe('createInventoryService', () => {
     expect(result).toEqual([batch]);
   });
 
+  it('getBatch calls GET /api/businesses/:businessId/inventory/batches/:batchId and returns it', async () => {
+    const batch = {} as StockBatchDetailResponse;
+    vi.mocked(client.get).mockResolvedValue(batch);
+
+    const result = await service.getBatch('biz_1', 'batch_1');
+
+    expect(client.get).toHaveBeenCalledWith('/api/businesses/biz_1/inventory/batches/batch_1');
+    expect(result).toBe(batch);
+  });
+
   it('getInventoryProducts calls GET /api/businesses/:businessId/inventory/products and returns array', async () => {
     const product = {} as ProductInventorySummaryResponse;
     vi.mocked(client.get).mockResolvedValue([product]);

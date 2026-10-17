@@ -7,6 +7,7 @@ import { apiClient, type ApiClient } from '@/lib/apiClient';
 
 export interface InventoryApi {
   getBatches(businessId: string): Promise<StockBatchDetailResponse[]>;
+  getBatch(businessId: string, batchId: string): Promise<StockBatchDetailResponse>;
   getInventoryProducts(businessId: string): Promise<ProductInventorySummaryResponse[]>;
   createBatch(businessId: string, input: CreateBatchInput): Promise<StockBatchDetailResponse>;
 }
@@ -16,6 +17,11 @@ export function createInventoryService(client: ApiClient): InventoryApi {
     getBatches(businessId) {
       return client.get<StockBatchDetailResponse[]>(
         `/api/businesses/${businessId}/inventory/batches`,
+      );
+    },
+    getBatch(businessId, batchId) {
+      return client.get<StockBatchDetailResponse>(
+        `/api/businesses/${businessId}/inventory/batches/${batchId}`,
       );
     },
     getInventoryProducts(businessId) {
