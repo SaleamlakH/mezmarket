@@ -18,3 +18,12 @@ Implement the sales, customer and member endpoints
   recording a payment recomputes `amountPaid`, `balanceDue` and
   `paymentStatus`.
 - Returned the selling price from the product units endpoint.
+
+### Fixes
+
+- Fixed batch line cost and remaining stock to be computed in base units:
+  a new lot now seeds `quantityRemaining` with the base-unit quantity it adds
+  (instead of 0), a line's remaining cost is prorated over the base-unit
+  quantity bought rather than `standardQuantity`, and a line whose purchased
+  unit is no longer on the product is skipped (cost 0) instead of failing the
+  whole product inventory summary
