@@ -9,6 +9,8 @@ import {
   PROFILE_PATH,
   BATCHES_PATH,
   INVENTORY_PATH,
+  SALES_PATH,
+  SALES_ALL_PATH,
   SIDEBAR_WIDTH_STYLE,
   NAV_TABS,
 } from '@/layouts/navigation';
@@ -21,6 +23,7 @@ const SUB_ROUTES = [
   { path: SETTINGS_PATH, title: 'Settings', backTo: '/' },
   { path: PROFILE_PATH, title: 'Profile', backTo: SETTINGS_PATH },
   { path: BATCHES_PATH, title: 'Batches', backTo: INVENTORY_PATH },
+  { path: SALES_ALL_PATH, title: 'Sales', backTo: SALES_PATH },
 ];
 
 /**

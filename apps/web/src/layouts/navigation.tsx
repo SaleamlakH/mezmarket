@@ -16,10 +16,12 @@ export const SETTINGS_PATH = '/settings';
 export const PROFILE_PATH = '/settings/profile';
 export const INVENTORY_PATH = '/inventory';
 export const BATCHES_PATH = '/inventory/batches';
+export const SALES_PATH = '/sales';
+export const SALES_ALL_PATH = '/sales/all';
 
 export const NAV_TABS: NavTab[] = [
   { key: 'dashboard', label: 'Dashboard', path: '/dashboard', icon: <LayoutGrid aria-hidden /> },
-  { key: 'sales', label: 'Sales', path: '/sales', icon: <ShoppingCart aria-hidden /> },
+  { key: 'sales', label: 'Sales', path: SALES_PATH, icon: <ShoppingCart aria-hidden /> },
   { key: 'inventory', label: 'Inventory', path: '/inventory', icon: <Warehouse aria-hidden /> },
   { key: 'products', label: 'Products', path: '/products', icon: <Package aria-hidden /> },
 ];

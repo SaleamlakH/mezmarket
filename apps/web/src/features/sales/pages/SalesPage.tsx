@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { Package, ShoppingCart } from 'lucide-react';
+import { useNavigate } from 'react-router';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState } from '@/components/ErrorState';
 import { LoadingState } from '@/components/LoadingState';
 import { SectionHeader } from '@/components/SectionHeader';
+import { SALES_ALL_PATH } from '@/layouts/navigation';
 import { useBusinessProducts } from '@/hooks/useCatalogApi';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useProductUploadUrls } from '@/hooks/useProductUploadUrls';
@@ -24,6 +26,7 @@ export function SalesPage() {
     data: products = [],
   } = useBusinessProducts();
   const currency = useCurrency();
+  const navigate = useNavigate();
   const { currentBusiness } = useBusinessContext();
   const businessId = currentBusiness?.id;
   const { data: uploadUrls } = useProductUploadUrls(businessId);
@@ -37,7 +40,12 @@ export function SalesPage() {
           <h2 className="m-0 text-lg font-bold text-(--text)">Sales</h2>
         </div>
 
-        <SectionHeader icon={<ShoppingCart size={14} aria-hidden />} title="Recent sales" />
+        <SectionHeader
+          icon={<ShoppingCart size={14} aria-hidden />}
+          title="Recent sales"
+          onSeeMore={() => navigate(SALES_ALL_PATH)}
+          seeMoreLabel="See more"
+        />
 
         {isPending ? (
           <LoadingState label="Loading sales…" />

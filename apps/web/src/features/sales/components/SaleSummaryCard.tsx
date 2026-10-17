@@ -1,5 +1,5 @@
 import type { SaleSummaryResponse } from '@mez/types';
-import { Link } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import { Badge, type BadgeTone } from '@/components/Badge';
 import { RailCard } from '@/components/RailCard';
 import { formatDate, formatMoney, formatTime, pluralize } from '@/lib/format';
@@ -19,10 +19,11 @@ export interface SaleSummaryCardProps {
 /** A recorded sale as a rail tile: its invoice, total, item count and time. */
 export function SaleSummaryCard({ sale, currency, className = '' }: SaleSummaryCardProps) {
   const status = statusFor(sale);
+  const { pathname } = useLocation();
 
   return (
     <article className={className}>
-      <Link to={`/sales/${sale.id}`} className="block h-full">
+      <Link to={`/sales/${sale.id}`} state={{ from: pathname }} className="block h-full">
         <RailCard
           className="h-full shadow-(--shadow-md)"
           badge={<Badge tone={status.tone}>{status.label}</Badge>}

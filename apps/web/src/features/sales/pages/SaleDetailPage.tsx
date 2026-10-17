@@ -1,8 +1,9 @@
-import { Link, useParams } from 'react-router';
+import { Link, useLocation, useParams } from 'react-router';
 import { ChevronLeft } from 'lucide-react';
 import { LoadingState } from '@/components/LoadingState';
 import { ErrorState } from '@/components/ErrorState';
 import { useCurrency } from '@/hooks/useCurrency';
+import { SALES_ALL_PATH, SALES_PATH } from '@/layouts/navigation';
 import { useSaleDetail } from '../hooks/useSalesApi';
 import { SaleDetailCustomerSection } from '../components/SaleDetailCustomerSection';
 import { SaleDetailPurchaseSection } from '../components/SaleDetailPurchaseSection';
@@ -11,8 +12,15 @@ import { Button } from '@/components';
 
 export function SaleDetailPage() {
   const { saleId } = useParams<{ saleId: string }>();
+  const { state } = useLocation();
   const { data: sale, isPending, isError, refetch } = useSaleDetail(saleId);
   const currency = useCurrency();
+
+  // Where the sale was opened from, so Back returns there; deep links fall back
+  // to the sales tab.
+  const from = (state as { from?: string } | null)?.from;
+  const isFromAllSales = from === SALES_ALL_PATH;
+  const backTo = isFromAllSales ? SALES_ALL_PATH : SALES_PATH;
 
   if (isPending) {
     return (
@@ -37,7 +45,11 @@ export function SaleDetailPage() {
   return (
     <div className="mx-auto max-w-6xl px-3 pt-3 pb-6 md:px-6 md:pt-6">
       <header className="flex items-center gap-2.5">
-        <Link to="/sales" aria-label="Back to sales" title="Back">
+        <Link
+          to={backTo}
+          aria-label={isFromAllSales ? 'Back to all sales' : 'Back to sales'}
+          title="Back"
+        >
           <Button variant="secondary" size="sm" shape="pill">
             <ChevronLeft aria-hidden className="h-5 w-5" />
           </Button>
@@ -46,7 +58,7 @@ export function SaleDetailPage() {
           aria-label="Breadcrumb"
           className="min-w-0 truncate text-xl font-bold text-(--text) md:text-2xl"
         >
-          <Link to="/sales" className="hover:underline">
+          <Link to={SALES_PATH} className="hover:underline">
             Sales
           </Link>
           <span className="mx-1 text-(--text-muted)">/</span>
