@@ -88,24 +88,21 @@ function ProductStockCard({
   return (
     <RailCard
       variant="thumbnail"
+      thumbVariant="wide"
       className="shadow-(--shadow-md)"
       badge={<StatusBadge product={product} />}
       badgePosition="overlay"
       thumb={{ imageUrl: imageUrl ?? null, imageAlt: product.name }}
-      footer={
-        <>
-          <p className="m-0 truncate font-mono text-[13px] font-semibold tabular-nums text-(--text)">
-            {formatMoney(product.totalCost, currency)}
-          </p>
-          <p className="m-0 truncate font-mono text-[11px] text-(--text-muted)">
-            <OnHand product={product} />
-          </p>
-        </>
-      }
     >
       <p className="m-0 truncate text-[15px] font-semibold text-(--text)">{product.name}</p>
       <p className="m-0 truncate font-mono text-[11px] text-(--text-muted)">
         {product.brand ?? 'No brand'}
+      </p>
+      <p className="m-0 truncate font-mono text-[13px] font-semibold tabular-nums text-(--text)">
+        {formatMoney(product.totalCost, currency)}
+      </p>
+      <p className="m-0 truncate font-mono text-[11px] text-(--text-muted)">
+        <OnHand product={product} />
       </p>
     </RailCard>
   );
