@@ -4,6 +4,32 @@
 
 Recording what the business sells. A sale is built from one or more lines (product, unit sold-in, quantity), carries who processed it, optionally who took the order and who owes it, and ends up Paid, Pending or Partially Paid with a shareable invoice. Stock is drawn per line when the sale is confirmed, and every significant action lands in the audit log.
 
+## Concept model
+
+- A sale belongs to exactly one business and branch. Both, and the acting member, are derived server-side from the resolved session — never accepted from the request body.
+
+- A sale is a header plus its parts: a per-branch invoice number, a sale datetime, the money fields, one or more lines, zero or more payments, and the member who processed it. It may also name the customer it is for and the server who took it; both are optional and independent of payment.
+
+- A line snapshots everything about what was sold — the product name, the unit sold in, the standard unit it resolves to, the quantity, and the unit price — so a later rename or price change never rewrites a past sale.
+
+- Payment is a separate record: a sale is `PENDING`, `PARTIALLY_PAID` or `PAID`, always derived from the payments actually recorded against it. `voidStatus` is `NONE` or `VOIDED`; a void is a full reversal, while a refund is recorded per line.
+
+- Confirming a sale draws stock per line, oldest purchase lot first (FIFO), splitting a line across lots and freezing each lot's cost at that moment.
+
+- Totals are derived: the line subtotal, minus an optional whole-sale discount, plus the business's tax rate (snapshotted onto the sale), rounded to two places.
+
+## Frontend UI flow
+
+- `/sales` shows the catalog as a grid; each card carries the name, brand, stock and current price.
+- Adding is deliberate: the card opens a unit-and-quantity editor (popover on desktop, dialog on mobile); a line counts only once its quantity is above zero.
+- The cart is a shared in-memory draft mounted above all business routes, so it survives navigation; it clears only on Clear, a completed sale, or a reload.
+- The cart panel edits per product and per line (change unit, adjust quantity, remove), with a running totals preview from the business tax config.
+- Checkout attaches an optional customer (picker with inline create) and an optional server (role `SERVER`).
+- The payment control offers status chips `PAID` / `PENDING` / `PARTIALLY_PAID`, an amount for partial, and a method with optional detail.
+- Confirming swaps the panel to a success state showing the invoice number, total and payment status.
+- `/sales` lists recent sales as a rail with See more; `/sales/all` shows the full list. Both are one server-ordered list, pending first, newest first within a status.
+- `/sales/:id` shows the summary, purchase lines, totals and customer, and offers one action: record a payment, hidden once the sale is settled or voided.
+
 ## API Endpoints
 
 Every route is business-scoped: the business and its default branch come from the session plus the `:businessId` route param, and the acting member from the resolved identity. None of them is ever accepted from the request body.
@@ -21,6 +47,8 @@ The request and response shapes below are the shared contract in `@mez/types` (`
 | POST   | `/api/businesses/:businessId/sales/:saleId/refund`   | `RefundSaleInput`         | `200 RefundSaleResponse`    |
 | GET    | `/api/businesses/:businessId/sales/:saleId/invoice`  | —                         | `200 SaleInvoiceResponse`   |
 
+Update, void, refund, invoice and the list filters are the target contract: their validation and types exist, but the API does not expose them yet.
+
 `CreateSaleResponse`, `UpdateSaleResponse`, `VoidSaleResponse` and `RefundSaleResponse` are aliases of `SaleDetailResponse`, so a sale reads back identically no matter which write produced it.
 
 ### Roles
@@ -34,7 +62,7 @@ The request and response shapes below are the shared contract in `@mez/types` (`
 
 ### POST /api/businesses/:businessId/sales
 
-Creates and confirms a sale in one action — there is no draft. Stock is drawn, the invoice exists, and the opening payment status is set as part of the same write: `PENDING` when no initial payment is given, otherwise the status the initial payment names.
+Creates and confirms a sale in one action — there is no draft. Stock is drawn, the invoice exists, and the opening payment status is set as part of the same write.
 
 ```
 Client -> Authorization: Bearer <jwt> + CreateSaleInput body
@@ -43,40 +71,41 @@ Client -> Authorization: Bearer <jwt> + CreateSaleInput body
    -> role middleware requires Owner, Manager or Cashier
    -> validation middleware applies the shared create-sale rules
    -> service loads each named product's sell-capable units, then per line:
-         - rejects a product the business does not have
-         - rejects a unit that is not that product's
-         - rejects a unit the product cannot be sold in
-         - rejects a sell-capable unit that carries no price
-         - snapshots the sold unit, the standard unit it resolves to,
-           the quantity in that unit, and the unit price
-         - allocates the line against stock FIFO, oldest purchase lot
-           first, splitting the line across lots when the oldest runs out
+          - rejects a product the business does not have
+          - rejects a unit that is not that product's
+          - rejects a unit the product cannot be sold in
+          - rejects a sell-capable unit that carries no price
+          - snapshots the sold unit, the standard unit it resolves to,
+            the quantity in that unit, and the unit price
+          - allocates the line against stock FIFO, oldest purchase lot
+            first, splitting the line across lots when the oldest runs out
    -> repository runs one transaction:
-          1. generate the branch-unique invoice number
-          2. insert the sale, confirmed, against the acting member,
-             with subtotal, tax and total computed from the lines, the
-             optional whole-sale discount and the business tax rate
-          3. insert one sale line per product line
-          4. insert each line's FIFO allocation rows (SaleLineCost),
-             snapshotting each lot's cost at that moment
-          5. decrement each drawn lot's remaining quantity and the
-             product's sealed stock
-          6. insert the initial payment, when one was given
-          7. set paymentStatus / amountPaid / balanceDue from the
-             payments recorded
-          8. write one audit-log row for the confirmation
+           1. generate the branch-unique invoice number
+           2. insert the sale, confirmed, against the acting member,
+              with subtotal, tax and total computed from the lines, the
+              optional whole-sale discount and the business tax rate
+           3. insert one sale line per product line
+           4. insert each line's FIFO allocation rows (SaleLineCost),
+              snapshotting each lot's cost at that moment
+           5. decrement each drawn lot's remaining quantity and the
+              product's sealed stock
+           6. insert the initial payment, when one was given
+           7. set paymentStatus / amountPaid / balanceDue from the
+              payments recorded
+           8. write one audit-log row for the confirmation
    -> 201 CreateSaleResponse
 ```
 
-A sale with no initial payment is `PENDING` and owes its whole total. An `initialPayment` opens the sale at the status it names: `PAID` with no amount settles the whole total, `PARTIALLY_PAID` records the amount it names and keeps a balance, and `PENDING` records nothing. The initial payment block is optional and a blank one is dropped by the shared validation, so the untouched payment section of the new-sale form never trips a required error.
+The optional body fields:
 
-`discount` is an optional whole-sale reduction, never a per-line one. It is stored on the sale as entered, subtracted from the line subtotal before the tax rate is applied, so the total is the discounted amount plus tax. A blank field is no discount and leaves the stored value empty. A discount larger than the line subtotal is refused with a `discount` field error rather than swallowed, since it would mean taking off more than the goods are worth.
+| Field            | Behavior                                                                                                                                                                                                                                                 |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `initialPayment` | opens the sale at the status it names: `PAID` with no amount settles the whole total, `PARTIALLY_PAID` records the amount it names, `PENDING` records nothing. Blank is dropped by validation; with none the sale is `PENDING` and owes its whole total. |
+| `discount`       | a whole-sale reduction, never per-line; subtracted from the line subtotal before tax is applied, and refused when larger than it. Blank stores no discount.                                                                                              |
+| `customerId`     | attributes the sale to an active customer of the business, without affecting totals or payment status.                                                                                                                                                   |
+| `serverMemberId` | attributes the sale to the active member with role `SERVER` who took the order; reads back as `servedBy`, separate from `processedBy`.                                                                                                                   |
 
-`customerId` is an optional attribution, independent of the payment: a sale may name an existing customer of the business, with or without a payment, and the link never affects the totals or the payment status. The API rejects an id that is not an active customer of the acting business, so a sale can never be attributed across businesses. A sale with no customer omits the field and stores none; see [customers.md](customers.md).
-
-`serverMemberId` is an optional whole-sale attribution, separate from who processed the sale: it names the member with role `SERVER` who took the order. The API rejects an id that is not an active server of the acting business, so attribution can never cross businesses or point at a member who does not take orders. The acting member recorded as `processedBy` is unchanged; the tagged server reads back as `servedBy` on the sale. A sale with no server omits the field and stores none. The candidates for the picker come from `GET /api/businesses/:businessId/members?role=SERVER`.
-
-When a draw would take sealed stock below zero, the recording still proceeds and the response carries the resulting stock unless the business has `allowNegativeStock` turned off, in which case the whole request is rejected. The warning itself is surfaced by the client, which already holds each product's current stock.
+When a draw would take sealed stock below zero the sale is still recorded unless the business disallows negative stock, in which case the whole request is refused; the warning is surfaced by the client, which already holds each product's current stock.
 
 ### GET /api/businesses/:businessId/sales
 
@@ -95,7 +124,7 @@ Client -> Authorization: Bearer <jwt>
    -> 200 [ SaleSummaryResponse, ... ]
 ```
 
-An empty history is a `200` with an empty list, not a `404`. `SaleListFilters.from` and `.to` are ISO 8601 instants, the form they take in the query string.
+An empty history is a `200` with an empty list, not a `404`. `SaleListFilters.from` and `.to` are ISO 8601 instants, the form they take in the query string. The filters are the target contract; the API does not apply them yet.
 
 ### GET /api/businesses/:businessId/sales/:saleId
 
@@ -112,6 +141,8 @@ Client -> Authorization: Bearer <jwt>
 ```
 
 ### PUT /api/businesses/:businessId/sales/:saleId
+
+_Planned — not yet exposed by the API._
 
 Edits a sale. Lines are restated wholesale, the way a batch is edited: a line with an `id` updates in place, one without is inserted, and an existing line left out of the payload is removed. Totals, amount paid, balance due and status are recomputed after every edit.
 
@@ -178,6 +209,8 @@ The full sale is returned rather than the bare payment, because recording one pa
 
 ### POST /api/businesses/:businessId/sales/:saleId/void
 
+_Planned — not yet exposed by the API._
+
 Voids a sale — a full reversal of something that shouldn't have happened.
 
 ```
@@ -197,6 +230,8 @@ Client -> Authorization: Bearer <jwt> + VoidSaleInput body
 ```
 
 ### POST /api/businesses/:businessId/sales/:saleId/refund
+
+_Planned — not yet exposed by the API._
 
 Refunds a sale — it happened, the goods came back. Each line restocks according to its product's default unless the request overrides it for that sale.
 
@@ -220,6 +255,8 @@ Client -> Authorization: Bearer <jwt> + RefundSaleInput body
 
 ### GET /api/businesses/:businessId/sales/:saleId/invoice
 
+_Planned — not yet exposed by the API._
+
 Builds the shareable invoice, from what is on the sale plus the business's display settings, never from current product data.
 
 ```
@@ -232,7 +269,15 @@ Client -> Authorization: Bearer <jwt>
    -> 200 SaleInvoiceResponse
 ```
 
-### Error concepts
+## Limitations
+
+- **Update, void, refund and the invoice are documented but not implemented.** The API exposes list, get, create and record-payment only; their validation rules exist but no service, repository or route uses them.
+- **No audit-log writes.** The sale actions and entity type exist in the schema, but no sale write records one.
+- **List filters are ignored.** The status, date-range and product filters are part of the contract, but the API returns the whole list.
+- **Stock is business-scoped while sales are branch-scoped.** A sale is scoped to one branch but draws from the business's lots, so stock can move across branches.
+- **The payment status is caller-asserted.** A sale can read `PAID` and still carry a balance, and an overpayment is kept while the balance floors at zero.
+
+## Error concepts
 
 - Unauthenticated request: the identity cannot be established.
 - Not your business: the business is not one the caller belongs to, or it has no branch to scope to.
@@ -247,8 +292,22 @@ Client -> Authorization: Bearer <jwt>
 
 Every failure is delivered as a structured error envelope by the global error handler; see [error-handling.md](error-handling.md).
 
+## Design rationale / invariants
+
+- **Scope is derived, never trusted.** Business, branch and the acting member come from the resolved session; a named customer or server is re-checked against the business before it is stored.
+- **A sale is one unit of work.** The header, lines, payments, cost allocations and stock decrements are written in a single transaction, so a sale is never half-recorded.
+- **Nothing about a line is read live.** The product name, units, quantity and price are snapshotted at sale time, so later catalog changes never rewrite history.
+- **Payments are re-summed, not trusted.** A recorded payment appends a row, and the sale's amount paid, balance and status are recomputed from all its rows.
+- **Stock is drawn oldest-lot-first.** Each line consumes the oldest purchase lots first, splitting across lots and freezing each lot's cost at the draw.
+
 ## Cross-references
 
-- [../unit-system-architecture.md](../unit-system-architecture.md) — how a sale
-  line's snapshotted standard-unit figure is computed, and why the schema cannot
-  detect a wrong unit or quantity entered at sale time.
+- [auth.md](auth.md) — how the acting owner is resolved.
+- [business.md](business.md) — where the business, its branch and tax settings come from.
+- [customers.md](customers.md) — the customer a sale may be attributed to.
+- [members.md](members.md) — the server attribution and member roles.
+- [products.md](products.md) — the products and units a sale line is built from.
+- [inventory.md](inventory.md) — where the stock a sale draws comes from.
+- [error-handling.md](error-handling.md) — the structured error envelope.
+- [../schema.md](../schema.md) — the `Sale`, `SaleLine`, `SaleLineCost` and `Payment` entities.
+- [../unit-system-architecture.md](../unit-system-architecture.md) — how a sale line's snapshotted standard-unit figure is computed.
