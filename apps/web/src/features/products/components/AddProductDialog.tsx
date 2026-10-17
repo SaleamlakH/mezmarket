@@ -2,7 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { Controller } from 'react-hook-form';
 import { ChevronLeft, Image } from 'lucide-react';
 import { Button } from '@/components/Button';
-import { Dialog } from '@/components/Dialog';
+import { Dialog, DialogHeader } from '@/components/Dialog';
 import { Disclosure } from '@/components/Disclosure';
 import { Field } from '@/components/Field';
 import { Input } from '@/components/Input';
@@ -427,7 +427,8 @@ export function AddProductDialog({ open, businessId, onClose, onCreated }: AddPr
   );
 
   return (
-    <Dialog open={open} title="Add product" onClose={onClose} size="lg">
+    <Dialog open={open} onClose={onClose} size="lg">
+      <DialogHeader title="Add product" onClose={onClose} />
       {open && <ProductForm businessId={businessId} onCreated={handleCreated} onClose={onClose} />}
     </Dialog>
   );

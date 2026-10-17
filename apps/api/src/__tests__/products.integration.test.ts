@@ -964,6 +964,7 @@ describe('products.integration', () => {
           conversionRate: null,
           purchaseCapable: true,
           sellCapable: true,
+          price: 120.5,
         },
         {
           id: 'pu-box',
@@ -974,6 +975,7 @@ describe('products.integration', () => {
           conversionRate: 6,
           purchaseCapable: false,
           sellCapable: true,
+          price: 5,
         },
         {
           id: 'pu-bag',
@@ -984,6 +986,7 @@ describe('products.integration', () => {
           conversionRate: 1,
           purchaseCapable: false,
           sellCapable: true,
+          price: null,
         },
         {
           id: 'pu-zip',
@@ -994,6 +997,7 @@ describe('products.integration', () => {
           conversionRate: 1,
           purchaseCapable: false,
           sellCapable: true,
+          price: null,
         },
       ]);
     });

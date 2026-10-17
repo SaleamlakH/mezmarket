@@ -36,6 +36,7 @@ import {
   Field,
   Input,
   PasswordInput,
+  Select,
   ListCard,
   RailCard,
   SectionHeader,
@@ -45,6 +46,7 @@ import {
   LoadingState,
   ErrorState,
   EmptyState,
+  SuccessState,
   StateSwitcher,
   type SectionState,
   Table,
@@ -91,6 +93,12 @@ function Swatch({ bg, name, token }: { bg: string; name: string; token: string }
 }
 
 const mono = 'font-mono';
+
+const selectOptions = [
+  { value: 'cash', label: 'Cash' },
+  { value: 'card', label: 'Card' },
+  { value: 'transfer', label: 'Bank transfer' },
+];
 
 /* ---------- panels ---------- */
 
@@ -286,7 +294,8 @@ function ButtonsPanel() {
                 <Button
                   key="sh"
                   variant="secondary"
-                  className="border-(--text-muted) bg-(--surface-primary)"
+                  style={{ backgroundColor: 'var(--surface-primary)' }}
+                  className="border-(--text-muted)"
                 >
                   Button
                 </Button>,
@@ -299,7 +308,11 @@ function ButtonsPanel() {
                 <Button key="o" variant="outline">
                   Button
                 </Button>,
-                <Button key="oh" variant="outline" className="border-(--accent) text-(--accent)">
+                <Button
+                  key="oh"
+                  variant="outline"
+                  style={{ backgroundColor: 'var(--accent)', color: '#fff' }}
+                >
                   Button
                 </Button>,
                 <Button key="od" disabled>
@@ -331,6 +344,36 @@ function ButtonsPanel() {
           ))}
         </tbody>
       </table>
+      <PanelSub>Sizes · pill & square</PanelSub>
+      <div className="flex flex-wrap items-start gap-2">
+        <Button size="sm" shape="pill">
+          <Plus size={16} aria-hidden /> Add
+        </Button>
+        <Button size="md" shape="pill">
+          <Plus size={16} aria-hidden /> Add
+        </Button>
+        <Button size="lg" shape="pill">
+          <Plus size={16} aria-hidden /> Add
+        </Button>
+        <Button size="sm" shape="square" aria-label="Add (sm)">
+          <Plus size={16} aria-hidden />
+        </Button>
+        <Button size="md" shape="square" aria-label="Add (md)">
+          <Plus size={16} aria-hidden />
+        </Button>
+        <Button size="lg" shape="square" aria-label="Add (lg)">
+          <Plus size={16} aria-hidden />
+        </Button>
+      </div>
+      <PanelSub>Sizes · custom via className</PanelSub>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button size="lg" className="h-14 rounded-xl px-8 text-base">
+          Roomier
+        </Button>
+        <Button size="lg" shape="square" className="h-14 w-14 rounded-xl">
+          <Plus size={22} aria-hidden />
+        </Button>
+      </div>
       <PanelSub>Category chips</PanelSub>
       <div className="flex flex-wrap gap-2">
         <Chip active>Products +</Chip>
@@ -360,16 +403,37 @@ function ControlsPanel() {
       <PanelSub>Search + filter</PanelSub>
       <SearchInput placeholder="Search batch and items" onFilter={() => {}} />
       <PanelSub>Quantity stepper</PanelSub>
-      <Stepper value={count} onChange={setCount} />
+      <div className="flex flex-col self-start gap-4">
+        <Stepper size="sm" value={count} onChange={setCount} className="w-64" />
+        <Stepper size="md" value={count} onChange={setCount} className="w-64" />
+        <Stepper size="lg" value={count} onChange={setCount} className="w-64" />
+        <Stepper size="sm" variant="text" value={count} onChange={setCount} className="w-64" />
+      </div>
+      <div className="mt-1.5 grid grid-cols-4 gap-2 font-mono text-[10px] text-(--text-muted)">
+        <span>field · sm</span>
+        <span>field · md</span>
+        <span>field · lg</span>
+        <span>text · sm</span>
+      </div>
+      <PanelSub>Stepper · custom via className</PanelSub>
+      <Stepper size="lg" value={count} onChange={setCount} className="w-80 gap-4" />
       <PanelSub>Status toggle</PanelSub>
-      <StatusToggle
-        options={[
-          { value: 'pending', label: 'Pending' },
-          { value: 'paid', label: 'Paid' },
-        ]}
-        value={status}
-        onChange={(v) => setStatus(v as 'pending' | 'paid')}
-      />
+      <StatusToggle value={status} onChange={setStatus}>
+        <Button
+          value="pending"
+          variant="secondary"
+          className="flex-1 aria-pressed:border-(--warning) aria-pressed:bg-(--warning) aria-pressed:text-white aria-pressed:hover:border-(--warning) aria-pressed:hover:bg-(--warning)"
+        >
+          Pending
+        </Button>
+        <Button
+          value="paid"
+          variant="secondary"
+          className="flex-1 aria-pressed:border-(--positive) aria-pressed:bg-(--positive) aria-pressed:text-white aria-pressed:hover:border-(--positive) aria-pressed:hover:bg-(--positive)"
+        >
+          Paid
+        </Button>
+      </StatusToggle>
     </Panel>
   );
 }
@@ -471,6 +535,7 @@ function CardsPanel() {
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
         <RailCard
           variant="thumbnail"
+          thumbVariant="wide"
           className="shadow-(--shadow-md)"
           badge={<Badge tone="warning">Low</Badge>}
           badgePosition="overlay"
@@ -603,10 +668,29 @@ function LoadingErrorPanel() {
           }
         />
       )}
+      {state === 'success' && (
+        <SuccessState>
+          <div className="flex flex-col gap-1">
+            <p className="m-0 text-[13px] font-semibold text-(--text)">Product saved</p>
+            <p className="m-0 text-xs text-(--text-muted)">It now shows in your catalog.</p>
+          </div>
+
+          <dl className="m-0 flex w-full flex-col gap-1.5 rounded-lg border border-(--border) bg-(--surface-primary) p-3 text-left">
+            <div className="flex items-baseline justify-between gap-3">
+              <dt className="text-[11px] text-(--text-muted)">Product</dt>
+              <dd className="m-0 font-mono text-xs tabular-nums text-(--text)">Product Name</dd>
+            </div>
+            <div className="flex items-baseline justify-between gap-3">
+              <dt className="text-[11px] text-(--text-muted)">Stock</dt>
+              <dd className="m-0 font-mono text-xs tabular-nums text-(--text)">24 cases</dd>
+            </div>
+          </dl>
+        </SuccessState>
+      )}
       <p className="mt-3.5 font-mono text-[11px] text-(--text-muted)">
         The switcher is dev scaffolding — it previews each state by hand until query status drives
-        them, then it goes away. Loading / error / empty share the dashed EmptyState card, so they
-        swap in place.
+        them, then it goes away. Loading / error / empty / success share the dashed-state card
+        footprint, so they swap in place.
       </p>
     </Panel>
   );
@@ -615,6 +699,37 @@ function LoadingErrorPanel() {
 function FormsPanel() {
   return (
     <Panel span="md:col-span-8" title="Form inputs">
+      <PanelSub>Input sizes</PanelSub>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="w-40">
+          <Input size="sm" placeholder="sm" />
+        </div>
+        <div className="w-40">
+          <Input size="md" placeholder="md" />
+        </div>
+        <div className="w-40">
+          <Input size="lg" placeholder="lg" />
+        </div>
+        <div className="w-56">
+          <Input size="md" placeholder="custom via className" className="rounded-full" />
+        </div>
+      </div>
+      <PanelSub>Select sizes</PanelSub>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="w-40">
+          <Select size="sm" options={selectOptions} />
+        </div>
+        <div className="w-40">
+          <Select size="md" options={selectOptions} />
+        </div>
+        <div className="w-40">
+          <Select size="lg" options={selectOptions} />
+        </div>
+        <div className="w-56">
+          <Select size="md" options={selectOptions} className="rounded-full" />
+        </div>
+      </div>
+      <PanelSub>States</PanelSub>
       <div className="flex max-w-[360px] flex-col gap-4">
         <Field label="Email" hint="Default — rests on --field, --border">
           <Input placeholder="you@business.com" />

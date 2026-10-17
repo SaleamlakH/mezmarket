@@ -1,5 +1,4 @@
 import type {
-  BusinessMember,
   CreateBatchInput,
   CreateBatchLineInput,
   CreateBatchResult,
@@ -15,9 +14,10 @@ import type {
   Attachment as AttachmentRecord,
   Product,
   StockBatchLine as StockBatchLineRecord,
-  StandardUnit,
-  ProductUnit,
 } from '../../../generated/prisma/client.js';
+
+import type { ProductUnitContext } from '../../shared/types/unit.types.js';
+import type { Actor, MemberSummary, Scope } from '../../shared/types/session.types.js';
 
 export type {
   CreateBatchInput,
@@ -29,25 +29,7 @@ export type {
   UnitRole,
 };
 
-/**
- * A `Decimal` column as Prisma hands it back. The service narrows these to
- * the plain numbers the wire contract uses.
- */
-export type StoredDecimal = {
-  toNumber(): number;
-};
-
-export type StandardUnitContext = Pick<StandardUnit, 'id' | 'name' | 'symbol'>;
-
-/**
- * A product's units, trimmed to the fields the unit math walks: the role that
- * places it in the hierarchy, the standard unit it resolves to (null for a
- * CUSTOM row, which is what makes the walk continue), the unit its own factor
- * is relative to, and whether stock may be bought in it.
- */
-export type ProductUnitContext = Omit<ProductUnit, 'price'> & {
-  standardUnit: StandardUnitContext | null;
-};
+export type { ProductUnitContext };
 
 export type ProductContext = {
   id: string;
@@ -112,30 +94,13 @@ export type StockBatchLineRecordWithResolvedProduct = StockBatchLineRecord & {
   };
 };
 
-export type BusinessMemberContext = Pick<BusinessMember, 'id' | 'name' | 'role'>;
-
 export type StockBatchRecord = StockBatch & {
   lines: StockBatchLineRecordWithResolvedProduct[];
-  receivedByMember: BusinessMemberContext | null;
-};
-
-/**
- * The scope the business module's authorize middleware resolved onto the
- * request by the time a controller runs.
- */
-export type BatchActor = {
-  businessId: string;
-  branchId: string;
-  memberId: string;
-};
-
-export type BatchScope = {
-  businessId: string;
-  branchId: string;
+  receivedByMember: MemberSummary | null;
 };
 
 export type ProductWithStockLinesRecord = Product & {
-  productUnits: ProductUnit[];
+  productUnits: ProductUnitContext[];
   stockBatchLines: StockBatchLineRecord[];
 };
 
@@ -151,7 +116,7 @@ export type BatchRepository = {
 };
 
 export type BatchService = {
-  createBatch(actor: BatchActor, input: CreateBatchInput): Promise<CreateBatchResult>;
-  listBatches(scope: BatchScope): Promise<StockBatchDetailResult[]>;
-  listProductInventorySummaries(scope: BatchScope): Promise<ProductInventorySummary[]>;
+  createBatch(actor: Actor, input: CreateBatchInput): Promise<CreateBatchResult>;
+  listBatches(scope: Scope): Promise<StockBatchDetailResult[]>;
+  listProductInventorySummaries(scope: Scope): Promise<ProductInventorySummary[]>;
 };

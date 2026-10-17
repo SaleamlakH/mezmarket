@@ -3,6 +3,8 @@ import { createBrowserRouter, Navigate } from 'react-router';
 import { AuthProvider } from './providers/auth-provider/AuthProvider';
 import { BusinessProvider } from './providers/business/BusinessProvider';
 import { CatalogProvider } from './providers/catalog/CatalogProvider';
+import { CustomersProvider } from './providers/customers/CustomersProvider';
+import { MembersProvider } from './providers/members/MembersProvider';
 import { ThemeProvider } from './providers/theme/ThemeProvider';
 import { useAuthContext } from './providers/auth-provider/useAuthContext';
 import { RouterProvider } from 'react-router/dom';
@@ -19,13 +21,19 @@ import { DesignSystem } from './DesignSystem';
 import { AppLayout } from './layouts/AppLayout';
 import { DashboardPage } from './features/dashboard/pages/DashboardPage';
 import { ProductsPage } from './features/products/pages/ProductsPage';
+import { SaleDock } from './features/sales/components/SaleDock';
 import { SalesPage } from './features/sales/pages/SalesPage';
+import { AllSalesPage } from './features/sales/pages/AllSalesPage';
+import { SaleDetailPage } from './features/sales/pages/SaleDetailPage';
+import { SaleDraftProvider } from './features/sales/state/SaleDraftProvider';
 import { InventoryPage } from './features/inventory/pages/InventoryPage';
 import { BatchesPage } from './features/inventory/pages/BatchesPage';
 import { SettingsPage } from './features/settings/pages/SettingsPage';
 import { BusinessProfilePage } from './features/business/pages/BusinessProfilePage';
 import { businessService } from './features/business/api/businessService';
 import { productsService } from './features/products/api/productsService';
+import { customersService } from './features/customers/api/customersService';
+import { membersService } from './features/members/api/membersService';
 import { CreateBusinessPage } from './features/business/pages/CreateBusinessPage';
 import { OwnerProfilePage } from './features/owner-profile/pages/OwnerProfilePage';
 import { ownerApi } from './features/owner-profile/api/ownerApi';
@@ -48,12 +56,28 @@ const router = createBrowserRouter([
         element: <BusinessGate />,
         children: [
           {
-            element: <AppLayout />,
+            element: (
+              <SaleDraftProvider>
+                <AppLayout />
+              </SaleDraftProvider>
+            ),
             children: [
               { index: true, element: <Navigate to="dashboard" replace /> },
               { path: 'dashboard', element: <DashboardPage /> },
               { path: 'products', element: <ProductsPage /> },
-              { path: 'sales', element: <SalesPage /> },
+              {
+                path: 'sales',
+                element: <SalesPage />,
+                handle: { aside: SaleDock },
+              },
+              {
+                path: 'sales/all',
+                element: <AllSalesPage />,
+              },
+              {
+                path: 'sales/:saleId',
+                element: <SaleDetailPage />,
+              },
               { path: 'inventory', element: <InventoryPage /> },
               { path: 'inventory/batches', element: <BatchesPage /> },
               { path: 'settings', element: <SettingsPage /> },
@@ -114,11 +138,15 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider authService={supabaseAuthService}>
         <CatalogProvider catalogService={productsService}>
-          <AppProviders>
-            <ThemeProvider>
-              <RouterProvider router={router} />
-            </ThemeProvider>
-          </AppProviders>
+          <CustomersProvider customersService={customersService}>
+            <MembersProvider membersService={membersService}>
+              <AppProviders>
+                <ThemeProvider>
+                  <RouterProvider router={router} />
+                </ThemeProvider>
+              </AppProviders>
+            </MembersProvider>
+          </CustomersProvider>
         </CatalogProvider>
       </AuthProvider>
     </QueryClientProvider>

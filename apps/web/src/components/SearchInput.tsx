@@ -1,5 +1,5 @@
 import { Search } from 'lucide-react';
-import { IconButton } from './IconButton';
+import { Button } from './Button';
 import { Filter } from 'lucide-react';
 
 export interface SearchInputProps {
@@ -27,7 +27,18 @@ export function SearchInput({
           className="focus-ring h-full w-full border-none bg-transparent text-[13px] text-(--text) outline-none placeholder:text-(--text-muted)"
         />
       </label>
-      {onFilter && <IconButton label="Filter" icon={<Filter size={16} />} onClick={onFilter} />}
+      {onFilter && (
+        <Button
+          type="button"
+          shape="square"
+          variant="field"
+          aria-label="Filter"
+          title="Filter"
+          onClick={onFilter}
+        >
+          <Filter size={16} aria-hidden />
+        </Button>
+      )}
     </div>
   );
 }

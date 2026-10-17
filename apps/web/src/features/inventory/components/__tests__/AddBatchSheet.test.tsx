@@ -8,7 +8,7 @@ import type { BusinessContextValue } from '@/providers/business/types';
 import type { CatalogService } from '@/providers/catalog/types';
 import { AddBatchSheet } from '../AddBatchSheet';
 import { inventoryService } from '../../api/inventoryService';
-import { inventoryKeys } from '../../hooks/useInventoryApi';
+import { catalogKeys } from '@/hooks/useCatalogApi';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
 import { useCatalogService } from '@/providers/catalog/useCatalogService';
 import { batches, products, purchasableUnitsByProductId } from '../../__tests__/fixtures';
@@ -37,7 +37,7 @@ const catalogService = {
   getProductUploadUrls: vi.fn(),
 } satisfies CatalogService;
 
-vi.mock('../../hooks/useCurrency', () => ({ useCurrency: () => 'ETB' }));
+vi.mock('@/hooks/useCurrency', () => ({ useCurrency: () => 'ETB' }));
 
 beforeAll(() => {
   window.HTMLDialogElement.prototype.showModal = function showModal(this: HTMLDialogElement) {
@@ -238,13 +238,13 @@ describe('AddBatchSheet', () => {
     const user = userEvent.setup();
 
     await addTequilaLine(user);
-    expect(client.getQueryData(inventoryKeys.products('b1'))).toBeDefined();
-    expect(client.getQueryData(inventoryKeys.productUnits('b1', 'prod_tequila'))).toBeDefined();
+    expect(client.getQueryData(catalogKeys.products('b1'))).toBeDefined();
+    expect(client.getQueryData(catalogKeys.productUnits('b1', 'prod_tequila'))).toBeDefined();
 
     await user.click(screen.getByRole('button', { name: 'Close' }));
 
     expect(onClose).toHaveBeenCalledTimes(1);
-    expect(client.getQueryData(inventoryKeys.products('b1'))).toBeUndefined();
-    expect(client.getQueryData(inventoryKeys.productUnits('b1', 'prod_tequila'))).toBeUndefined();
+    expect(client.getQueryData(catalogKeys.products('b1'))).toBeUndefined();
+    expect(client.getQueryData(catalogKeys.productUnits('b1', 'prod_tequila'))).toBeUndefined();
   }, 15_000);
 });

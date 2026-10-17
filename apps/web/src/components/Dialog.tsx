@@ -1,9 +1,8 @@
-import { type ReactNode, useEffect, useId, useRef } from 'react';
+import { type ReactNode, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 
 export interface DialogProps {
   open: boolean;
-  title: string;
   onClose: () => void;
   children: ReactNode;
   size?: 'md' | 'lg';
@@ -14,8 +13,37 @@ const SIZES: Record<NonNullable<DialogProps['size']>, string> = {
   lg: 'md:max-w-[640px]',
 };
 
-export function Dialog({ open, title, onClose, children, size = 'md' }: DialogProps) {
-  const titleId = useId();
+export interface DialogHeaderProps {
+  title: string;
+  onClose: () => void;
+}
+
+/**
+ * The header and close button a sheet leads with. Kept separate from `Dialog`
+ * so each sheet owns its own title while the container stays a plain shell.
+ */
+export function DialogHeader({ title, onClose }: DialogHeaderProps) {
+  return (
+    <header className="flex shrink-0 items-center justify-between gap-3 pt-3 pb-2">
+      <h2 className="m-0 text-base font-bold text-(--text)">{title}</h2>
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Close"
+        className="focus-ring -mr-1 inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-(--border) bg-(--field) text-(--text-muted) transition-colors hover:text-(--text)"
+      >
+        <X size={16} aria-hidden />
+      </button>
+    </header>
+  );
+}
+
+/**
+ * A plain sheet shell: a bottom modal on phones and a centered dialog on larger
+ * screens. It handles opening, backdrop dismissal and scroll locking only — the
+ * content, including any header, is entirely up to the caller.
+ */
+export function Dialog({ open, onClose, children, size = 'md' }: DialogProps) {
   const panelRef = useRef<HTMLDialogElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
 
@@ -53,7 +81,6 @@ export function Dialog({ open, title, onClose, children, size = 'md' }: DialogPr
   return (
     <dialog
       ref={panelRef}
-      aria-labelledby={titleId}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
@@ -63,19 +90,6 @@ export function Dialog({ open, title, onClose, children, size = 'md' }: DialogPr
         aria-hidden
         className="mx-auto mt-2 mb-1 h-1 w-9 shrink-0 rounded-full bg-(--border) md:hidden"
       />
-      <header className="flex shrink-0 items-center justify-between gap-3 px-4.5 pt-3 pb-2">
-        <h2 id={titleId} className="m-0 text-base font-bold text-(--text)">
-          {title}
-        </h2>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close"
-          className="focus-ring -mr-1 inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-(--border) bg-(--field) text-(--text-muted) transition-colors hover:text-(--text)"
-        >
-          <X size={16} aria-hidden />
-        </button>
-      </header>
       <div className="min-h-0 grow overflow-y-auto overscroll-contain px-4.5 pb-[max(1.25rem,env(safe-area-inset-bottom))] md:overflow-y-auto">
         {children}
       </div>

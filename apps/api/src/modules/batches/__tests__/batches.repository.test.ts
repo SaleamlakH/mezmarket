@@ -123,7 +123,7 @@ describe('batches.repository', () => {
     vi.clearAllMocks();
   });
 
-describe('getProductUnitContext', () => {
+  describe('getProductUnitContext', () => {
     it('reads the named products of the business with the fields the unit math walks', async () => {
       const { prisma, product } = createPrismaStub();
       const repo = createBatchRepository(prisma);
@@ -209,7 +209,7 @@ describe('getProductUnitContext', () => {
       });
     });
 
-    it('writes each resolved line against the created batch, without its stock movement', async () => {
+    it('writes each resolved line against the created batch, seeding its remaining stock', async () => {
       const { prisma, tx } = createPrismaStub();
       const repo = createBatchRepository(prisma);
       registerSuccess(tx);
@@ -229,7 +229,45 @@ describe('getProductUnitContext', () => {
             standardQuantity: 10,
             resolvedStandardUnitId: 'su-pc',
             expiryDate: null,
+            quantityRemaining: 10,
           },
+        ],
+        include: { product: { select: { name: true, brand: true } } },
+      });
+    });
+
+    it("seeds each line's remaining stock in the base unit, whatever unit it was bought in", async () => {
+      const { prisma, tx } = createPrismaStub();
+      const repo = createBatchRepository(prisma);
+      registerSuccess(tx);
+
+      await repo.createBatchAndAdjustStock(
+        command({
+          lines: [
+            {
+              productId: 'p-tequila',
+              productUnitId: 'pu-case',
+              purchaseUnit: 'Case (12 bottles)',
+              purchaseQuantity: 1,
+              purchaseUnitCost: 11400,
+              standardUnit: 'pc',
+              standardQuantity: 12,
+              resolvedStandardUnitId: 'su-pc',
+              expiryDate: null,
+              stockIncrement: 12,
+            },
+          ],
+          stockIncrements: [{ productId: 'p-tequila', amount: 12 }],
+        }),
+      );
+
+      expect(tx.stockBatchLine.createManyAndReturn).toHaveBeenCalledWith({
+        data: [
+          expect.objectContaining({
+            purchaseQuantity: 1,
+            standardQuantity: 12,
+            quantityRemaining: 12,
+          }),
         ],
         include: { product: { select: { name: true, brand: true } } },
       });
@@ -365,7 +403,9 @@ describe('getProductUnitContext', () => {
 
   describe('listProductsWithStockLines', () => {
     const INVENTORY_INCLUDE = {
-      productUnits: { where: { unitRole: 'BASE' }, take: 1 },
+      productUnits: {
+        include: { standardUnit: { select: { id: true, name: true, symbol: true } } },
+      },
       stockBatchLines: { where: { quantityRemaining: { gt: 0 } } },
     };
 
@@ -385,7 +425,7 @@ describe('getProductUnitContext', () => {
       });
     });
 
-it('returns the product rows the query answered with', async () => {
+    it('returns the product rows the query answered with', async () => {
       const { prisma, product, attachment } = createPrismaStub();
       const repo = createBatchRepository(prisma);
       const rows = [

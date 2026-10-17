@@ -219,11 +219,22 @@ guessing a conversion.
 - **There is no draft state.** `confirmedAt` is always set on creation, so the
   freely-editable draft the schema allows for is never produced.
 
-- **The derived figures read empty.** The remaining cost, nearest expiry, expiry
-  count and batch count are all computed from lines still holding stock, but a
-  line is written with its remaining quantity at its zero default and nothing
-  ever sets it, so those figures come back empty or zero while on-hand stock is
-  correct.
+- **Stock draws are whole-unit only.** A line is written with its remaining
+  quantity set to the stock it added, in the product's base unit, and draw and
+  restore both move that figure in whole base units. The partial-container flow
+  the units otherwise allow for — drawing from an opened bottle rather than a
+  sealed one — is not recorded against a lot, so every draw is taken from sealed
+  stock.
+
+- **A line whose purchase unit is missing drops its cost silently.** A product's
+  remaining cost is derived line by line: the quantity bought is converted to
+  base units through the unit's live conversion facts, then scaled by the
+  fraction still unsold. A line whose purchased unit is no longer among the
+  product's units has no rate to convert with, so it contributes nothing and the
+  product's `totalCost` is understated — with no error and no marker on the
+  response. Units cannot currently be deleted, so this is a defensive branch
+  rather than a reachable state, but the summary would not surface it if it ever
+  happened.
 
 - **Lists are unbounded.** A branch's batches and products are returned whole,
   with no pagination or limit, so the reads scale with the size of the catalog
@@ -307,4 +318,6 @@ handler; see [error-handling.md](error-handling.md).
   (§3.3, §4.2, §5).
 - [../schema.md](../schema.md) — the `StockBatch`, `StockBatchLine` and
   `ProductUnit` entities.
+- [../unit-system-architecture.md](../unit-system-architecture.md) — the unit
+  model, conversion math, and the integrity limits of the schema.
 - [../architecture.md](../architecture.md) — overall system design.

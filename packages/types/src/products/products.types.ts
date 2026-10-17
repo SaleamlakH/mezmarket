@@ -114,6 +114,9 @@ export type ProductUnitResponse = RequireAllKeys<
  * A transactable unit of a product, as returned by the per-product units
  * endpoint, projected off the domain shape down to what a unit picker row
  * renders.
+ *
+ * `price` is the unit's selling price, so a sale line can show its unit price
+ * and a running subtotal before the sale is submitted.
  */
 export type ProductUnitOption = Pick<
   ProductUnit,
@@ -125,6 +128,7 @@ export type ProductUnitOption = Pick<
   | 'unitRole'
   | 'dependsOn'
   | 'conversionRate'
+  | 'price'
 >;
 
 /**

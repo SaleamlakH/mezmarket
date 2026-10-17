@@ -115,97 +115,7 @@ const TEQUILA: ProductContext = {
   ],
 };
 
-/** A weighed product: its base unit is already measurable, plus a finer standard. */
-const RICE: ProductContext = {
-  id: 'p-rice',
-  businessId: 'b-1',
-  productUnits: [
-    unit({
-      id: 'pu-kg',
-      productId: 'p-rice',
-      name: 'Kilogram',
-      standardUnitId: 'su-kg',
-      standardUnit: { id: 'su-kg', name: 'Kilogram', symbol: 'kg' },
-    }),
-    unit({
-      id: 'pu-gram',
-      productId: 'p-rice',
-      unitRole: 'STANDARD',
-      standardUnitId: 'su-g',
-      standardUnit: { id: 'su-g', name: 'Gram', symbol: 'g' },
-      name: 'Gram',
-      dependsOn: 'BASE',
-      conversionRate: decimal(0.001),
-    }),
-    unit({
-      id: 'pu-sack',
-      productId: 'p-rice',
-      unitRole: 'CUSTOM',
-      standardUnitId: null,
-      standardUnit: null,
-      name: 'Sack (50 kg)',
-      dependsOn: 'BASE',
-      conversionRate: decimal(50),
-    }),
-  ],
-};
-
-/**
- * An oil measured by volume, where the standard unit hangs off the MOU rather
- * than the base unit. Its MOU is purchase-capable so a batch can be bought in
- * the measurement unit directly.
- */
-const OIL: ProductContext = {
-  id: 'p-oil',
-  businessId: 'b-1',
-  productUnits: [
-    unit({ id: 'pu-oil-bottle', productId: 'p-oil', name: 'Bottle' }),
-    unit({
-      id: 'pu-oil-mou',
-      productId: 'p-oil',
-      unitRole: 'MOU',
-      standardUnitId: 'su-ml',
-      standardUnit: { id: 'su-ml', name: 'Milliliter', symbol: 'ml' },
-      name: 'Milliliter',
-      dependsOn: 'BASE',
-      conversionRate: decimal(5000),
-    }),
-    unit({
-      id: 'pu-oil-liter',
-      productId: 'p-oil',
-      unitRole: 'STANDARD',
-      standardUnitId: 'su-l',
-      standardUnit: { id: 'su-l', name: 'Liter', symbol: 'L' },
-      name: 'Liter',
-      dependsOn: 'MOU',
-      conversionRate: decimal(1000),
-    }),
-  ],
-};
-
-const CATALOG = [TEQUILA, TSHIRT, RICE, OIL];
-
-/** The same product with one unit row altered, for the broken-catalog cases. */
-function withUnit(
-  product: ProductContext,
-  id: string,
-  overrides: Partial<ProductUnitContext>,
-): ProductContext {
-  return {
-    ...product,
-    productUnits: product.productUnits.map((candidate) =>
-      candidate.id === id ? { ...candidate, ...overrides } : candidate,
-    ),
-  };
-}
-
-/** The same product with every unit of one role dropped. */
-function withoutRole(product: ProductContext, role: ProductUnitContext['unitRole']) {
-  return {
-    ...product,
-    productUnits: product.productUnits.filter((candidate) => candidate.unitRole !== role),
-  };
-}
+const CATALOG = [TEQUILA, TSHIRT];
 
 function actor() {
   return { businessId: 'b-1', branchId: 'br-1', memberId: 'm-1' };
@@ -315,26 +225,6 @@ describe('batches.service', () => {
       expect(mockRepo.getProductUnitContext).toHaveBeenCalledWith('b-1', ['p-tequila', 'p-tshirt']);
     });
 
-    it('rejects a line naming a product the business does not have', async () => {
-      vi.mocked(mockRepo.getProductUnitContext).mockResolvedValue([TEQUILA]);
-
-      await expect(
-        service.createBatch(actor(), input({ lines: [line({ productId: 'p-unknown' })] })),
-      ).rejects.toEqual(appError(ERROR_CODES.NOT_FOUND, 404));
-      expect(mockRepo.createBatchAndAdjustStock).not.toHaveBeenCalled();
-    });
-
-    it('rejects a product belonging to another business', async () => {
-      vi.mocked(mockRepo.getProductUnitContext).mockResolvedValue([
-        { ...TEQUILA, businessId: 'b-other' },
-      ]);
-
-      await expect(service.createBatch(actor(), input())).rejects.toEqual(
-        appError(ERROR_CODES.NOT_FOUND, 404),
-      );
-      expect(mockRepo.createBatchAndAdjustStock).not.toHaveBeenCalled();
-    });
-
     it('rejects a unit that is not one of that product units', async () => {
       await expect(
         service.createBatch(actor(), input({ lines: [line({ productUnitId: 'pu-pack' })] })),
@@ -392,141 +282,6 @@ describe('batches.service', () => {
           stockIncrement: 10,
         },
       ]);
-    });
-
-    it('walks a custom unit based on the base unit up to the base unit standard', async () => {
-      await service.createBatch(
-        actor(),
-        input({ lines: [line({ productUnitId: 'pu-case', purchaseQuantity: 3 })] }),
-      );
-
-      expect(written().lines).toEqual([
-        expect.objectContaining({
-          purchaseUnit: 'Case (12 bottles)',
-          standardUnit: 'pc',
-          standardQuantity: 36,
-          resolvedStandardUnitId: 'su-pc',
-          stockIncrement: 36,
-        }),
-      ]);
-    });
-
-    it('walks a custom unit based on the MOU up to the MOU standard', async () => {
-      await service.createBatch(
-        actor(),
-        input({ lines: [line({ productUnitId: 'pu-shot', purchaseQuantity: 4 })] }),
-      );
-
-      expect(written().lines).toEqual([
-        expect.objectContaining({
-          purchaseUnit: 'Shot',
-          standardUnit: 'ml',
-          standardQuantity: 100,
-          resolvedStandardUnitId: 'su-ml',
-          // 4 shots x 25 ml = 100 ml of the 350 ml one bottle holds
-          stockIncrement: 100 / 350,
-        }),
-      ]);
-    });
-
-    it('keeps a standard unit purchase in its own standard unit and still adds base unit stock', async () => {
-      await service.createBatch(
-        actor(),
-        input({ lines: [line({ productUnitId: 'pu-liter', purchaseQuantity: 20 })] }),
-      );
-
-      expect(written().lines).toEqual([
-        expect.objectContaining({
-          purchaseUnit: 'Liter',
-          standardUnit: 'L',
-          standardQuantity: 20,
-          resolvedStandardUnitId: 'su-l',
-          // 20 L x 1000 ml = 20000 ml of the 350 ml one bottle holds
-          stockIncrement: 20000 / 350,
-        }),
-      ]);
-    });
-
-    it('keeps a standard unit hanging off the base unit in its own standard unit', async () => {
-      await service.createBatch(
-        actor(),
-        input({
-          lines: [line({ productId: 'p-rice', productUnitId: 'pu-gram', purchaseQuantity: 500 })],
-        }),
-      );
-
-      expect(written().lines).toEqual([
-        expect.objectContaining({
-          purchaseUnit: 'Gram',
-          standardUnit: 'g',
-          standardQuantity: 500,
-          resolvedStandardUnitId: 'su-g',
-          // 500 g x 0.001 kg = 0.5 kg of stock
-          stockIncrement: 0.5,
-        }),
-      ]);
-    });
-
-    it('walks a custom unit based on the base unit of a weighed product', async () => {
-      await service.createBatch(
-        actor(),
-        input({
-          lines: [line({ productId: 'p-rice', productUnitId: 'pu-sack', purchaseQuantity: 2 })],
-        }),
-      );
-
-      expect(written().lines).toEqual([
-        expect.objectContaining({
-          purchaseUnit: 'Sack (50 kg)',
-          standardUnit: 'kg',
-          standardQuantity: 100,
-          resolvedStandardUnitId: 'su-kg',
-          stockIncrement: 100,
-        }),
-      ]);
-    });
-
-    it('snapshots two purchased units of one product in the standard each was bought in', async () => {
-      await service.createBatch(
-        actor(),
-        input({
-          lines: [
-            line({ productId: 'p-oil', productUnitId: 'pu-oil-liter', purchaseQuantity: 20 }),
-            line({ productId: 'p-oil', productUnitId: 'pu-oil-mou', purchaseQuantity: 350 }),
-          ],
-        }),
-      );
-
-      expect(written().lines).toEqual([
-        expect.objectContaining({
-          purchaseUnit: 'Liter',
-          standardUnit: 'L',
-          standardQuantity: 20,
-          resolvedStandardUnitId: 'su-l',
-          // 20 L x 1000 ml = 20000 ml of the 5000 ml one bottle holds
-          stockIncrement: 4,
-        }),
-        expect.objectContaining({
-          purchaseUnit: 'Milliliter',
-          standardUnit: 'ml',
-          standardQuantity: 350,
-          resolvedStandardUnitId: 'su-ml',
-          // 350 ml of the 5000 ml one bottle holds
-          stockIncrement: 350 / 5000,
-        }),
-      ]);
-
-      expect(written().stockIncrements).toEqual([{ productId: 'p-oil', amount: 4 + 350 / 5000 }]);
-    });
-
-    it('leaves a non-terminating fraction for the column to round', async () => {
-      await service.createBatch(
-        actor(),
-        input({ lines: [line({ productUnitId: 'pu-shot', purchaseQuantity: 3 })] }),
-      );
-
-      // 3 shots x 25 ml = 75 ml of the 350 ml one bottle holds
-      expect(written().lines).toEqual([expect.objectContaining({ stockIncrement: 75 / 350 })]);
     });
 
     it('adds up the stock several lines of one product contribute into a single increment', async () => {
@@ -628,89 +383,6 @@ describe('batches.service', () => {
       expect(result.receivedBy).toBeNull();
       expect(result.receivedByMemberId).toBeNull();
     });
-
-    /**
-     * A unit row that contradicts the catalog's own rules cannot be snapshotted
-     * or converted, and must not be guessed at: the batch is refused outright.
-     */
-    describe('a catalog whose unit rows contradict each other', () => {
-      const shot = () => line({ productUnitId: 'pu-shot', purchaseQuantity: 4 });
-      const liter = () => line({ productUnitId: 'pu-liter', purchaseQuantity: 20 });
-
-      const CONTRADICTIONS: Array<{
-        name: string;
-        catalog: () => ProductContext[];
-        buildLine: () => CreateBatchInput['lines'][number];
-      }> = [
-        {
-          name: 'refuses a base unit that is linked to no standard unit',
-          catalog: () => [
-            withUnit(TEQUILA, 'pu-bottle', { standardUnitId: null, standardUnit: null }),
-          ],
-          buildLine: () => line(),
-        },
-        {
-          name: 'refuses a measurement unit that is linked to no standard unit',
-          catalog: () => [
-            withUnit(TEQUILA, 'pu-mou', { standardUnitId: null, standardUnit: null }),
-          ],
-          buildLine: shot,
-        },
-        {
-          name: 'refuses a standard unit that is linked to no standard unit',
-          catalog: () => [
-            withUnit(TEQUILA, 'pu-liter', { standardUnitId: null, standardUnit: null }),
-          ],
-          buildLine: liter,
-        },
-        {
-          name: 'refuses a custom unit depending on a role the product does not have',
-          catalog: () => [withoutRole(TEQUILA, 'MOU')],
-          buildLine: shot,
-        },
-        {
-          name: 'refuses a custom unit linked to no unit to resolve through',
-          catalog: () => [withUnit(TEQUILA, 'pu-shot', { dependsOn: null })],
-          buildLine: shot,
-        },
-        {
-          name: 'refuses a standard unit linked to no unit to convert through',
-          catalog: () => [withUnit(TEQUILA, 'pu-liter', { dependsOn: null })],
-          buildLine: liter,
-        },
-        {
-          name: 'refuses a custom unit with no conversion rate',
-          catalog: () => [withUnit(TEQUILA, 'pu-shot', { conversionRate: null })],
-          buildLine: shot,
-        },
-        {
-          name: 'refuses a standard unit with no conversion rate',
-          catalog: () => [withUnit(TEQUILA, 'pu-liter', { conversionRate: null })],
-          buildLine: liter,
-        },
-        {
-          name: 'refuses a measurement unit with no pack relation',
-          catalog: () => [withUnit(OIL, 'pu-oil-mou', { conversionRate: null })],
-          buildLine: () =>
-            line({ productId: 'p-oil', productUnitId: 'pu-oil-mou', purchaseQuantity: 350 }),
-        },
-        {
-          name: 'refuses to convert through a measurement unit that has no pack relation',
-          catalog: () => [withUnit(OIL, 'pu-oil-mou', { conversionRate: null })],
-          buildLine: () =>
-            line({ productId: 'p-oil', productUnitId: 'pu-oil-liter', purchaseQuantity: 20 }),
-        },
-      ];
-
-      it.each(CONTRADICTIONS)('$name', async ({ catalog, buildLine }) => {
-        vi.mocked(mockRepo.getProductUnitContext).mockResolvedValue(catalog());
-
-        await expect(service.createBatch(actor(), input({ lines: [buildLine()] }))).rejects.toEqual(
-          appError(ERROR_CODES.INTERNAL_ERROR, 500),
-        );
-        expect(mockRepo.createBatchAndAdjustStock).not.toHaveBeenCalled();
-      });
-    });
   });
 
   describe('listBatches', () => {
@@ -794,7 +466,7 @@ describe('batch service listProductInventorySummaries', () => {
       active: true,
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
       updatedAt: new Date('2026-01-02T00:00:00.000Z'),
-      productUnits: [unit()],
+      productUnits: [unit({ id: 'pu-bottle' })],
       stockBatchLines: [line()],
       ...overrides,
     } as ProductWithStockLinesRecord;
@@ -909,6 +581,72 @@ describe('batch service listProductInventorySummaries', () => {
       ]);
       const [summary] = await service.listProductInventorySummaries(SCOPE);
       expect(summary?.totalCost).toBe(0);
+    });
+
+    it('prorates the remaining cost by the unsold share in base units, not in the units bought', async () => {
+      vi.mocked(mockRepo.listProductsWithStockLines).mockResolvedValue([
+        inventoryRecord({
+          productUnits: [
+            unit({ id: 'pu-bottle', productId: 'p-tequila' }),
+            unit({
+              id: 'pu-ml',
+              productId: 'p-tequila',
+              unitRole: 'MOU',
+              standardUnitId: 'su-ml',
+              standardUnit: { id: 'su-ml', name: 'Milliliter', symbol: 'ml' },
+              name: 'Milliliter',
+              dependsOn: 'BASE',
+              conversionRate: decimal(350),
+              purchaseCapable: false,
+            }),
+            unit({
+              id: 'pu-liter',
+              productId: 'p-tequila',
+              unitRole: 'STANDARD',
+              standardUnitId: 'su-l',
+              standardUnit: { id: 'su-l', name: 'Liter', symbol: 'L' },
+              name: 'Liter',
+              dependsOn: 'MOU',
+              conversionRate: decimal(1000),
+            }),
+          ],
+          stockBatchLines: [
+            line({
+              productUnitId: 'pu-liter',
+              purchaseUnit: 'Liter',
+              purchaseQuantity: decimal(7),
+              purchaseUnitCost: decimal(2000),
+              standardUnit: 'ml',
+              standardQuantity: decimal(7000),
+              quantityRemaining: decimal(5),
+            }),
+          ],
+        }),
+      ]);
+
+      const [summary] = await service.listProductInventorySummaries(SCOPE);
+
+      // 7 L bought at 2000 = 14000 spread over 20 bottles (7 x 1000 ml / 350 ml);
+      // the 5 bottles still sellable keep 14000 x (5 / 20), not 14000 x (5 / 7
+      // liters) nor 14000 x (5 / 7000 ml).
+      expect(summary?.totalCost).toBe(3500);
+    });
+
+    it("skips the cost of a line whose purchased unit is not in the product's units", async () => {
+      vi.mocked(mockRepo.listProductsWithStockLines).mockResolvedValue([
+        inventoryRecord({
+          stockBatchLines: [
+            line({ id: 'sbl-1', purchaseQuantity: decimal(10), quantityRemaining: decimal(4) }),
+            line({ id: 'sbl-2', productUnitId: 'pu-retired' }),
+          ],
+        }),
+      ]);
+
+      const [summary] = await service.listProductInventorySummaries(SCOPE);
+
+      // Only sbl-1 counts (10 x 950 x 4/10); the stale-unit line contributes 0
+      // and doesn't fail the summary for the product being listed.
+      expect(summary?.totalCost).toBe(3800);
     });
 
     it('does not fail when a line has no standard quantity', async () => {

@@ -1,8 +1,8 @@
 import type { BatchLineFormValues, DownloadUrlsResponse, ProductSummaryResponse } from '@mez/types';
 import { X } from 'lucide-react';
-import { IconButton } from '@/components/IconButton';
+import { Button } from '@/components/Button';
 import { ProductThumb } from '@/components/ProductThumb';
-import { formatDate, formatMoney } from '@/lib/format';
+import { formatDateTime, formatMoney } from '@/lib/format';
 import { useBatchLineList } from '../hooks/useBatchLineList';
 import { lineTotal } from '../lib/lineTotal';
 
@@ -15,13 +15,7 @@ export interface BatchLineListProps {
   onRemove: (index: number) => void;
 }
 
-/**
- * The batch's product lines once added, as plain rows stacked one under the
- * next and separated by a rule — no card around each one, so the list reads as
- * one block rather than a pile of boxes. Tapping a row opens that line's
- * fields again. Names come from the query cache via `useBatchLineList` —
- * the add-batch session already fetched them.
- */
+/** The batch's added product lines as tappable rows. */
 export function BatchLineList({
   lines,
   currency,
@@ -82,7 +76,7 @@ export function BatchLineList({
                 </span>
                 {line.expiryDate && (
                   <span className="mt-1 block text-xs text-(--text-muted)">
-                    Expires {formatDate(line.expiryDate)}
+                    Expires {formatDateTime(line.expiryDate)}
                   </span>
                 )}
               </span>
@@ -97,12 +91,18 @@ export function BatchLineList({
               </span>
             </button>
 
-            <IconButton
-              label={`Remove ${row.productName}`}
-              icon={<X size={15} aria-hidden />}
+            <Button
+              type="button"
+              shape="square"
+              size="md"
+              variant="field"
+              aria-label={`Remove ${row.productName}`}
+              title={`Remove ${row.productName}`}
               onClick={() => onRemove(index)}
-              className="h-8 w-8 border-transparent bg-transparent hover:border-(--border) hover:bg-(--surface-secondary) hover:text-(--danger)"
-            />
+              className="border-transparent bg-transparent hover:border-(--border) hover:bg-(--surface-secondary) hover:text-(--danger)"
+            >
+              <X size={15} aria-hidden />
+            </Button>
           </li>
         );
       })}

@@ -7,7 +7,12 @@ export interface ProductThumbProps {
   uploadId?: string | null | undefined;
   uploadUrls?: DownloadUrlsResponse | undefined;
   alt?: string;
+  /** Side of a square thumb. Ignored when `width`/`height` are given. */
   size?: number;
+  /** Explicit width; falls back to `size`. */
+  width?: number;
+  /** Explicit height; falls back to `width` (making the thumb square). */
+  height?: number;
   className?: string;
 }
 
@@ -22,15 +27,19 @@ export function ProductThumb({
   uploadId,
   uploadUrls,
   alt = '',
-  size = 40,
+  size,
+  width,
+  height,
   className = '',
 }: ProductThumbProps) {
   const imageUrl = useProductImage(businessId, uploadId ?? undefined, uploadUrls);
+  const thumbWidth = width ?? size ?? 40;
+  const thumbHeight = height ?? width ?? size ?? 40;
 
   return (
     <span
       className={`flex shrink-0 items-center justify-center overflow-hidden rounded-lg border border-(--border) bg-(--surface-secondary) text-(--text-muted) ${className}`}
-      style={{ width: size, height: size }}
+      style={{ width: thumbWidth, height: thumbHeight }}
     >
       {imageUrl ? (
         <img
@@ -43,7 +52,7 @@ export function ProductThumb({
           className="h-full w-full object-contain p-1"
         />
       ) : (
-        <Image size={Math.round(size * 0.45)} aria-hidden />
+        <Image size={Math.round(Math.min(thumbWidth, thumbHeight) * 0.45)} aria-hidden />
       )}
     </span>
   );

@@ -1,7 +1,7 @@
 import type { BatchFormValues, CreateBatchInput } from '@mez/types';
 import type { UseFormReturn } from 'react-hook-form';
 import { Controller } from 'react-hook-form';
-import { dateInputToInstant, instantToDateInputValue } from '@/lib/format';
+import { datetimeLocalToInstant, instantToDatetimeLocalValue } from '@/lib/format';
 import { Field } from '@/components/Field';
 import { Input } from '@/components/Input';
 
@@ -30,15 +30,17 @@ export function BatchHeaderForm({ form }: BatchHeaderFormProps) {
           <Field
             id="batchDate"
             label="Batch date"
-            hint="The day this stock was received"
+            hint="When this stock was received"
             error={fieldState.error?.message}
           >
             <Input
               id="batchDate"
-              type="date"
+              type="datetime-local"
               ref={field.ref}
-              value={typeof field.value === 'string' ? instantToDateInputValue(field.value) : ''}
-              onChange={(event) => field.onChange(dateInputToInstant(event.target.value))}
+              value={
+                typeof field.value === 'string' ? instantToDatetimeLocalValue(field.value) : ''
+              }
+              onChange={(event) => field.onChange(datetimeLocalToInstant(event.target.value))}
               onBlur={field.onBlur}
               error={fieldState.error?.message}
             />

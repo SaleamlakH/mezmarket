@@ -31,6 +31,24 @@ import {
   createUploadResolver,
   validateProductInput,
 } from './modules/products/products.middleware.js';
+import { createSaleRepository } from './modules/sales/sales.repository.js';
+import { createSaleService } from './modules/sales/sales.service.js';
+import { createSaleController } from './modules/sales/sales.controller.js';
+import { createSalesRouter } from './modules/sales/sales.routes.js';
+import {
+  validateSaleCreateInput,
+  validateSalePaymentInput,
+} from './modules/sales/sales.middleware.js';
+import { createCustomersRepository } from './modules/customers/customers.repository.js';
+import { createCustomersService } from './modules/customers/customers.service.js';
+import { createCustomersController } from './modules/customers/customers.controller.js';
+import { createCustomersRouter } from './modules/customers/customers.routes.js';
+import { validateCustomerInput } from './modules/customers/customers.middleware.js';
+import { createMembersRepository } from './modules/members/members.repository.js';
+import { createMembersService } from './modules/members/members.service.js';
+import { createMembersController } from './modules/members/members.controller.js';
+import { createMembersRouter } from './modules/members/members.routes.js';
+import { validateMemberListFilters } from './modules/members/members.middleware.js';
 import { createUnitsRepository } from './modules/units/units.repository.js';
 import { createUnitsService } from './modules/units/units.service.js';
 import { createUnitsController } from './modules/units/units.controller.js';
@@ -123,6 +141,36 @@ export const productsRoutes = createProductsRouter(
   authorizeBusiness,
   validateProductInput,
   uploadsRouter,
+);
+
+const salesRepository = createSaleRepository(prisma);
+const salesService = createSaleService(salesRepository);
+const salesController = createSaleController(salesService);
+export const salesRoutes = createSalesRouter(
+  salesController,
+  authorizeBusiness,
+  requireBusinessRole(['OWNER', 'MANAGER', 'CASHIER']),
+  validateSaleCreateInput,
+  validateSalePaymentInput,
+);
+
+const customersRepository = createCustomersRepository(prisma);
+const customersService = createCustomersService(customersRepository);
+const customersController = createCustomersController(customersService);
+export const customersRoutes = createCustomersRouter(
+  customersController,
+  authorizeBusiness,
+  requireBusinessRole(['OWNER', 'MANAGER', 'CASHIER']),
+  validateCustomerInput,
+);
+
+const membersRepository = createMembersRepository(prisma);
+const membersService = createMembersService(membersRepository);
+const membersController = createMembersController(membersService);
+export const membersRoutes = createMembersRouter(
+  membersController,
+  authorizeBusiness,
+  validateMemberListFilters,
 );
 
 const unitsRepository = createUnitsRepository(prisma);
