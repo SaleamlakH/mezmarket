@@ -80,14 +80,15 @@ When a draw would take sealed stock below zero, the recording still proceeds and
 
 ### GET /api/businesses/:businessId/sales
 
-Lists the business's sales, newest first, filtered by the query.
+Lists the business's sales, status-first, filtered by the query. Sales still needing attention lead: pending, then partially paid, then paid; within each status they run newest first.
 
 ```
 Client -> Authorization: Bearer <jwt>
    -> auth middleware resolves the owner
    -> business middleware resolves the scope
-   -> repository returns the scope's sales, newest first, narrowed
-      to the summary fields, filtered by:
+   -> repository returns the scope's sales, status-first,
+      newest first within each status, narrowed to the summary
+      fields, filtered by:
          - status: paymentStatus
          - from / to: saleDatetime range, inclusive
          - productId: sales that have a line for that product
