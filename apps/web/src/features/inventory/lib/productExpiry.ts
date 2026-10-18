@@ -42,6 +42,11 @@ export function expiringSoonLineCount(
     .length;
 }
 
+/** The last moment a lot may expire and still count as expiring soon. */
+export function expiryCutoff(now: Date): Date {
+  return new Date(now.getTime() + EXPIRY_SOON_HORIZON_DAYS * DAY_MS);
+}
+
 export interface ExpiryAlertTotals {
   /** Standard-unit quantity already expired. */
   expiredQuantity: number;

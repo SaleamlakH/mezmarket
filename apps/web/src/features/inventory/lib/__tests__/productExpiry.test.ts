@@ -4,6 +4,7 @@ import {
   EXPIRY_SOON_HORIZON_DAYS,
   expiringSoonLineCount,
   expiryAlertTotals,
+  expiryCutoff,
   expiryState,
 } from '../productExpiry';
 import { flattenProductBatchLines } from '../flattenProductBatchLines';
@@ -11,6 +12,7 @@ import { productInventoryDetail } from '../../__tests__/fixtures';
 
 const NOW = new Date('2026-10-17T00:00:00.000Z');
 const rows = flattenProductBatchLines(productInventoryDetail.batches);
+const CUTOFF = new Date('2026-10-24T00:00:00.000Z');
 
 describe('expiryState', () => {
   it('is expired when the expiry is in the past', () => {
@@ -59,6 +61,12 @@ describe('expiringSoonLineCount', () => {
         NOW,
       ),
     ).toBe(0);
+  });
+});
+
+describe('expiryCutoff', () => {
+  it('moves the window forward by the soon horizon', () => {
+    expect(expiryCutoff(NOW)).toEqual(CUTOFF);
   });
 });
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ClipboardList, Package, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { Button } from '@/components/Button';
@@ -15,8 +15,10 @@ import { BatchSummaryCard } from '../components/BatchSummaryCard';
 import { ProductStockList } from '../components/ProductStockList';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useInventoryBatches, useInventoryProducts } from '../hooks/useInventoryApi';
+import { expiryCutoff } from '../lib/productExpiry';
 
 export function InventoryPage() {
+  const expiryBefore = useMemo(() => expiryCutoff(new Date()), []);
   const {
     isPending: batchesPending,
     isError: batchesError,
@@ -28,7 +30,7 @@ export function InventoryPage() {
     isError: productsError,
     refetch: refetchProducts,
     data: products = [],
-  } = useInventoryProducts();
+  } = useInventoryProducts(expiryBefore);
   const currency = useCurrency();
   const navigate = useNavigate();
   const { currentBusiness } = useBusinessContext();
@@ -105,6 +107,7 @@ export function InventoryPage() {
           currency={currency}
           businessId={businessId}
           uploadUrls={uploadUrls}
+          expiryBefore={expiryBefore}
         />
       )}
 

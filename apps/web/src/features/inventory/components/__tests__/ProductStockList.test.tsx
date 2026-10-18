@@ -10,6 +10,8 @@ const uploadUrls: DownloadUrlsResponse = [
   { uploadId: 'up_oil', url: 'https://cdn.example/oil.jpg' },
 ];
 
+const EXPIRY_BEFORE = new Date('2026-10-24T00:00:00.000Z');
+
 function renderList() {
   render(
     <MemoryRouter>
@@ -21,6 +23,7 @@ function renderList() {
           currency="ETB"
           businessId="b1"
           uploadUrls={uploadUrls}
+          expiryBefore={EXPIRY_BEFORE}
         />
       </QueryClientProvider>
     </MemoryRouter>,
@@ -55,5 +58,25 @@ describe('ProductStockList images', () => {
     renderList();
 
     expect(screen.queryAllByAltText('Sierra Tequila 350 ml')).toHaveLength(0);
+  });
+});
+
+describe('ProductStockList expiry', () => {
+  it('heads the expiry column with the cutoff date', () => {
+    renderList();
+
+    expect(screen.getByText(/Expiry by/)).toBeInTheDocument();
+  });
+
+  it('shows the lot count and quantity expiring by the cutoff', () => {
+    renderList();
+
+    expect(screen.getByText('3 lots · 48 Bottle')).toBeInTheDocument();
+  });
+
+  it('shows a dash when nothing is expiring', () => {
+    renderList();
+
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
   });
 });

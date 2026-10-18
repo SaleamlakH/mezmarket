@@ -9,12 +9,27 @@ import { apiClient, type ApiClient } from '@/lib/apiClient';
 export interface InventoryApi {
   getBatches(businessId: string): Promise<StockBatchDetailResponse[]>;
   getBatch(businessId: string, batchId: string): Promise<StockBatchDetailResponse>;
-  getInventoryProducts(businessId: string): Promise<ProductInventorySummaryResponse[]>;
+  getInventoryProducts(
+    businessId: string,
+    expiryBefore?: Date,
+  ): Promise<ProductInventorySummaryResponse[]>;
   getInventoryProduct(
     businessId: string,
     productId: string,
+    expiryBefore?: Date,
   ): Promise<ProductInventoryDetailResponse>;
   createBatch(businessId: string, input: CreateBatchInput): Promise<StockBatchDetailResponse>;
+}
+
+/** Appends only the parameters the caller actually set. */
+function withQuery(path: string, params: Record<string, string | undefined>): string {
+  const entries = Object.entries(params).filter(
+    (entry): entry is [string, string] => entry[1] !== undefined,
+  );
+
+  if (entries.length === 0) return path;
+
+  return `${path}?${new URLSearchParams(entries).toString()}`;
 }
 
 export function createInventoryService(client: ApiClient): InventoryApi {
@@ -29,14 +44,18 @@ export function createInventoryService(client: ApiClient): InventoryApi {
         `/api/businesses/${businessId}/inventory/batches/${batchId}`,
       );
     },
-    getInventoryProducts(businessId) {
+    getInventoryProducts(businessId, expiryBefore) {
       return client.get<ProductInventorySummaryResponse[]>(
-        `/api/businesses/${businessId}/inventory/products`,
+        withQuery(`/api/businesses/${businessId}/inventory/products`, {
+          expiryBefore: expiryBefore?.toISOString(),
+        }),
       );
     },
-    getInventoryProduct(businessId, productId) {
+    getInventoryProduct(businessId, productId, expiryBefore) {
       return client.get<ProductInventoryDetailResponse>(
-        `/api/businesses/${businessId}/inventory/products/${productId}`,
+        withQuery(`/api/businesses/${businessId}/inventory/products/${productId}`, {
+          expiryBefore: expiryBefore?.toISOString(),
+        }),
       );
     },
     createBatch(businessId, input) {

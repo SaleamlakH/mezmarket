@@ -7,13 +7,8 @@ import type {
 
 const FIXTURE_TIMESTAMP = '2026-09-28T08:00:00.000Z';
 
-const makeProduct = (
-  product: Omit<ProductInventorySummaryResponse, 'createdAt' | 'updatedAt'>,
-): ProductInventorySummaryResponse => ({
-  ...product,
-  createdAt: FIXTURE_TIMESTAMP,
-  updatedAt: FIXTURE_TIMESTAMP,
-});
+const makeProduct = (product: ProductInventorySummaryResponse): ProductInventorySummaryResponse =>
+  product;
 
 export const products: ProductInventorySummaryResponse[] = [
   makeProduct({
@@ -26,8 +21,7 @@ export const products: ProductInventorySummaryResponse[] = [
     lowStockThreshold: 12,
     active: true,
     totalCost: 1240000,
-    earliestExpiry: null,
-    expiryCount: 0,
+    expiry: { lotCount: 0, quantity: 0 },
     numberOfBatches: 3,
     stockStatus: 'IN_STOCK',
   }),
@@ -41,8 +35,7 @@ export const products: ProductInventorySummaryResponse[] = [
     lowStockThreshold: 10,
     active: true,
     totalCost: 178560,
-    earliestExpiry: '2026-10-20T00:00:00.000Z',
-    expiryCount: 3,
+    expiry: { lotCount: 3, quantity: 48 },
     numberOfBatches: 2,
     stockStatus: 'IN_STOCK',
   }),
@@ -63,8 +56,7 @@ export const productInventoryDetail: ProductInventoryDetailResponse = {
   lowStockThreshold: 10,
   active: true,
   totalCost: 134.2,
-  earliestExpiry: '2026-10-09T00:00:00.000Z',
-  expiryCount: 2,
+  expiry: { lotCount: 2, quantity: 58 },
   numberOfBatches: 3,
   stockStatus: 'IN_STOCK',
   batches: [
@@ -82,6 +74,9 @@ export const productInventoryDetail: ProductInventoryDetailResponse = {
           standardQuantity: 12,
           standardUnit: 'kg',
           quantityRemaining: 12,
+          baseUnit: 'Kilogram',
+          remainingPurchaseQuantity: 12,
+          remainingCost: 24,
           expiryDate: null,
         },
       ],
@@ -100,6 +95,9 @@ export const productInventoryDetail: ProductInventoryDetailResponse = {
           standardQuantity: 100,
           standardUnit: 'kg',
           quantityRemaining: 50,
+          baseUnit: 'Kilogram',
+          remainingPurchaseQuantity: 1,
+          remainingCost: 95,
           expiryDate: '2026-10-24T00:00:00.000Z',
         },
       ],
@@ -118,6 +116,9 @@ export const productInventoryDetail: ProductInventoryDetailResponse = {
           standardQuantity: 20,
           standardUnit: 'kg',
           quantityRemaining: 8,
+          baseUnit: 'Kilogram',
+          remainingPurchaseQuantity: 8,
+          remainingCost: 15.2,
           expiryDate: '2026-10-09T00:00:00.000Z',
         },
       ],
