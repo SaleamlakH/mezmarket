@@ -91,31 +91,47 @@ export type StockBatchDetailResponse = StockBatchResponse & {
 export type StockStatus = 'OUT_OF_STOCK' | 'LOW_STOCK' | 'IN_STOCK';
 
 /**
- * Summarized inventory information for a product. Quantities are expressed in
- * the product's Base Unit unless stated otherwise.
+ * The stock header a product shares between the inventory list and detail.
+ * Quantities are expressed in the product's Base Unit unless stated otherwise.
  */
-export type ProductInventorySummary = ProductSummary & {
+export type ProductInventoryStock = ProductSummary & {
   currentSealedStock: number;
   baseUnitLabel: string;
   totalCost: number;
-  earliestExpiry: Date | null;
-  expiryCount: number;
   numberOfBatches: number;
   stockStatus: StockStatus;
 };
 
 /**
- * JSON-serialized inventory summary sent to the frontend. Dates are serialized
- * to ISO 8601 strings.
+ * The stock still on hand that expires before the caller's cutoff. `quantity`
+ * is in the product's Base Unit.
  */
-export type ProductInventorySummaryResponse = RequireAllKeys<
-  ProductInventorySummary,
-  Omit<ProductInventorySummary, 'createdAt' | 'updatedAt' | 'earliestExpiry'> & {
-    createdAt: string;
-    updatedAt: string;
-    earliestExpiry: string | null;
-  }
->;
+export type ProductInventoryExpiry = {
+  lotCount: number;
+  quantity: number;
+};
+
+/**
+ * Summarized inventory information for a product, as the list reads it.
+ */
+export type ProductInventorySummary = ProductInventoryStock & {
+  expiry: ProductInventoryExpiry;
+};
+
+/**
+ * JSON-serialized inventory summary sent to the frontend.
+ */
+export type ProductInventorySummaryResponse = ProductInventorySummary;
+
+/** Filters the inventory list applies when it totals expiry. */
+export type ProductInventoryListFilters = {
+  expiryBefore?: Date | undefined;
+};
+
+/** Filters the inventory detail applies when it totals expiry. */
+export type ProductInventoryDetailFilters = {
+  expiryBefore?: Date | undefined;
+};
 
 /**
  * One batch line as the product inventory history reads it: the line's own
@@ -131,7 +147,14 @@ export type ProductInventoryBatchLine = Pick<
   | 'standardUnit'
   | 'quantityRemaining'
   | 'expiryDate'
->;
+> & {
+  /** Base Unit label `quantityRemaining` is expressed in. */
+  baseUnit: string;
+  /** How much of the purchase unit is still on hand. */
+  remainingPurchaseQuantity: number;
+  /** What the remaining stock cost when it was bought. */
+  remainingCost: number;
+};
 
 /**
  * JSON-serialized form sent to the frontend.
@@ -166,10 +189,12 @@ export type ProductInventoryBatchResponse = RequireAllKeys<
 >;
 
 /**
- * A product's inventory detail: its stock summary, plus every batch it
- * appeared in, newest batch first, each carrying that product's lines.
+ * A product's inventory detail: its stock header, the stock expiring by the
+ * caller's cutoff, plus every batch it appeared in, each carrying that
+ * product's lines.
  */
-export type ProductInventoryDetail = ProductInventorySummary & {
+export type ProductInventoryDetail = ProductInventoryStock & {
+  expiry: ProductInventoryExpiry;
   batches: ProductInventoryBatch[];
 };
 
@@ -178,8 +203,7 @@ export type ProductInventoryDetail = ProductInventorySummary & {
  */
 export type ProductInventoryDetailResponse = RequireAllKeys<
   ProductInventoryDetail,
-  Omit<ProductInventoryDetail, 'earliestExpiry' | 'batches'> & {
-    earliestExpiry: string | null;
+  Omit<ProductInventoryDetail, 'batches'> & {
     batches: ProductInventoryBatchResponse[];
   }
 >;
