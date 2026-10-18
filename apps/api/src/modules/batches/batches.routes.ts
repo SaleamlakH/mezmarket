@@ -8,6 +8,8 @@ export function createBatchRouter(
   authorizeBusiness: (req: Request, res: Response, next: NextFunction) => void,
   requireBatchWriteRole: (req: Request, res: Response, next: NextFunction) => void,
   validateBatchInput: (req: Request, res: Response, next: NextFunction) => void,
+  validateInventoryListFilters: (req: Request, res: Response, next: NextFunction) => void,
+  validateInventoryDetailFilters: (req: Request, res: Response, next: NextFunction) => void,
 ): Router {
   const router = Router();
 
@@ -33,12 +35,14 @@ export function createBatchRouter(
   router.get(
     '/businesses/:businessId/inventory/products',
     authorizeBusiness,
+    validateInventoryListFilters,
     controller.listProductInventorySummaries,
   );
 
   router.get(
     '/businesses/:businessId/inventory/products/:productId',
     authorizeBusiness,
+    validateInventoryDetailFilters,
     controller.getProductInventoryDetail,
   );
 

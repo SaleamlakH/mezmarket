@@ -517,7 +517,7 @@ describe('batch service listProductInventorySummaries', () => {
 
   it('returns a list of summaries in the correct shape', async () => {
     vi.mocked(mockRepo.listProductsWithStockLines).mockResolvedValue([inventoryRecord()]);
-    const result = await service.listProductInventorySummaries(SCOPE);
+    const result = await service.listProductInventorySummaries(SCOPE, {});
     expect(mockRepo.listProductsWithStockLines).toHaveBeenCalledWith('b-1', 'br-1');
     expect(mockRepo.listProductAttachments).toHaveBeenCalledWith(['p-tequila']);
     expect(result).toEqual([
@@ -531,8 +531,7 @@ describe('batch service listProductInventorySummaries', () => {
         baseUnitLabel: 'Bottle',
         uploadId: null,
         totalCost: 9500,
-        earliestExpiry: null,
-        expiryCount: 0,
+        expiry: { lotCount: 0, quantity: 0 },
         numberOfBatches: 1,
         stockStatus: 'IN_STOCK',
       },
@@ -549,7 +548,7 @@ describe('batch service listProductInventorySummaries', () => {
       { recordId: 'p-2', uploadId: null },
     ] as never);
 
-    const summaries = await service.listProductInventorySummaries(SCOPE);
+    const summaries = await service.listProductInventorySummaries(SCOPE, {});
 
     expect(summaries.map((summary) => summary.uploadId)).toEqual(['u-1', null]);
   });
@@ -557,7 +556,7 @@ describe('batch service listProductInventorySummaries', () => {
   it('skips the attachment lookup when no active product holds stock', async () => {
     vi.mocked(mockRepo.listProductsWithStockLines).mockResolvedValue([]);
 
-    await expect(service.listProductInventorySummaries(SCOPE)).resolves.toEqual([]);
+    await expect(service.listProductInventorySummaries(SCOPE, {})).resolves.toEqual([]);
     expect(mockRepo.listProductAttachments).not.toHaveBeenCalled();
   });
 
@@ -566,7 +565,7 @@ describe('batch service listProductInventorySummaries', () => {
       inventoryRecord({ productUnits: [] }),
     ]);
 
-    await expect(service.listProductInventorySummaries(SCOPE)).rejects.toMatchObject({
+    await expect(service.listProductInventorySummaries(SCOPE, {})).rejects.toMatchObject({
       code: ERROR_CODES.INTERNAL_ERROR,
       statusCode: 500,
     });
@@ -579,7 +578,7 @@ describe('batch service listProductInventorySummaries', () => {
           stockBatchLines: [line({ purchaseQuantity: decimal(10), quantityRemaining: decimal(4) })],
         }),
       ]);
-      const [summary] = await service.listProductInventorySummaries(SCOPE);
+      const [summary] = await service.listProductInventorySummaries(SCOPE, {});
       expect(summary?.totalCost).toBe(3800);
     });
 
@@ -605,7 +604,7 @@ describe('batch service listProductInventorySummaries', () => {
         }),
       ]);
 
-      const [summary] = await service.listProductInventorySummaries(SCOPE);
+      const [summary] = await service.listProductInventorySummaries(SCOPE, {});
 
       // 10x950x(4/10) + 10x100x(5/10) + 10x20x(10/10)
       expect(summary?.totalCost).toBe(3800 + 500 + 200);
@@ -615,7 +614,7 @@ describe('batch service listProductInventorySummaries', () => {
       vi.mocked(mockRepo.listProductsWithStockLines).mockResolvedValue([
         inventoryRecord({ stockBatchLines: [] }),
       ]);
-      const [summary] = await service.listProductInventorySummaries(SCOPE);
+      const [summary] = await service.listProductInventorySummaries(SCOPE, {});
       expect(summary?.totalCost).toBe(0);
     });
 
@@ -660,7 +659,7 @@ describe('batch service listProductInventorySummaries', () => {
         }),
       ]);
 
-      const [summary] = await service.listProductInventorySummaries(SCOPE);
+      const [summary] = await service.listProductInventorySummaries(SCOPE, {});
 
       // 7 L bought at 2000 = 14000 spread over 20 bottles (7 x 1000 ml / 350 ml);
       // the 5 bottles still sellable keep 14000 x (5 / 20), not 14000 x (5 / 7
@@ -678,7 +677,7 @@ describe('batch service listProductInventorySummaries', () => {
         }),
       ]);
 
-      const [summary] = await service.listProductInventorySummaries(SCOPE);
+      const [summary] = await service.listProductInventorySummaries(SCOPE, {});
 
       // Only sbl-1 counts (10 x 950 x 4/10); the stale-unit line contributes 0
       // and doesn't fail the summary for the product being listed.
@@ -691,45 +690,117 @@ describe('batch service listProductInventorySummaries', () => {
           stockBatchLines: [line({ standardQuantity: decimal(0), quantityRemaining: decimal(0) })],
         }),
       ]);
-      const [summary] = await service.listProductInventorySummaries(SCOPE);
+      const [summary] = await service.listProductInventorySummaries(SCOPE, {});
       expect(summary?.totalCost).toBe(0);
     });
   });
 
   describe('expiry', () => {
-    const EARLY = new Date('2026-03-01T00:00:00.000Z');
-    const LATE = new Date('2026-09-01T00:00:00.000Z');
+    const EXPIRY_BEFORE = new Date('2026-06-01T00:00:00.000Z');
+    const SOON = new Date('2026-05-01T00:00:00.000Z');
+    const LATER = new Date('2026-09-01T00:00:00.000Z');
 
-    it('correctly reports the earliest expiry and counts expiring lines correctly', async () => {
+    it('counts only the lots that expire before the cutoff and totals their remaining stock', async () => {
       vi.mocked(mockRepo.listProductsWithStockLines).mockResolvedValue([
         inventoryRecord({
           stockBatchLines: [
-            line({ id: 'sbl-1', stockBatchId: 'sb-1', expiryDate: LATE }),
-            line({ id: 'sbl-2', stockBatchId: 'sb-2', expiryDate: EARLY }),
+            line({
+              id: 'sbl-1',
+              stockBatchId: 'sb-1',
+              expiryDate: SOON,
+              quantityRemaining: decimal(6),
+            }),
+            line({ id: 'sbl-2', stockBatchId: 'sb-2', expiryDate: LATER }),
           ],
         }),
       ]);
-      const [summary] = await service.listProductInventorySummaries(SCOPE);
-      expect(summary?.earliestExpiry).toEqual(EARLY);
-      expect(summary?.expiryCount).toBe(2);
+
+      const [summary] = await service.listProductInventorySummaries(SCOPE, {
+        expiryBefore: EXPIRY_BEFORE,
+      });
+
+      expect(summary?.expiry).toEqual({ lotCount: 1, quantity: 6 });
     });
 
-    it('skips lines with no expiry when reporting the earliest', async () => {
+    it('includes expired lots in the cutoff totals', async () => {
+      const EXPIRED = new Date('2026-01-01T00:00:00.000Z');
+
+      vi.mocked(mockRepo.listProductsWithStockLines).mockResolvedValue([
+        inventoryRecord({
+          stockBatchLines: [
+            line({
+              id: 'sbl-1',
+              stockBatchId: 'sb-1',
+              expiryDate: EXPIRED,
+              quantityRemaining: decimal(4),
+            }),
+            line({
+              id: 'sbl-2',
+              stockBatchId: 'sb-2',
+              expiryDate: SOON,
+              quantityRemaining: decimal(6),
+            }),
+          ],
+        }),
+      ]);
+
+      const [summary] = await service.listProductInventorySummaries(SCOPE, {
+        expiryBefore: EXPIRY_BEFORE,
+      });
+
+      expect(summary?.expiry).toEqual({ lotCount: 2, quantity: 10 });
+    });
+
+    it('skips lines with no expiry or nothing left', async () => {
       vi.mocked(mockRepo.listProductsWithStockLines).mockResolvedValue([
         inventoryRecord({
           stockBatchLines: [
             line({ id: 'sbl-1', stockBatchId: 'sb-1', expiryDate: null }),
-            line({ id: 'sbl-2', stockBatchId: 'sb-2', expiryDate: LATE }),
-            line({ id: 'sbl-3', stockBatchId: 'sb-3', expiryDate: EARLY }),
+            line({
+              id: 'sbl-2',
+              stockBatchId: 'sb-2',
+              expiryDate: SOON,
+              quantityRemaining: decimal(0),
+            }),
+            line({
+              id: 'sbl-3',
+              stockBatchId: 'sb-3',
+              expiryDate: SOON,
+              quantityRemaining: decimal(5),
+            }),
           ],
         }),
       ]);
 
-      const [summary] = await service.listProductInventorySummaries(SCOPE);
+      const [summary] = await service.listProductInventorySummaries(SCOPE, {
+        expiryBefore: EXPIRY_BEFORE,
+      });
 
-      expect(summary?.earliestExpiry).toEqual(EARLY);
-      expect(summary?.expiryCount).toBe(2);
+      expect(summary?.expiry).toEqual({ lotCount: 1, quantity: 5 });
       expect(summary?.numberOfBatches).toBe(3);
+    });
+
+    it('defaults the cutoff to now so already-expired lots still show', async () => {
+      const PAST = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const FUTURE = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+      vi.mocked(mockRepo.listProductsWithStockLines).mockResolvedValue([
+        inventoryRecord({
+          stockBatchLines: [
+            line({
+              id: 'sbl-1',
+              stockBatchId: 'sb-1',
+              expiryDate: PAST,
+              quantityRemaining: decimal(3),
+            }),
+            line({ id: 'sbl-2', stockBatchId: 'sb-2', expiryDate: FUTURE }),
+          ],
+        }),
+      ]);
+
+      const [summary] = await service.listProductInventorySummaries(SCOPE, {});
+
+      expect(summary?.expiry).toEqual({ lotCount: 1, quantity: 3 });
     });
   });
 
@@ -745,7 +816,7 @@ describe('batch service listProductInventorySummaries', () => {
         }),
       ]);
 
-      const [summary] = await service.listProductInventorySummaries(SCOPE);
+      const [summary] = await service.listProductInventorySummaries(SCOPE, {});
 
       expect(summary?.numberOfBatches).toBe(2);
     });
@@ -755,7 +826,7 @@ describe('batch service listProductInventorySummaries', () => {
         inventoryRecord({ stockBatchLines: [] }),
       ]);
 
-      const [summary] = await service.listProductInventorySummaries(SCOPE);
+      const [summary] = await service.listProductInventorySummaries(SCOPE, {});
 
       expect(summary?.numberOfBatches).toBe(0);
     });
@@ -811,7 +882,7 @@ describe('batch service listProductInventorySummaries', () => {
         inventoryRecord({ currentSealedStock: decimal(stock), lowStockThreshold: threshold }),
       ]);
 
-      const [summary] = await service.listProductInventorySummaries(SCOPE);
+      const [summary] = await service.listProductInventorySummaries(SCOPE, {});
 
       expect(summary?.stockStatus).toBe(expected);
     });
@@ -888,7 +959,7 @@ describe('batch service getProductInventoryDetail', () => {
   it('reads the product of the resolved business, branch and id', async () => {
     vi.mocked(mockRepo.getProductWithBatchHistory).mockResolvedValue(historyRecord());
 
-    await service.getProductInventoryDetail(SCOPE, 'p-tequila');
+    await service.getProductInventoryDetail(SCOPE, 'p-tequila', {});
 
     expect(mockRepo.getProductWithBatchHistory).toHaveBeenCalledWith('b-1', 'br-1', 'p-tequila');
   });
@@ -896,7 +967,7 @@ describe('batch service getProductInventoryDetail', () => {
   it('fails with a 404 when the product is outside the caller scope', async () => {
     vi.mocked(mockRepo.getProductWithBatchHistory).mockResolvedValue(null);
 
-    await expect(service.getProductInventoryDetail(SCOPE, 'missing')).rejects.toEqual(
+    await expect(service.getProductInventoryDetail(SCOPE, 'missing', {})).rejects.toEqual(
       appError(ERROR_CODES.NOT_FOUND, 404),
     );
   });
@@ -904,7 +975,7 @@ describe('batch service getProductInventoryDetail', () => {
   it('returns the summary header alongside the history', async () => {
     vi.mocked(mockRepo.getProductWithBatchHistory).mockResolvedValue(historyRecord());
 
-    const result = await service.getProductInventoryDetail(SCOPE, 'p-tequila');
+    const result = await service.getProductInventoryDetail(SCOPE, 'p-tequila', {});
 
     expect(result).toMatchObject({
       id: 'p-tequila',
@@ -916,15 +987,80 @@ describe('batch service getProductInventoryDetail', () => {
       baseUnitLabel: 'Bottle',
       uploadId: null,
       totalCost: 9500,
+      expiry: { lotCount: 0, quantity: 0 },
       numberOfBatches: 1,
       stockStatus: 'IN_STOCK',
     });
   });
 
+  it('totals the expiry of the stock still on hand against the cutoff', async () => {
+    const expiryBefore = new Date('2026-10-24T00:00:00.000Z');
+    vi.mocked(mockRepo.getProductWithBatchHistory).mockResolvedValue(
+      historyRecord({
+        stockBatchLines: [
+          historyLine({
+            id: 'sbl-expired',
+            expiryDate: new Date('2026-10-01T00:00:00.000Z'),
+            quantityRemaining: decimal(8),
+          }),
+          historyLine({
+            id: 'sbl-soon',
+            expiryDate: new Date('2026-10-24T00:00:00.000Z'),
+            quantityRemaining: decimal(50),
+          }),
+          historyLine({
+            id: 'sbl-later',
+            expiryDate: new Date('2026-10-25T00:00:00.000Z'),
+            quantityRemaining: decimal(4),
+          }),
+          historyLine({
+            id: 'sbl-empty',
+            expiryDate: new Date('2026-09-01T00:00:00.000Z'),
+            quantityRemaining: decimal(0),
+          }),
+          historyLine({
+            id: 'sbl-no-expiry',
+            expiryDate: null,
+            quantityRemaining: decimal(3),
+          }),
+        ],
+      }),
+    );
+
+    const result = await service.getProductInventoryDetail(SCOPE, 'p-tequila', {
+      expiryBefore,
+    });
+
+    expect(result.expiry).toEqual({ lotCount: 2, quantity: 58 });
+  });
+
+  it('defaults the expiry cutoff to now', async () => {
+    vi.mocked(mockRepo.getProductWithBatchHistory).mockResolvedValue(
+      historyRecord({
+        stockBatchLines: [
+          historyLine({
+            id: 'sbl-past',
+            expiryDate: new Date('2000-01-01T00:00:00.000Z'),
+            quantityRemaining: decimal(6),
+          }),
+          historyLine({
+            id: 'sbl-future',
+            expiryDate: new Date('2999-01-01T00:00:00.000Z'),
+            quantityRemaining: decimal(4),
+          }),
+        ],
+      }),
+    );
+
+    const result = await service.getProductInventoryDetail(SCOPE, 'p-tequila', {});
+
+    expect(result.expiry).toEqual({ lotCount: 1, quantity: 6 });
+  });
+
   it('maps each grouped line to its purchase figures', async () => {
     vi.mocked(mockRepo.getProductWithBatchHistory).mockResolvedValue(historyRecord());
 
-    const result = await service.getProductInventoryDetail(SCOPE, 'p-tequila');
+    const result = await service.getProductInventoryDetail(SCOPE, 'p-tequila', {});
 
     expect(result.batches[0]?.lines[0]).toEqual({
       id: 'sbl-1',
@@ -934,6 +1070,9 @@ describe('batch service getProductInventoryDetail', () => {
       standardQuantity: 10,
       standardUnit: 'pc',
       quantityRemaining: 10,
+      baseUnit: 'Bottle',
+      remainingPurchaseQuantity: 10,
+      remainingCost: 9500,
       expiryDate: null,
     });
   });
@@ -961,7 +1100,7 @@ describe('batch service getProductInventoryDetail', () => {
       historyRecord({ stockBatchLines: [older, newer] }),
     );
 
-    const result = await service.getProductInventoryDetail(SCOPE, 'p-tequila');
+    const result = await service.getProductInventoryDetail(SCOPE, 'p-tequila', {});
 
     expect(result.batches.map((batch) => batch.id)).toEqual(['sb-new', 'sb-old']);
     expect(result.batches[0]).toMatchObject({
@@ -977,7 +1116,7 @@ describe('batch service getProductInventoryDetail', () => {
       }),
     );
 
-    const result = await service.getProductInventoryDetail(SCOPE, 'p-tequila');
+    const result = await service.getProductInventoryDetail(SCOPE, 'p-tequila', {});
 
     expect(result.batches).toHaveLength(1);
     expect(result.batches[0]?.lines.map((line) => line.id)).toEqual(['sbl-a', 'sbl-b']);
@@ -996,13 +1135,14 @@ describe('batch service getProductInventoryDetail', () => {
       }),
     );
 
-    const result = await service.getProductInventoryDetail(SCOPE, 'p-tequila');
+    const result = await service.getProductInventoryDetail(SCOPE, 'p-tequila', {});
 
     expect(result.batches).toHaveLength(1);
     expect(result.batches[0]?.lines[0]).toMatchObject({ id: 'sbl-sold', quantityRemaining: 0 });
     // The header figures still read only the lines holding stock.
     expect(result.numberOfBatches).toBe(0);
     expect(result.totalCost).toBe(0);
+    expect(result.expiry).toEqual({ lotCount: 0, quantity: 0 });
   });
 
   it('returns an empty history for a product with no batches', async () => {
@@ -1010,7 +1150,7 @@ describe('batch service getProductInventoryDetail', () => {
       historyRecord({ stockBatchLines: [] }),
     );
 
-    const result = await service.getProductInventoryDetail(SCOPE, 'p-tequila');
+    const result = await service.getProductInventoryDetail(SCOPE, 'p-tequila', {});
 
     expect(result.batches).toEqual([]);
   });
@@ -1020,7 +1160,7 @@ describe('batch service getProductInventoryDetail', () => {
       historyRecord({ active: false }),
     );
 
-    const result = await service.getProductInventoryDetail(SCOPE, 'p-tequila');
+    const result = await service.getProductInventoryDetail(SCOPE, 'p-tequila', {});
 
     expect(result.active).toBe(false);
   });
@@ -1031,7 +1171,7 @@ describe('batch service getProductInventoryDetail', () => {
       { recordId: 'p-tequila', uploadId: 'u-1' },
     ] as never);
 
-    const result = await service.getProductInventoryDetail(SCOPE, 'p-tequila');
+    const result = await service.getProductInventoryDetail(SCOPE, 'p-tequila', {});
 
     expect(result.uploadId).toBe('u-1');
   });

@@ -52,8 +52,9 @@ describe('batches.controller', () => {
     auth: Partial<Request['auth']> | undefined,
     validBody?: unknown,
     params: Record<string, string> = {},
+    validQuery: unknown = {},
   ) {
-    const req = { auth, validBody, params } as unknown as Request;
+    const req = { auth, validBody, params, validQuery } as unknown as Request;
     const res = {
       locals: {},
       status: vi.fn().mockReturnThis(),
@@ -172,10 +173,26 @@ describe('batches.controller', () => {
 
       await controller.listProductInventorySummaries(req, res);
 
-      expect(service.listProductInventorySummaries).toHaveBeenCalledWith({
-        businessId: 'b-1',
-        branchId: 'br-1',
-      });
+      expect(service.listProductInventorySummaries).toHaveBeenCalledWith(
+        {
+          businessId: 'b-1',
+          branchId: 'br-1',
+        },
+        {},
+      );
+    });
+
+    it('hands the service the expiry cutoff the middleware parsed', async () => {
+      vi.mocked(service.listProductInventorySummaries).mockResolvedValue([]);
+      const expiryBefore = new Date('2026-10-24T00:00:00.000Z');
+      const { req, res } = call(AUTH, undefined, {}, { expiryBefore });
+
+      await controller.listProductInventorySummaries(req, res);
+
+      expect(service.listProductInventorySummaries).toHaveBeenCalledWith(
+        { businessId: 'b-1', branchId: 'br-1' },
+        { expiryBefore },
+      );
     });
 
     it('lets a rejected service call propagate to the error handler', async () => {
@@ -207,6 +224,21 @@ describe('batches.controller', () => {
       expect(service.getProductInventoryDetail).toHaveBeenCalledWith(
         { businessId: 'b-1', branchId: 'br-1' },
         'p-tequila',
+        {},
+      );
+    });
+
+    it('hands the service the expiry cutoff the middleware parsed', async () => {
+      vi.mocked(service.getProductInventoryDetail).mockResolvedValue(CREATED as never);
+      const expiryBefore = new Date('2026-10-24T00:00:00.000Z');
+      const { req, res } = call(AUTH, undefined, { productId: 'p-tequila' }, { expiryBefore });
+
+      await controller.getProductInventoryDetail(req, res);
+
+      expect(service.getProductInventoryDetail).toHaveBeenCalledWith(
+        { businessId: 'b-1', branchId: 'br-1' },
+        'p-tequila',
+        { expiryBefore },
       );
     });
 

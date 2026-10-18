@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import type { ProductInventoryDetailFilters, ProductInventoryListFilters } from '@mez/types';
 import type { BatchService, CreateBatchInput } from './batches.types.js';
 import type { Actor, Scope } from '../../shared/types/session.types.js';
 
@@ -44,13 +45,15 @@ export function createBatchController(service: BatchService): BatchController {
     },
 
     async listProductInventorySummaries(req, res) {
-      const summaries = await service.listProductInventorySummaries(scopeOf(req));
+      const filters = req.validQuery as ProductInventoryListFilters;
+      const summaries = await service.listProductInventorySummaries(scopeOf(req), filters);
       res.status(200).json(summaries);
     },
 
     async getProductInventoryDetail(req, res) {
       const productId = req.params.productId as string;
-      const product = await service.getProductInventoryDetail(scopeOf(req), productId);
+      const filters = req.validQuery as ProductInventoryDetailFilters;
+      const product = await service.getProductInventoryDetail(scopeOf(req), productId, filters);
       res.status(200).json(product);
     },
   };

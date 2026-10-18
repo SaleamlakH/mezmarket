@@ -6,6 +6,10 @@ import type {
   CreateBatchLineInput,
   ProductContext,
   ProductInventoryBatch,
+  ProductInventoryDetailFilters,
+  ProductInventoryExpiry,
+  ProductInventoryListFilters,
+  ProductInventoryStock,
   ProductInventorySummary,
   ProductUnitContext,
   ProductWithBatchHistoryRecord,
@@ -64,7 +68,10 @@ export function createBatchService(repository: BatchRepository): BatchService {
       return toBatchDetail(record);
     },
 
-    async listProductInventorySummaries({ businessId, branchId }: Scope) {
+    async listProductInventorySummaries(
+      { businessId, branchId }: Scope,
+      filters: ProductInventoryListFilters,
+    ) {
       const records = await repository.listProductsWithStockLines(businessId, branchId);
 
       if (records.length === 0) return [];
@@ -79,10 +86,16 @@ export function createBatchService(repository: BatchRepository): BatchService {
           .map((attachment) => [attachment.recordId, attachment.uploadId]),
       );
 
-      return records.map((record) => toProductInventorySummary(record, uploadIds));
+      const expiryBefore = filters.expiryBefore ?? new Date();
+
+      return records.map((record) => toProductInventorySummary(record, uploadIds, expiryBefore));
     },
 
-    async getProductInventoryDetail({ businessId, branchId }: Scope, productId: string) {
+    async getProductInventoryDetail(
+      { businessId, branchId }: Scope,
+      productId: string,
+      filters: ProductInventoryDetailFilters,
+    ) {
       const record = await repository.getProductWithBatchHistory(businessId, branchId, productId);
 
       if (!record) {
@@ -93,15 +106,18 @@ export function createBatchService(repository: BatchRepository): BatchService {
       const uploadId =
         attachments.find((attachment) => attachment.uploadId != null)?.uploadId ?? null;
 
-      // The summary figures read the lines still holding stock, the same way the
+      // The header figures read the lines still holding stock, the same way the
       // product list does; the history below lists every batch it appeared in.
       const remainingLines = record.stockBatchLines.filter(
         (line) => line.quantityRemaining.toNumber() > 0,
       );
+      const baseUnit = baseUnitOf(record);
+      const expiryBefore = filters.expiryBefore ?? new Date();
 
       return {
-        ...buildProductInventorySummary(record, remainingLines, uploadId),
-        batches: toProductBatches(record.stockBatchLines),
+        ...buildProductInventoryStock(record, remainingLines, uploadId),
+        expiry: expiryTotalsOf(remainingLines, expiryBefore),
+        batches: toProductBatches(record.stockBatchLines, record.productUnits, baseUnit.name),
       };
     },
   };
@@ -208,24 +224,20 @@ function toBatchDetail(record: StockBatchRecord) {
 function toProductInventorySummary(
   record: ProductWithStockLinesRecord,
   uploadIds: Map<string, string>,
+  expiryBefore: Date,
 ): ProductInventorySummary {
   return buildProductInventorySummary(
     record,
     record.stockBatchLines,
     uploadIds.get(record.id) ?? null,
+    expiryBefore,
   );
 }
 
-/**
- * The summary figures of a product, computed from the lines it is handed. The
- * list passes the lines still holding stock; the detail passes the same subset,
- * so both surfaces agree on the totals.
- */
-function buildProductInventorySummary(
+/** The product's Base Unit, the unit every stock figure is expressed in. */
+function baseUnitOf(
   record: ProductWithBatchHistoryRecord | ProductWithStockLinesRecord,
-  lines: StockBatchLineWithBatchRecord[] | StockBatchLineRecord[],
-  uploadId: string | null,
-): ProductInventorySummary {
+): ProductUnitContext {
   const baseUnit = record.productUnits.find((unit) => unit.unitRole === 'BASE');
 
   // Without a Base Unit there is no unit to express the stock in.
@@ -233,6 +245,20 @@ function buildProductInventorySummary(
     throw new AppError(ERROR_CODES.INTERNAL_ERROR, `Product ${record.name} has no base unit`, 500);
   }
 
+  return baseUnit;
+}
+
+/**
+ * The stock header a product shares between the list and the detail. The list
+ * passes the lines still holding stock; the detail passes the same subset, so
+ * both surfaces agree on the totals.
+ */
+function buildProductInventoryStock(
+  record: ProductWithBatchHistoryRecord | ProductWithStockLinesRecord,
+  lines: StockBatchLineWithBatchRecord[] | StockBatchLineRecord[],
+  uploadId: string | null,
+): ProductInventoryStock {
+  const baseUnit = baseUnitOf(record);
   const currentSealedStock = record.currentSealedStock.toNumber();
   const lowStockThreshold = record.lowStockThreshold?.toNumber() ?? null;
   const totals = sumInventoryTotals(lines, record.productUnits);
@@ -247,11 +273,48 @@ function buildProductInventorySummary(
     baseUnitLabel: baseUnit.name,
     uploadId,
     totalCost: totals.totalCost,
-    earliestExpiry: totals.earliestExpiry,
-    expiryCount: totals.expiringBatchIds.size,
     numberOfBatches: totals.batchIds.size,
     stockStatus: stockStatusOf(currentSealedStock, lowStockThreshold),
   };
+}
+
+/**
+ * The stock header plus the expiry figures the list shows. Both read the lines
+ * still holding stock, so the list and the detail describe the same stock.
+ */
+function buildProductInventorySummary(
+  record: ProductWithStockLinesRecord,
+  lines: StockBatchLineRecord[],
+  uploadId: string | null,
+  expiryBefore: Date,
+): ProductInventorySummary {
+  return {
+    ...buildProductInventoryStock(record, lines, uploadId),
+    expiry: expiryTotalsOf(lines, expiryBefore),
+  };
+}
+
+/**
+ * The lots still holding stock that expire before the cutoff, and how much is
+ * on them in base units. The cutoff is the caller's, so a caller can ask for
+ * what is already expired or what will expire by a chosen date.
+ */
+function expiryTotalsOf(
+  lines: StockBatchLineRecord[] | StockBatchLineWithBatchRecord[],
+  expiryBefore: Date,
+): ProductInventoryExpiry {
+  let lotCount = 0;
+  let quantity = 0;
+
+  for (const line of lines) {
+    if (line.quantityRemaining.toNumber() <= 0) continue;
+    if (line.expiryDate === null || line.expiryDate > expiryBefore) continue;
+
+    lotCount += 1;
+    quantity += line.quantityRemaining.toNumber();
+  }
+
+  return { lotCount, quantity: Number(quantity.toFixed(4)) };
 }
 
 /**
@@ -259,7 +322,11 @@ function buildProductInventorySummary(
  * first. A batch keeps every line the product had in it, whether or not any
  * stock is left, so the purchase history is complete.
  */
-function toProductBatches(lines: StockBatchLineWithBatchRecord[]): ProductInventoryBatch[] {
+function toProductBatches(
+  lines: StockBatchLineWithBatchRecord[],
+  productUnits: ProductUnitContext[],
+  baseUnitLabel: string,
+): ProductInventoryBatch[] {
   const batches = new Map<string, ProductInventoryBatch>();
 
   for (const line of lines) {
@@ -278,6 +345,8 @@ function toProductBatches(lines: StockBatchLineWithBatchRecord[]): ProductInvent
       batches.set(stockBatch.id, batch);
     }
 
+    const remaining = remainingValuesOf(line, productUnits);
+
     batch.lines.push({
       id: line.id,
       purchaseQuantity: line.purchaseQuantity.toNumber(),
@@ -286,6 +355,9 @@ function toProductBatches(lines: StockBatchLineWithBatchRecord[]): ProductInvent
       standardQuantity: line.standardQuantity.toNumber(),
       standardUnit: line.standardUnit,
       quantityRemaining: line.quantityRemaining.toNumber(),
+      baseUnit: baseUnitLabel,
+      remainingPurchaseQuantity: remaining.remainingPurchaseQuantity,
+      remainingCost: remaining.remainingCost,
       expiryDate: line.expiryDate,
     });
   }
@@ -302,8 +374,6 @@ function stockStatusOf(currentSealedStock: number, lowStockThreshold: number | n
 
 type InventoryTotals = {
   totalCost: number;
-  earliestExpiry: Date | null;
-  expiringBatchIds: Set<string>;
   batchIds: Set<string>;
 };
 
@@ -313,46 +383,47 @@ function sumInventoryTotals(
 ): InventoryTotals {
   const totals: InventoryTotals = {
     totalCost: 0,
-    earliestExpiry: null,
-    expiringBatchIds: new Set(),
     batchIds: new Set(),
   };
 
   for (const line of lines) {
-    totals.totalCost += remainingCostOf(line, productUnits);
-    totals.batchIds.add(line.stockBatchId); // if only has remaining > 0, needs correction
-
-    if (line.expiryDate === null) continue;
-
-    totals.expiringBatchIds.add(line.stockBatchId);
-    if (totals.earliestExpiry === null || line.expiryDate < totals.earliestExpiry) {
-      totals.earliestExpiry = line.expiryDate;
-    }
+    totals.totalCost += remainingValuesOf(line, productUnits).remainingCost;
+    totals.batchIds.add(line.stockBatchId);
   }
 
   return totals;
 }
 
+type RemainingLineValues = {
+  remainingCost: number;
+  remainingPurchaseQuantity: number;
+};
+
 /**
- * What a line cost when bought, scaled by the fraction of it still unsold. The
- * fraction is taken against the base-unit quantity because remaining quantity is
- * tracked in base units. A line whose purchased unit is missing from the
- * product's units contributes no cost, so the rest of the summary still adds up.
+ * What is still on hand from a line: how much of the purchase unit is left and
+ * what it cost, both scaled by the fraction still unsold. The fraction is taken
+ * against the base-unit quantity because remaining quantity is tracked in base
+ * units. A line whose purchased unit is missing from the product's units
+ * contributes nothing, so the rest of the summary still adds up.
  */
-function remainingCostOf(line: StockBatchLineRecord, productUnits: ProductUnitContext[]): number {
+function remainingValuesOf(
+  line: StockBatchLineRecord,
+  productUnits: ProductUnitContext[],
+): RemainingLineValues {
   const sourceUnit = productUnits.find((unit) => unit.id === line.productUnitId);
 
-  if (!sourceUnit) return 0;
+  if (!sourceUnit) return { remainingCost: 0, remainingPurchaseQuantity: 0 };
 
-  const baseBought = convertToStandardQuantity(
-    productUnits,
-    sourceUnit,
-    'BASE',
-    line.purchaseQuantity.toNumber(),
-  );
+  const purchaseQuantity = line.purchaseQuantity.toNumber();
+  const baseBought = convertToStandardQuantity(productUnits, sourceUnit, 'BASE', purchaseQuantity);
 
-  if (baseBought === 0) return 0;
+  if (baseBought === 0) return { remainingCost: 0, remainingPurchaseQuantity: 0 };
 
-  const bought = line.purchaseQuantity.toNumber() * line.purchaseUnitCost.toNumber();
-  return bought * (line.quantityRemaining.toNumber() / baseBought);
+  const fraction = line.quantityRemaining.toNumber() / baseBought;
+  const bought = purchaseQuantity * line.purchaseUnitCost.toNumber();
+
+  return {
+    remainingCost: bought * fraction,
+    remainingPurchaseQuantity: Number((purchaseQuantity * fraction).toFixed(4)),
+  };
 }

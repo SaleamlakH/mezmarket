@@ -478,9 +478,37 @@ describe('batches.integration', () => {
         baseUnitLabel: 'Bottle',
         totalCost: 9500,
         numberOfBatches: 1,
-        expiryCount: 1,
+        expiry: { lotCount: 1, quantity: 10 },
         stockStatus: 'IN_STOCK',
       });
+    });
+
+    it('honours the expiry cutoff query parameter', async () => {
+      await authenticate();
+      batchRepository.listProductsWithStockLines.mockResolvedValue([
+        INVENTORY_PRODUCT_RECORD as never,
+      ]);
+
+      const res = await request(app)
+        .get('/api/businesses/b-1/inventory/products')
+        .query({ expiryBefore: '2026-02-01T00:00:00.000Z' })
+        .set('Authorization', 'Bearer token');
+
+      expect(res.status).toBe(200);
+      expect(res.body[0].expiry).toEqual({ lotCount: 0, quantity: 0 });
+    });
+
+    it('rejects a malformed expiry cutoff before the catalog is read', async () => {
+      await authenticate();
+
+      const res = await request(app)
+        .get('/api/businesses/b-1/inventory/products')
+        .query({ expiryBefore: 'soon' })
+        .set('Authorization', 'Bearer token');
+
+      expect(res.status).toBe(400);
+      expect(res.body).toMatchObject({ error: { code: ERROR_CODES.BAD_REQUEST } });
+      expect(batchRepository.listProductsWithStockLines).not.toHaveBeenCalled();
     });
 
     it('does not leak the rows the summary was worked out from', async () => {
@@ -596,10 +624,46 @@ describe('batches.integration', () => {
         purchaseUnit: 'Bottle',
         purchaseQuantity: 10,
         standardQuantity: 10,
+        baseUnit: 'Bottle',
+        remainingPurchaseQuantity: 10,
+        remainingCost: 9500,
       });
       // The rows the detail was worked out from are not leaked.
       expect(res.body).not.toHaveProperty('productUnits');
       expect(res.body).not.toHaveProperty('stockBatchLines');
+    });
+
+    it('totals the expiry of the stock still on hand against the cutoff', async () => {
+      await authenticate();
+
+      const before = await request(app)
+        .get('/api/businesses/b-1/inventory/products/p-tequila')
+        .query({ expiryBefore: '2026-02-01T00:00:00.000Z' })
+        .set('Authorization', 'Bearer token');
+
+      expect(before.status).toBe(200);
+      expect(before.body.expiry).toEqual({ lotCount: 0, quantity: 0 });
+
+      const byExpiry = await request(app)
+        .get('/api/businesses/b-1/inventory/products/p-tequila')
+        .query({ expiryBefore: '2026-03-01T00:00:00.000Z' })
+        .set('Authorization', 'Bearer token');
+
+      expect(byExpiry.status).toBe(200);
+      expect(byExpiry.body.expiry).toEqual({ lotCount: 1, quantity: 10 });
+    });
+
+    it('rejects a malformed expiry cutoff before the product is read', async () => {
+      await authenticate();
+
+      const res = await request(app)
+        .get('/api/businesses/b-1/inventory/products/p-tequila')
+        .query({ expiryBefore: 'soon' })
+        .set('Authorization', 'Bearer token');
+
+      expect(res.status).toBe(400);
+      expect(res.body).toMatchObject({ error: { code: ERROR_CODES.BAD_REQUEST } });
+      expect(batchRepository.getProductWithBatchHistory).not.toHaveBeenCalled();
     });
 
     it('answers 404 when the product is outside the caller scope', async () => {

@@ -4,6 +4,10 @@ import type {
   CreateBatchResult,
   ProductInventoryBatch,
   ProductInventoryDetail,
+  ProductInventoryDetailFilters,
+  ProductInventoryExpiry,
+  ProductInventoryListFilters,
+  ProductInventoryStock,
   ProductInventorySummary,
   StockBatch,
   StockBatchDetailResult,
@@ -28,6 +32,10 @@ export type {
   CreateBatchResult,
   ProductInventoryBatch,
   ProductInventoryDetail,
+  ProductInventoryDetailFilters,
+  ProductInventoryExpiry,
+  ProductInventoryListFilters,
+  ProductInventoryStock,
   ProductInventorySummary,
   StockBatchDetailResult,
   StockStatus,
@@ -152,6 +160,13 @@ export type BatchService = {
   createBatch(actor: Actor, input: CreateBatchInput): Promise<CreateBatchResult>;
   listBatches(scope: Scope): Promise<StockBatchDetailResult[]>;
   getBatchDetail(scope: Scope, batchId: string): Promise<StockBatchDetailResult>;
-  listProductInventorySummaries(scope: Scope): Promise<ProductInventorySummary[]>;
-  getProductInventoryDetail(scope: Scope, productId: string): Promise<ProductInventoryDetail>;
+  listProductInventorySummaries(
+    scope: Scope,
+    filters: ProductInventoryListFilters,
+  ): Promise<ProductInventorySummary[]>;
+  getProductInventoryDetail(
+    scope: Scope,
+    productId: string,
+    filters: ProductInventoryDetailFilters,
+  ): Promise<ProductInventoryDetail>;
 };

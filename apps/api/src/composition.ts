@@ -17,7 +17,11 @@ import { createBatchRepository } from './modules/batches/batches.repository.js';
 import { createBatchService } from './modules/batches/batches.service.js';
 import { createBatchController } from './modules/batches/batches.controller.js';
 import { createBatchRouter } from './modules/batches/batches.routes.js';
-import { validateBatchCreateInput } from './modules/batches/batches.middleware.js';
+import {
+  validateBatchCreateInput,
+  validateInventoryDetailFilters,
+  validateInventoryListFilters,
+} from './modules/batches/batches.middleware.js';
 import { createOwnerRepository } from './modules/owner/owner.repository.js';
 import { createOwnerService } from './modules/owner/owner.service.js';
 import { createOwnerController } from './modules/owner/owner.controller.js';
@@ -66,6 +70,8 @@ import { createUploadsRouter } from './modules/uploads/uploads.routes.js';
 import { validateUploadInput } from './modules/uploads/uploads.middleware.js';
 import type { Router } from 'express';
 
+// --- Storage ---
+
 function buildStorage(): StorageClient {
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -93,9 +99,13 @@ function buildStorage(): StorageClient {
 
 const storage = buildStorage();
 
+// --- Auth ---
+
 const authRepository = createAuthRepository(prisma);
 const authService = createAuthService(authRepository);
 export const auth = createAuthMiddleware(verifyJwt, authService);
+
+// --- Business ---
 
 const businessRepository = createBusinessRepository(prisma);
 const businessService = createBusinessService(businessRepository);
@@ -106,6 +116,8 @@ export const businessRoutes = createBusinessRouter(
   validateBusinessUpdateInput,
 );
 
+// --- Batches ---
+
 const batchRepository = createBatchRepository(prisma);
 const batchService = createBatchService(batchRepository);
 const batchController = createBatchController(batchService);
@@ -114,13 +126,22 @@ export const batchRoutes = createBatchRouter(
   createAuthorizeBusiness(businessService),
   requireBusinessRole(['OWNER', 'MANAGER']),
   validateBatchCreateInput,
+  validateInventoryListFilters,
+  validateInventoryDetailFilters,
 );
+
+// --- Owner ---
+
 const ownerRepository = createOwnerRepository(prisma);
 const ownerService = createOwnerService(ownerRepository);
 const ownerController = createOwnerController(ownerService);
 export const ownerRoutes = createOwnerRoutes(ownerController, validateOwnerUpdate);
 
+// --- Shared authorization ---
+
 const authorizeBusiness = createAuthorizeBusiness(businessService);
+
+// --- Products & uploads ---
 
 const productsRepository = createProductsRepository(prisma);
 const productsService = createProductsService(productsRepository);
@@ -143,6 +164,8 @@ export const productsRoutes = createProductsRouter(
   uploadsRouter,
 );
 
+// --- Sales ---
+
 const salesRepository = createSaleRepository(prisma);
 const salesService = createSaleService(salesRepository);
 const salesController = createSaleController(salesService);
@@ -154,6 +177,8 @@ export const salesRoutes = createSalesRouter(
   validateSalePaymentInput,
 );
 
+// --- Customers ---
+
 const customersRepository = createCustomersRepository(prisma);
 const customersService = createCustomersService(customersRepository);
 const customersController = createCustomersController(customersService);
@@ -164,6 +189,8 @@ export const customersRoutes = createCustomersRouter(
   validateCustomerInput,
 );
 
+// --- Members ---
+
 const membersRepository = createMembersRepository(prisma);
 const membersService = createMembersService(membersRepository);
 const membersController = createMembersController(membersService);
@@ -172,6 +199,8 @@ export const membersRoutes = createMembersRouter(
   authorizeBusiness,
   validateMemberListFilters,
 );
+
+// --- Units ---
 
 const unitsRepository = createUnitsRepository(prisma);
 const unitsService = createUnitsService(unitsRepository);

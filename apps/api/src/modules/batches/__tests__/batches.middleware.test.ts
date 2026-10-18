@@ -1,10 +1,14 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { NextFunction, Request, Response } from 'express';
-import { validateBatchCreateInput } from '../batches.middleware.js';
+import {
+  validateBatchCreateInput,
+  validateInventoryDetailFilters,
+  validateInventoryListFilters,
+} from '../batches.middleware.js';
 import { ERROR_CODES } from '../../../shared/errors/app-error.js';
 
-function call(body: unknown) {
-  const req = { body, validBody: undefined } as unknown as Request;
+function call(body: unknown, query: Record<string, unknown> = {}) {
+  const req = { body, query, validBody: undefined, validQuery: undefined } as unknown as Request;
   const res = { locals: {} } as unknown as Response;
   const next = vi.fn() as NextFunction;
   return { run: () => validateBatchCreateInput(req, res, next), req, next };
@@ -64,6 +68,70 @@ describe('batches.middleware', () => {
       );
       expect(next).not.toHaveBeenCalled();
       expect(req.validBody).toBeUndefined();
+    });
+  });
+
+  describe('validateInventoryListFilters', () => {
+    function queryCall(query: Record<string, unknown>) {
+      const req = { query, validQuery: undefined } as unknown as Request;
+      const res = { locals: {} } as unknown as Response;
+      const next = vi.fn() as NextFunction;
+      return { run: () => validateInventoryListFilters(req, res, next), req, next };
+    }
+
+    it('parses the expiry cutoff onto the request', () => {
+      const { run, req, next } = queryCall({ expiryBefore: '2026-10-24T00:00:00.000Z' });
+
+      run();
+
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(req.validQuery).toEqual({ expiryBefore: new Date('2026-10-24T00:00:00.000Z') });
+    });
+
+    it('turns a malformed cutoff into a 400 and stops the chain', () => {
+      const { run, req, next } = queryCall({ expiryBefore: 'soon' });
+
+      expect(run).toThrow(
+        expect.objectContaining({
+          code: ERROR_CODES.BAD_REQUEST,
+          statusCode: 400,
+          details: expect.objectContaining({ expiryBefore: expect.any(String) }),
+        }),
+      );
+      expect(next).not.toHaveBeenCalled();
+      expect(req.validQuery).toBeUndefined();
+    });
+  });
+
+  describe('validateInventoryDetailFilters', () => {
+    function queryCall(query: Record<string, unknown>) {
+      const req = { query, validQuery: undefined } as unknown as Request;
+      const res = { locals: {} } as unknown as Response;
+      const next = vi.fn() as NextFunction;
+      return { run: () => validateInventoryDetailFilters(req, res, next), req, next };
+    }
+
+    it('parses the expiry cutoff onto the request', () => {
+      const { run, req, next } = queryCall({ expiryBefore: '2026-10-24T00:00:00.000Z' });
+
+      run();
+
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(req.validQuery).toEqual({ expiryBefore: new Date('2026-10-24T00:00:00.000Z') });
+    });
+
+    it('turns a malformed cutoff into a 400 and stops the chain', () => {
+      const { run, req, next } = queryCall({ expiryBefore: 'soon' });
+
+      expect(run).toThrow(
+        expect.objectContaining({
+          code: ERROR_CODES.BAD_REQUEST,
+          statusCode: 400,
+          details: expect.objectContaining({ expiryBefore: expect.any(String) }),
+        }),
+      );
+      expect(next).not.toHaveBeenCalled();
+      expect(req.validQuery).toBeUndefined();
     });
   });
 });
