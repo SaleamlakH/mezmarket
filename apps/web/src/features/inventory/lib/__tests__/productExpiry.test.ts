@@ -1,18 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import {
-  daysSince,
   EXPIRY_SOON_HORIZON_DAYS,
-  expiringSoonLineCount,
   expiryAlertTotals,
   expiryCutoff,
   expiryState,
 } from '../productExpiry';
-import { flattenProductBatchLines } from '../flattenProductBatchLines';
 import { productInventoryDetail } from '../../__tests__/fixtures';
 
 const NOW = new Date('2026-10-17T00:00:00.000Z');
-const rows = flattenProductBatchLines(productInventoryDetail.batches);
 const CUTOFF = new Date('2026-10-24T00:00:00.000Z');
+const lines = productInventoryDetail.batches.flatMap((batch) => batch.lines);
 
 describe('expiryState', () => {
   it('is expired when the expiry is in the past', () => {
@@ -38,32 +35,6 @@ describe('expiryState', () => {
   });
 });
 
-describe('daysSince', () => {
-  it('counts whole days the expiry is past', () => {
-    expect(daysSince('2026-10-09T00:00:00.000Z', NOW)).toBe(8);
-  });
-});
-
-describe('expiringSoonLineCount', () => {
-  it('counts the lots still holding stock that expire within the horizon', () => {
-    expect(
-      expiringSoonLineCount(
-        rows.map((row) => row.line),
-        NOW,
-      ),
-    ).toBe(1);
-  });
-
-  it('leaves out a line with nothing left', () => {
-    expect(
-      expiringSoonLineCount(
-        [{ quantityRemaining: 0, expiryDate: '2026-10-24T00:00:00.000Z' }],
-        NOW,
-      ),
-    ).toBe(0);
-  });
-});
-
 describe('expiryCutoff', () => {
   it('moves the window forward by the soon horizon', () => {
     expect(expiryCutoff(NOW)).toEqual(CUTOFF);
@@ -72,10 +43,7 @@ describe('expiryCutoff', () => {
 
 describe('expiryAlertTotals', () => {
   it('adds up the expired and soon quantities still on hand', () => {
-    const totals = expiryAlertTotals(
-      rows.map((row) => row.line),
-      NOW,
-    );
+    const totals = expiryAlertTotals(lines, NOW);
 
     expect(totals.expiredQuantity).toBe(8);
     expect(totals.soonQuantity).toBe(50);

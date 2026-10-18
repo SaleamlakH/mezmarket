@@ -3,18 +3,14 @@ import type { UnitStockGroup } from '../lib/groupLinesByUnit';
 
 export interface ProductInventoryStockByUnitProps {
   groups: UnitStockGroup[];
-  baseUnitLabel: string;
 }
 
 /**
- * What the product physically holds, grouped by the unit it was bought in. The
- * quantity is shown in the standard unit; a non-base unit also carries how much
- * of the standard unit one of it is worth, and how many lines hold it.
+ * What the product physically holds, grouped by the unit it was bought in. A
+ * non-base unit shows both how many of it are left and the base-unit total;
+ * the base unit itself shows only the total so it is not repeated.
  */
-export function ProductInventoryStockByUnit({
-  groups,
-  baseUnitLabel,
-}: ProductInventoryStockByUnitProps) {
+export function ProductInventoryStockByUnit({ groups }: ProductInventoryStockByUnitProps) {
   if (groups.length === 0) return null;
 
   return (
@@ -32,18 +28,12 @@ export function ProductInventoryStockByUnit({
             key={group.purchaseUnit}
             className="flex items-baseline justify-between gap-3 border-t border-(--border) py-2"
           >
-            <span className="min-w-0 truncate text-sm text-(--text)">
-              <span>{group.purchaseUnit}</span>
-              {group.purchaseUnit !== baseUnitLabel && (
-                <span className="text-(--text-muted)">
-                  {' '}
-                  ({formatQuantity(group.baseEquivalent)} {group.standardUnit})
-                </span>
-              )}
-            </span>
+            <span className="min-w-0 truncate text-sm text-(--text)">{group.purchaseUnit}</span>
             <span className="flex shrink-0 items-baseline gap-2">
               <span className="font-mono text-sm tabular-nums text-(--text)">
-                {formatQuantity(group.quantityRemaining)} {group.standardUnit}
+                {group.purchaseUnit === group.baseUnit
+                  ? `${formatQuantity(group.baseQuantityRemaining)} ${group.baseUnit}`
+                  : `${formatQuantity(group.purchaseUnitRemaining)} ${group.purchaseUnit} · ${formatQuantity(group.baseQuantityRemaining)} ${group.baseUnit}`}
               </span>
               <span className="hidden text-xs text-(--text-muted) md:inline">
                 · {group.lineCount} {pluralize(group.lineCount, 'line')}

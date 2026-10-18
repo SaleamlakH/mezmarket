@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Link, useLocation, useParams } from 'react-router';
 import { ChevronLeft } from 'lucide-react';
 import { LoadingState } from '@/components/LoadingState';
@@ -7,9 +8,8 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { INVENTORY_PATH } from '@/layouts/navigation';
 import { pluralize } from '@/lib/format';
 import { useProductInventoryDetail } from '../hooks/useInventoryApi';
-import { flattenProductBatchLines } from '../lib/flattenProductBatchLines';
 import { groupLinesByUnit } from '../lib/groupLinesByUnit';
-import { expiringSoonLineCount, expiryAlertTotals } from '../lib/productExpiry';
+import { expiryAlertTotals, expiryCutoff } from '../lib/productExpiry';
 import { ProductInventoryMetrics } from '../components/ProductInventoryMetrics';
 import { ProductInventoryExpiryAlert } from '../components/ProductInventoryExpiryAlert';
 import { ProductInventoryStockByUnit } from '../components/ProductInventoryStockByUnit';
@@ -18,8 +18,15 @@ import { ProductInventoryBatchList } from '../components/ProductInventoryBatchLi
 export function ProductInventoryDetailPage() {
   const { productId } = useParams<{ productId: string }>();
   const { state } = useLocation();
-  const { data: product, isPending, isError, refetch } = useProductInventoryDetail(productId);
   const currency = useCurrency();
+  const now = useMemo(() => new Date(), []);
+  const expiryBefore = useMemo(() => expiryCutoff(now), [now]);
+  const {
+    data: product,
+    isPending,
+    isError,
+    refetch,
+  } = useProductInventoryDetail(productId, expiryBefore);
 
   // Where the product was opened from, so Back returns there; deep links fall
   // back to the inventory list.
@@ -27,7 +34,7 @@ export function ProductInventoryDetailPage() {
 
   if (isPending) {
     return (
-      <div className="mx-auto max-w-3xl px-3 py-4">
+      <div className="mx-auto max-w-5xl px-3 py-4">
         <LoadingState label="Loading product…" />
       </div>
     );
@@ -35,7 +42,7 @@ export function ProductInventoryDetailPage() {
 
   if (isError || !product) {
     return (
-      <div className="mx-auto max-w-3xl px-3 py-4">
+      <div className="mx-auto max-w-5xl px-3 py-4">
         <ErrorState
           title="Could not load product"
           description="Something went wrong while fetching this product."
@@ -45,15 +52,12 @@ export function ProductInventoryDetailPage() {
     );
   }
 
-  const now = new Date();
-  const rows = flattenProductBatchLines(product.batches);
-  const lines = rows.map((row) => row.line);
-  const unitGroups = groupLinesByUnit(rows);
+  const lines = product.batches.flatMap((batch) => batch.lines);
+  const unitGroups = groupLinesByUnit(product.batches);
   const alertTotals = expiryAlertTotals(lines, now);
-  const expiringSoonCount = expiringSoonLineCount(lines, now);
 
   return (
-    <div className="mx-auto max-w-3xl px-3 pt-3 pb-6 md:px-6 md:pt-6">
+    <div className="mx-auto max-w-5xl pt-3 pb-6 md:px-6 md:pt-6">
       <header className="flex items-center gap-2.5">
         <Link to={backTo} aria-label="Back to inventory" title="Back">
           <Button variant="secondary" size="sm" shape="pill">
@@ -65,8 +69,8 @@ export function ProductInventoryDetailPage() {
             {product.name}
           </h1>
           <p className="m-0 text-xs text-(--text-muted)">
-            Base unit: {product.baseUnitLabel} · {rows.length}{' '}
-            {pluralize(rows.length, 'batch line')}
+            Base unit: {product.baseUnitLabel} · {lines.length}{' '}
+            {pluralize(lines.length, 'batch line')}
           </p>
         </div>
       </header>
@@ -75,22 +79,27 @@ export function ProductInventoryDetailPage() {
         <ProductInventoryMetrics
           product={product}
           currency={currency}
-          expiringSoonCount={expiringSoonCount}
+          expiry={product.expiry}
+          expiryBefore={expiryBefore}
         />
       </div>
 
       {(alertTotals.expiredQuantity > 0 || alertTotals.soonQuantity > 0) && (
         <div className="mt-3">
-          <ProductInventoryExpiryAlert totals={alertTotals} baseUnitLabel={product.baseUnitLabel} />
+          <ProductInventoryExpiryAlert
+            totals={alertTotals}
+            baseUnitLabel={product.baseUnitLabel}
+            expiryBefore={expiryBefore}
+          />
         </div>
       )}
 
       <div className="mt-6">
-        <ProductInventoryStockByUnit groups={unitGroups} baseUnitLabel={product.baseUnitLabel} />
+        <ProductInventoryStockByUnit groups={unitGroups} />
       </div>
 
       <div className="mt-6">
-        <ProductInventoryBatchList rows={rows} currency={currency} now={now} />
+        <ProductInventoryBatchList batches={product.batches} currency={currency} now={now} />
       </div>
     </div>
   );

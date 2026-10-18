@@ -8,11 +8,6 @@ export const EXPIRY_SOON_HORIZON_DAYS = 7;
 
 const DAY_MS = 1000 * 60 * 60 * 24;
 
-/** How many whole days the expiry is past `now` (negative when still ahead). */
-export function daysSince(expiryDate: string, now: Date): number {
-  return Math.floor((now.getTime() - new Date(expiryDate).getTime()) / DAY_MS);
-}
-
 /**
  * Classifies an expiry against `now`: already past, within the soon horizon,
  * further out, or absent. `now` is passed in so callers and tests agree on the
@@ -28,18 +23,6 @@ export function expiryState(
   if (expiry <= now.getTime()) return 'expired';
   if (expiry <= now.getTime() + EXPIRY_SOON_HORIZON_DAYS * DAY_MS) return 'soon';
   return 'later';
-}
-
-/**
- * How many lots still holding stock expire within the soon horizon. Counted by
- * line, so the number reads as "how many lots to move", not how much stock.
- */
-export function expiringSoonLineCount(
-  lines: readonly Pick<ProductInventoryBatchLineResponse, 'quantityRemaining' | 'expiryDate'>[],
-  now: Date,
-): number {
-  return lines.filter((line) => line.quantityRemaining > 0 && expiryState(line, now) === 'soon')
-    .length;
 }
 
 /** The last moment a lot may expire and still count as expiring soon. */

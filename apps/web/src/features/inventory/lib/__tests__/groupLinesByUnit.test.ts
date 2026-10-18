@@ -1,39 +1,44 @@
 import { describe, it, expect } from 'vitest';
 import { groupLinesByUnit } from '../groupLinesByUnit';
-import { flattenProductBatchLines } from '../flattenProductBatchLines';
 import { productInventoryDetail } from '../../__tests__/fixtures';
 
-const rows = flattenProductBatchLines(productInventoryDetail.batches);
+const batches = productInventoryDetail.batches;
 
 describe('groupLinesByUnit', () => {
   it('groups the stock by the unit it was bought in, first seen first', () => {
-    const groups = groupLinesByUnit(rows);
+    const groups = groupLinesByUnit(batches);
 
     expect(groups.map((group) => group.purchaseUnit)).toEqual(['Kilogram', 'Sack']);
   });
 
-  it('sums the remaining quantity and counts the lines behind it', () => {
-    const [kilogram, sack] = groupLinesByUnit(rows);
+  it('sums the remaining in both the purchase and base units, and counts the lines', () => {
+    const [kilogram, sack] = groupLinesByUnit(batches);
 
     expect(kilogram).toMatchObject({
-      standardUnit: 'kg',
-      baseEquivalent: 1,
-      quantityRemaining: 20,
+      baseUnit: 'Kilogram',
+      purchaseUnitRemaining: 20,
+      baseQuantityRemaining: 20,
       lineCount: 2,
     });
     expect(sack).toMatchObject({
-      standardUnit: 'kg',
-      baseEquivalent: 50,
-      quantityRemaining: 50,
+      baseUnit: 'Kilogram',
+      purchaseUnitRemaining: 1,
+      baseQuantityRemaining: 50,
       lineCount: 1,
     });
   });
 
   it('leaves out a unit whose stock is fully gone', () => {
-    const first = rows[0];
-    if (!first) throw new Error('no rows to group');
+    const firstBatch = batches[0];
+    const firstLine = firstBatch?.lines[0];
+    if (!firstBatch || !firstLine) throw new Error('no lines to group');
 
-    const groups = groupLinesByUnit([{ ...first, line: { ...first.line, quantityRemaining: 0 } }]);
+    const groups = groupLinesByUnit([
+      {
+        ...firstBatch,
+        lines: [{ ...firstLine, quantityRemaining: 0, remainingPurchaseQuantity: 0 }],
+      },
+    ]);
 
     expect(groups).toEqual([]);
   });

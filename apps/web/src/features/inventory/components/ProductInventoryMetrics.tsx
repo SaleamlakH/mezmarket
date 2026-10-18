@@ -1,11 +1,13 @@
-import type { ProductInventoryDetailResponse } from '@mez/types';
-import { formatMoney, formatQuantity, pluralize } from '@/lib/format';
+import type { ProductInventoryDetailResponse, ProductInventoryExpiry } from '@mez/types';
+import { formatDate, formatMoney, formatQuantity, pluralize } from '@/lib/format';
 
 export interface ProductInventoryMetricsProps {
   product: ProductInventoryDetailResponse;
   currency: string;
-  /** How many lots still holding stock expire within the soon horizon. */
-  expiringSoonCount: number;
+  /** The lots still on hand that expire before the cutoff. */
+  expiry: ProductInventoryExpiry;
+  /** The last moment a lot may expire and still be counted. */
+  expiryBefore: Date;
 }
 
 type MetricTone = 'danger' | 'warning';
@@ -13,6 +15,8 @@ type MetricTone = 'danger' | 'warning';
 interface Metric {
   label: string;
   value: string;
+  /** A second line under the value, for figures that do not fit beside it. */
+  secondary?: string | undefined;
   tone?: MetricTone | undefined;
 }
 
@@ -21,7 +25,7 @@ const TONE_CLASS: Record<MetricTone, string> = {
   warning: 'text-(--warning)',
 };
 
-function MetricCard({ label, value, tone }: Metric) {
+function MetricCard({ label, value, secondary, tone }: Metric) {
   return (
     <div className="rounded-xl border border-(--border) bg-(--surface-primary) p-3">
       <p className="m-0 text-xs text-(--text-muted)">{label}</p>
@@ -32,6 +36,15 @@ function MetricCard({ label, value, tone }: Metric) {
       >
         {value}
       </p>
+      {secondary && (
+        <p
+          className={`m-0 truncate font-mono text-lg font-semibold tabular-nums ${
+            tone ? TONE_CLASS[tone] : 'text-(--text)'
+          }`}
+        >
+          {secondary}
+        </p>
+      )}
     </div>
   );
 }
@@ -40,7 +53,8 @@ function MetricCard({ label, value, tone }: Metric) {
 export function ProductInventoryMetrics({
   product,
   currency,
-  expiringSoonCount,
+  expiry,
+  expiryBefore,
 }: ProductInventoryMetricsProps) {
   const averageCost =
     product.currentSealedStock > 0 ? product.totalCost / product.currentSealedStock : null;
@@ -56,12 +70,14 @@ export function ProductInventoryMetrics({
       value: formatMoney(averageCost, currency) ?? '—',
     },
     {
-      label: 'Expiring soon',
+      label: `Expiry by ${formatDate(expiryBefore)}`,
       value:
-        expiringSoonCount > 0
-          ? `${expiringSoonCount} ${pluralize(expiringSoonCount, 'lot')}`
-          : 'None',
-      tone: expiringSoonCount > 0 ? 'warning' : undefined,
+        expiry.lotCount > 0 ? `${expiry.lotCount} ${pluralize(expiry.lotCount, 'lot')}` : 'None',
+      secondary:
+        expiry.lotCount > 0
+          ? `${formatQuantity(expiry.quantity)} ${product.baseUnitLabel}`
+          : undefined,
+      tone: expiry.lotCount > 0 ? 'warning' : undefined,
     },
   ];
 
