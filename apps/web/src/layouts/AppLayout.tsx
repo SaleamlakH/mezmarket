@@ -14,6 +14,7 @@ import {
   SIDEBAR_WIDTH_STYLE,
   NAV_TABS,
 } from '@/layouts/navigation';
+import { backNavigation } from '@/layouts/useNavigationHistory';
 
 /**
  * Routes that replace the app header with a back arrow and their own title,
@@ -35,8 +36,9 @@ export interface AppRouteHandle {
 }
 
 export function AppLayout() {
-  const { pathname } = useLocation();
+  const { pathname, state } = useLocation();
   const subRoute = SUB_ROUTES.find((route) => route.path === pathname);
+  const back = subRoute ? backNavigation(state, subRoute.backTo) : undefined;
   const matches = useMatches();
   const Aside = matches
     .map((match) => match.handle as AppRouteHandle | undefined)
@@ -56,7 +58,8 @@ export function AppLayout() {
           {subRoute ? (
             <>
               <Link
-                to={subRoute.backTo}
+                to={back?.to ?? subRoute.backTo}
+                state={back?.state}
                 aria-label="Back"
                 title="Back"
                 className="focus-ring inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-(--text) hover:bg-(--surface-secondary)"

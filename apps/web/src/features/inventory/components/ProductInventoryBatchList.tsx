@@ -1,9 +1,13 @@
 import { useState } from 'react';
 import type { ProductInventoryBatchLineResponse, ProductInventoryBatchResponse } from '@mez/types';
 import { ClipboardList } from 'lucide-react';
-import { Link, useLocation, useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { Badge, type BadgeSurface } from '@/components/Badge';
 import { SectionHeader } from '@/components/SectionHeader';
+import {
+  useForwardNavigationState,
+  type NavigationHistoryState,
+} from '@/layouts/useNavigationHistory';
 import {
   Table,
   TableBody,
@@ -92,8 +96,8 @@ function BatchTable({
   batches,
   currency,
   now,
-  from,
-}: ProductInventoryBatchListProps & { from: string }) {
+  navigationState,
+}: ProductInventoryBatchListProps & { navigationState: NavigationHistoryState }) {
   const [hoveredBatchId, setHoveredBatchId] = useState<string | null>(null);
   const navigate = useNavigate();
 
@@ -111,7 +115,8 @@ function BatchTable({
       </TableHead>
 
       {batches.map((batch) => {
-        const openBatch = () => navigate(`/inventory/batches/${batch.id}`, { state: { from } });
+        const openBatch = () =>
+          navigate(`/inventory/batches/${batch.id}`, { state: navigationState });
         const cellClass = `transition-colors ${hoveredBatchId === batch.id ? 'bg-(--field)' : ''}`;
 
         return (
@@ -132,7 +137,7 @@ function BatchTable({
                   >
                     <Link
                       to={`/inventory/batches/${batch.id}`}
-                      state={{ from }}
+                      state={navigationState}
                       onClick={(event) => event.stopPropagation()}
                       className="font-mono text-sm font-semibold text-(--accent) hover:text-(--accent-hover) hover:underline"
                     >
@@ -181,14 +186,19 @@ export function ProductInventoryBatchList({
   currency,
   now,
 }: ProductInventoryBatchListProps) {
-  const { pathname } = useLocation();
+  const forwardState = useForwardNavigationState();
 
   return (
     <section aria-label="Batch lines">
       <SectionHeader icon={<ClipboardList size={14} aria-hidden />} title="Batch lines" />
 
       <div className="hidden md:block">
-        <BatchTable batches={batches} currency={currency} now={now} from={pathname} />
+        <BatchTable
+          batches={batches}
+          currency={currency}
+          now={now}
+          navigationState={forwardState}
+        />
       </div>
 
       <div className="rounded-xl border border-(--border) bg-(--surface-primary) py-4 md:hidden">
@@ -198,7 +208,7 @@ export function ProductInventoryBatchList({
               <div className="min-w-0">
                 <Link
                   to={`/inventory/batches/${batch.id}`}
-                  state={{ from: pathname }}
+                  state={forwardState}
                   className="font-mono text-xl font-semibold text-(--accent) hover:text-(--accent-hover) hover:underline"
                 >
                   {batch.referenceNumber ? `Batch #${batch.referenceNumber}` : 'Batch'}

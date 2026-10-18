@@ -1,6 +1,7 @@
 import type { StockBatchDetailResponse } from '@mez/types';
-import { Link, useLocation } from 'react-router';
+import { Link } from 'react-router';
 import { RailCard } from '@/components/RailCard';
+import { useForwardNavigationState } from '@/layouts/useNavigationHistory';
 import { formatDate, formatMoney, formatTime } from '@/lib/format';
 import { batchTotal } from '../lib/batchTotal';
 
@@ -17,15 +18,11 @@ export interface BatchSummaryCardProps {
 export function BatchSummaryCard({ batch, currency, className = '' }: BatchSummaryCardProps) {
   const previewed = batch.lines.slice(0, PREVIEW_COUNT);
   const remaining = batch.lines.length - previewed.length;
-  const { pathname } = useLocation();
+  const forwardState = useForwardNavigationState();
 
   return (
     <article className={className}>
-      <Link
-        to={`/inventory/batches/${batch.id}`}
-        state={{ from: pathname }}
-        className="block h-full"
-      >
+      <Link to={`/inventory/batches/${batch.id}`} state={forwardState} className="block h-full">
         <RailCard
           className="h-full"
           footer={

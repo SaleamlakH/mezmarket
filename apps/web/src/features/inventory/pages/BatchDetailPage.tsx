@@ -1,10 +1,11 @@
-import { Link, useLocation, useParams } from 'react-router';
+import { Link, useParams } from 'react-router';
 import { ChevronLeft } from 'lucide-react';
 import { LoadingState } from '@/components/LoadingState';
 import { ErrorState } from '@/components/ErrorState';
 import { Button } from '@/components';
 import { useCurrency } from '@/hooks/useCurrency';
-import { BATCHES_PATH, INVENTORY_PATH } from '@/layouts/navigation';
+import { BATCHES_PATH } from '@/layouts/navigation';
+import { useBackNavigation } from '@/layouts/useNavigationHistory';
 import { formatDate } from '@/lib/format';
 import { useBatchDetail } from '../hooks/useInventoryApi';
 import { BatchDetailPurchaseSection } from '../components/BatchDetailPurchaseSection';
@@ -12,15 +13,12 @@ import { BatchDetailSummaryCard } from '../components/BatchDetailSummaryCard';
 
 export function BatchDetailPage() {
   const { batchId } = useParams<{ batchId: string }>();
-  const { state } = useLocation();
   const { data: batch, isPending, isError, refetch } = useBatchDetail(batchId);
   const currency = useCurrency();
 
   // Where the batch was opened from, so Back returns there; deep links fall
   // back to the batches list.
-  const from = (state as { from?: string } | null)?.from;
-  const isFromInventory = from === INVENTORY_PATH;
-  const backTo = isFromInventory ? INVENTORY_PATH : BATCHES_PATH;
+  const back = useBackNavigation(BATCHES_PATH);
 
   if (isPending) {
     return (
@@ -45,11 +43,7 @@ export function BatchDetailPage() {
   return (
     <div className="mx-auto max-w-6xl px-3 pt-3 pb-6 md:px-6 md:pt-6">
       <header className="flex items-center gap-2.5">
-        <Link
-          to={backTo}
-          aria-label={isFromInventory ? 'Back to inventory' : 'Back to batches'}
-          title="Back"
-        >
+        <Link to={back.to} state={back.state} aria-label="Back" title="Back">
           <Button variant="secondary" size="sm" shape="pill">
             <ChevronLeft aria-hidden className="h-5 w-5" />
           </Button>

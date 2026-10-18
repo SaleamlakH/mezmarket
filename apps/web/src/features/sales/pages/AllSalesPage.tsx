@@ -5,20 +5,23 @@ import { ErrorState } from '@/components/ErrorState';
 import { LoadingState } from '@/components/LoadingState';
 import { useCurrency } from '@/hooks/useCurrency';
 import { SALES_PATH } from '@/layouts/navigation';
+import { useBackNavigation } from '@/layouts/useNavigationHistory';
 import { SaleSummaryCard } from '../components/SaleSummaryCard';
 import { useSales } from '../hooks/useSalesApi';
 
 export function AllSalesPage() {
   const { isPending, isError, refetch, data: sales = [] } = useSales();
   const currency = useCurrency();
+  const back = useBackNavigation(SALES_PATH);
 
   return (
     <div className="mx-auto max-w-5xl pb-4">
       <div className="flex items-center gap-3 pt-1 pb-5">
         {/* On a phone the layout header already carries a back arrow. */}
         <Link
-          to={SALES_PATH}
-          aria-label="Back to sales"
+          to={back.to}
+          state={back.state}
+          aria-label="Back"
           className="focus-ring hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-(--border) bg-(--field) text-(--text) transition-colors hover:border-(--accent) hover:bg-(--accent) hover:text-white md:inline-flex"
         >
           <ChevronLeft size={16} aria-hidden />

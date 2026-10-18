@@ -1,11 +1,12 @@
 import { useMemo } from 'react';
-import { Link, useLocation, useParams } from 'react-router';
+import { Link, useParams } from 'react-router';
 import { ChevronLeft } from 'lucide-react';
 import { LoadingState } from '@/components/LoadingState';
 import { ErrorState } from '@/components/ErrorState';
 import { Button } from '@/components';
 import { useCurrency } from '@/hooks/useCurrency';
 import { INVENTORY_PATH } from '@/layouts/navigation';
+import { useBackNavigation } from '@/layouts/useNavigationHistory';
 import { pluralize } from '@/lib/format';
 import { useProductInventoryDetail } from '../hooks/useInventoryApi';
 import { groupLinesByUnit } from '../lib/groupLinesByUnit';
@@ -17,7 +18,6 @@ import { ProductInventoryBatchList } from '../components/ProductInventoryBatchLi
 
 export function ProductInventoryDetailPage() {
   const { productId } = useParams<{ productId: string }>();
-  const { state } = useLocation();
   const currency = useCurrency();
   const now = useMemo(() => new Date(), []);
   const expiryBefore = useMemo(() => expiryCutoff(now), [now]);
@@ -30,7 +30,7 @@ export function ProductInventoryDetailPage() {
 
   // Where the product was opened from, so Back returns there; deep links fall
   // back to the inventory list.
-  const backTo = (state as { from?: string } | null)?.from ?? INVENTORY_PATH;
+  const back = useBackNavigation(INVENTORY_PATH);
 
   if (isPending) {
     return (
@@ -59,7 +59,7 @@ export function ProductInventoryDetailPage() {
   return (
     <div className="mx-auto max-w-5xl pt-3 pb-6 md:px-6 md:pt-6">
       <header className="flex items-center gap-2.5">
-        <Link to={backTo} aria-label="Back to inventory" title="Back">
+        <Link to={back.to} state={back.state} aria-label="Back" title="Back">
           <Button variant="secondary" size="sm" shape="pill">
             <ChevronLeft aria-hidden className="h-5 w-5" />
           </Button>

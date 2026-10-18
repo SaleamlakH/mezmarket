@@ -4,7 +4,7 @@ import type {
   StockStatus,
 } from '@mez/types';
 import type { KeyboardEvent } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { Badge, type BadgeTone } from '@/components/Badge';
 import { ProductThumb } from '@/components/ProductThumb';
 import { RailCard } from '@/components/RailCard';
@@ -19,6 +19,7 @@ import {
 import { useProductImage } from '@/hooks/useProductImage';
 import { formatDate, formatMoney, formatQuantity, pluralize } from '@/lib/format';
 import { productInventoryPath } from '@/layouts/navigation';
+import { useForwardNavigationState } from '@/layouts/useNavigationHistory';
 
 const STATUS_PRESENTATION: Record<StockStatus, { label: string; tone: BadgeTone }> = {
   OUT_OF_STOCK: { label: 'Out of stock', tone: 'danger' },
@@ -71,10 +72,10 @@ function ProductStockCard({
   // The card owns its image request, so it fills in as soon as this one download
   // lands and the placeholder covers the gap until then.
   const imageUrl = useProductImage(businessId, product.uploadId ?? undefined, uploadUrls);
-  const { pathname } = useLocation();
+  const forwardState = useForwardNavigationState();
 
   return (
-    <Link to={productInventoryPath(product.id)} state={{ from: pathname }} className="block h-full">
+    <Link to={productInventoryPath(product.id)} state={forwardState} className="block h-full">
       <RailCard
         variant="thumbnail"
         thumbVariant="wide"
@@ -113,10 +114,10 @@ export function ProductStockList({
   expiryBefore,
 }: ProductStockListProps) {
   const navigate = useNavigate();
-  const { pathname } = useLocation();
+  const forwardState = useForwardNavigationState();
 
   const openProduct = (productId: string) => {
-    void navigate(productInventoryPath(productId), { state: { from: pathname } });
+    void navigate(productInventoryPath(productId), { state: forwardState });
   };
 
   const handleRowKeyDown = (event: KeyboardEvent<HTMLTableRowElement>, productId: string) => {

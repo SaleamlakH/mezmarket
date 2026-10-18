@@ -6,6 +6,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { SectionHeader } from '@/components/SectionHeader';
 import { Toast } from '@/components/Toast';
 import { BATCHES_PATH } from '@/layouts/navigation';
+import { useForwardNavigationState } from '@/layouts/useNavigationHistory';
 import { ErrorState } from '@/components/ErrorState';
 import { LoadingState } from '@/components/LoadingState';
 import { useProductUploadUrls } from '@/hooks/useProductUploadUrls';
@@ -33,6 +34,7 @@ export function InventoryPage() {
   } = useInventoryProducts(expiryBefore);
   const currency = useCurrency();
   const navigate = useNavigate();
+  const forwardState = useForwardNavigationState();
   const { currentBusiness } = useBusinessContext();
   const businessId = currentBusiness?.id;
   const { data: uploadUrls } = useProductUploadUrls(businessId);
@@ -51,7 +53,7 @@ export function InventoryPage() {
       <SectionHeader
         icon={<ClipboardList size={14} aria-hidden />}
         title="Recent batches"
-        onSeeMore={() => navigate(BATCHES_PATH)}
+        onSeeMore={() => navigate(BATCHES_PATH, { state: forwardState })}
         seeMoreLabel="See all"
       />
 
