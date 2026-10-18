@@ -14,6 +14,8 @@ import type {
   SaleFormValues,
   SaleLineFormValues,
   MemberListFilters,
+  ProductInventoryDetailFilters,
+  ProductInventoryListFilters,
   UpdateBatchFormValues,
   UpdateBatchLineFormValues,
   UpdateSaleFormValues,
@@ -51,6 +53,10 @@ import {
   voidSaleSchema,
 } from './schema/sales.schema.js';
 import { memberListQuerySchema } from './schema/member.schema.js';
+import {
+  productInventoryDetailQuerySchema,
+  productInventoryListQuerySchema,
+} from './schema/inventory.schema.js';
 
 /**
  * Parses `input` against `schema` and flattens any failure into one
@@ -154,4 +160,18 @@ export function validateRefundSaleLine(values: RefundSaleLineFormValues) {
 
 export function validateMemberListQuery(values: unknown) {
   return validateInput(memberListQuerySchema, values) as ValidationResult<MemberListFilters>;
+}
+
+export function validateProductInventoryListQuery(values: unknown) {
+  return validateInput(
+    productInventoryListQuerySchema,
+    values,
+  ) as ValidationResult<ProductInventoryListFilters>;
+}
+
+export function validateProductInventoryDetailQuery(values: unknown) {
+  return validateInput(
+    productInventoryDetailQuerySchema,
+    values,
+  ) as ValidationResult<ProductInventoryDetailFilters>;
 }
