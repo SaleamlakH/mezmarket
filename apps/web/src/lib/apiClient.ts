@@ -91,14 +91,20 @@ export function apiPut<TResponse>(path: string, body: unknown): Promise<TRespons
   return apiRequest<TResponse>(path, { method: 'PUT', body: JSON.stringify(body) });
 }
 
+export function apiPatch<TResponse>(path: string, body: unknown): Promise<TResponse> {
+  return apiRequest<TResponse>(path, { method: 'PATCH', body: JSON.stringify(body) });
+}
+
 export interface ApiClient {
   get<TResponse>(path: string): Promise<TResponse>;
   post<TResponse>(path: string, body: unknown): Promise<TResponse>;
   put<TResponse>(path: string, body: unknown): Promise<TResponse>;
+  patch<TResponse>(path: string, body: unknown): Promise<TResponse>;
 }
 
 export const apiClient: ApiClient = {
   get: apiGet,
   post: apiPost,
   put: apiPut,
+  patch: apiPatch,
 };

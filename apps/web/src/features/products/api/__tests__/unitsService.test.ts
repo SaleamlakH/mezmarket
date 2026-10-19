@@ -4,7 +4,7 @@ import { createUnitsService } from '../unitsService';
 
 describe('unitsService', () => {
   it('listUnits calls GET on the public units endpoint', async () => {
-    const client: ApiClient = { get: vi.fn(), post: vi.fn(), put: vi.fn() };
+    const client: ApiClient = { get: vi.fn(), post: vi.fn(), put: vi.fn(), patch: vi.fn() };
     const service = createUnitsService(client);
     const units = {
       dimensions: [

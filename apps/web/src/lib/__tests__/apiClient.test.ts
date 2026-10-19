@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, apiGet, apiPost, apiPut } from '@/lib/apiClient';
+import { ApiError, apiClient, apiGet, apiPatch, apiPost, apiPut } from '@/lib/apiClient';
 
 const { mockGetSession } = vi.hoisted(() => ({ mockGetSession: vi.fn() }));
 
@@ -119,6 +119,44 @@ describe('apiClient', () => {
       expect(init.body).toBe(JSON.stringify(body));
 
       expect(result).toEqual(payload);
+    });
+  });
+
+  describe('apiPatch', () => {
+    it('sends a JSON body with PATCH method', async () => {
+      const payload = { id: 'p-1', active: false };
+      mockFetch.mockResolvedValue(jsonResponse(payload, 200));
+
+      const body = { active: false };
+      const result = await apiPatch('/businesses/b-1/products/p-1/active', body);
+
+      const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const headers = init.headers as Record<string, string>;
+      expect(init.method).toBe('PATCH');
+      expect(headers['Content-Type']).toBe('application/json');
+      expect(init.body).toBe(JSON.stringify(body));
+
+      expect(result).toEqual(payload);
+    });
+
+    it('surfaces the error envelope the same way as the other verbs', async () => {
+      mockFetch.mockResolvedValue(
+        jsonResponse({ error: { code: 'NOT_FOUND', message: 'Product not found' } }, 404),
+      );
+
+      const error = (await apiPatch('/businesses/b-1/products/ghost/active', {
+        active: false,
+      }).catch((e) => e)) as ApiError;
+
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error.code).toBe('NOT_FOUND');
+      expect(error.status).toBe(404);
+    });
+  });
+
+  describe('apiClient object', () => {
+    it('exposes patch alongside the other verbs', () => {
+      expect(apiClient.patch).toBe(apiPatch);
     });
   });
 
