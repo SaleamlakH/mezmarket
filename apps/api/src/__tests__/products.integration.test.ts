@@ -325,6 +325,11 @@ describe('products.integration', () => {
         mou: { unitId: 'pc-1', conversionRate: 10, price: 10 },
       };
       const validatedBody = {
+        brand: null,
+        description: null,
+        lowStockThreshold: null,
+        trackAsPartial: false,
+        categoryId: null,
         name: 'Shirt',
         baseUnit: { unitId: 'kg-1', price: 120.5 },
         mou: { unitId: 'pc-1', conversionRate: 10, price: 10 },
@@ -382,6 +387,11 @@ describe('products.integration', () => {
         uploadId: 'u-1',
       };
       const validatedBody = {
+        brand: null,
+        description: null,
+        lowStockThreshold: null,
+        trackAsPartial: false,
+        categoryId: null,
         name: 'Shirt',
         baseUnit: { unitId: 'kg-1', price: 120.5 },
         uploadId: 'u-1',
@@ -425,6 +435,11 @@ describe('products.integration', () => {
         ],
       };
       const validatedBody = {
+        brand: null,
+        description: null,
+        lowStockThreshold: null,
+        trackAsPartial: false,
+        categoryId: null,
         name: 'Shirt',
         baseUnit: { unitId: 'kg-1', price: 120.5 },
         customUnits: [

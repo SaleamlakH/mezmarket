@@ -43,6 +43,11 @@ describe('validateProductInput', () => {
 
     expect(next).toHaveBeenCalledTimes(1);
     expect(req.validBody).toEqual({
+      brand: null,
+      description: null,
+      lowStockThreshold: null,
+      trackAsPartial: false,
+      categoryId: null,
       name: 'Shirt',
       baseUnit: { unitId: 'kg-1', price: 120.5 },
     });
