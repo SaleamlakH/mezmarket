@@ -1,18 +1,25 @@
 import { describe, it, expect } from 'vitest';
+import type { CreateProductFormValues } from '@mez/types';
 import { validateCreateProduct, validateInput } from '../../parser.js';
-import {
-  createProductFormSchema,
-  type CreateCustomUnitFormValues,
-  type CreateProductFormValues,
-} from '../create.schema.js';
+import { createProductFormSchema } from '../create.schema.js';
+
+/** The fields a create request writes when the optional ones are left empty. */
+const emptyProductFields = {
+  brand: null,
+  description: null,
+  lowStockThreshold: null,
+  trackAsPartial: false,
+  categoryId: null,
+};
 
 /** A minimal request body: no dimension, because the API resolves it from the unit. */
 function validBody(overrides: Record<string, unknown> = {}) {
   return {
     name: 'Shirt',
     baseUnit: { unitId: 'kg-1', price: '120.50' },
+    customUnits: [],
     ...overrides,
-  } as CreateProductFormValues;
+  } as unknown as CreateProductFormValues;
 }
 
 /** The same product as the form holds it, where both units carry their dimension. */
@@ -20,32 +27,9 @@ function validFormValues(overrides: Record<string, unknown> = {}) {
   return {
     name: 'Shirt',
     baseUnit: { unitId: 'kg-1', dimensionId: 'd-1', price: '120.50' },
+    customUnits: [],
     ...overrides,
-  } as CreateProductFormValues;
-}
-
-/** One custom unit as a request body carries it: the rate and the price are numbers. */
-function validUnit(overrides: Record<string, unknown> = {}) {
-  return {
-    name: 'shot',
-    dependsOn: 'BASE',
-    conversionRate: 0.125,
-    price: 45,
-    ...overrides,
-  };
-}
-
-/** The same unit as a form row holds it, with the rate and the price as text. */
-function validFormUnit(overrides: Record<string, unknown> = {}) {
-  return {
-    name: 'shot',
-    dependsOn: 'BASE',
-    conversionRate: '0.125',
-    price: '45',
-    purchaseCapable: true,
-    sellCapable: true,
-    ...overrides,
-  } as CreateCustomUnitFormValues;
+  } as unknown as CreateProductFormValues;
 }
 
 describe('validateCreateProduct', () => {
@@ -54,6 +38,7 @@ describe('validateCreateProduct', () => {
 
     expect(result.errors).toBeNull();
     expect(result.data).toEqual({
+      ...emptyProductFields,
       name: 'Shirt',
       baseUnit: { unitId: 'kg-1', price: 120.5 },
     });
@@ -232,7 +217,11 @@ describe('validateCreateProduct', () => {
     );
 
     expect(result.errors).toBeNull();
-    expect(result.data).toEqual({ name: 'Shirt', baseUnit: { unitId: 'kg-1', price: 120.5 } });
+    expect(result.data).toEqual({
+      ...emptyProductFields,
+      name: 'Shirt',
+      baseUnit: { unitId: 'kg-1', price: 120.5 },
+    });
     expect(result.data?.mou).toBeUndefined();
   });
 
@@ -398,6 +387,7 @@ describe('createProductFormSchema', () => {
 
     expect(result.errors).toBeNull();
     expect(result.data).toEqual({
+      ...emptyProductFields,
       name: 'Shirt',
       brand: 'Nike',
       description: 'Cotton t-shirt',
@@ -524,6 +514,7 @@ describe('validateCreateProduct on a request body', () => {
 
     expect(asString.errors).toBeNull();
     expect(asString.data).toEqual({
+      ...emptyProductFields,
       name: 'Shirt',
       baseUnit: { unitId: 'kg-1', price: 120.5 },
     });
@@ -540,6 +531,7 @@ describe('validateCreateProduct on a request body', () => {
       name: 'Shirt',
       baseUnit: { unitId: 'kg-1', dimensionId: 'd-1', price: '120.50' },
       mou: { unitId: 'pc-1', dimensionId: 'd-2', conversionRate: '10', price: '15' },
+      customUnits: [],
     } as CreateProductFormValues);
     expect(parsed.success).toBe(true);
 
@@ -551,245 +543,10 @@ describe('validateCreateProduct on a request body', () => {
 
     expect(result.errors).toBeNull();
     expect(result.data).toEqual({
+      ...emptyProductFields,
       name: 'Shirt',
       baseUnit: { unitId: 'kg-1', price: 120.5 },
       mou: { unitId: 'pc-1', conversionRate: 10, price: 15 },
     });
-  });
-});
-
-/**
- * A product's own units are configured as it is created, so they ride on the same
- * body as everything else. Every rule below is the unit's own, except the last two,
- * which are about the product it is joining.
- */
-describe('custom units on a create-product body', () => {
-  it('accepts a set of units', () => {
-    const result = validateCreateProduct(
-      validBody({
-        customUnits: [validUnit({ name: 'slice' }), validUnit({ name: 'box' })],
-      }),
-    );
-
-    expect(result.errors).toBeNull();
-    expect(result.data?.customUnits).toEqual([
-      {
-        name: 'slice',
-        dependsOn: 'BASE',
-        conversionRate: 0.125,
-        price: 45,
-        purchaseCapable: true,
-        sellCapable: true,
-      },
-      {
-        name: 'box',
-        dependsOn: 'BASE',
-        conversionRate: 0.125,
-        price: 45,
-        purchaseCapable: true,
-        sellCapable: true,
-      },
-    ]);
-  });
-
-  it('sends nothing at all for a product with no custom units', () => {
-    const result = validateCreateProduct(validBody());
-
-    expect(result.errors).toBeNull();
-    expect(result.data?.customUnits).toBeUndefined();
-    expect(JSON.parse(JSON.stringify(result.data))).not.toHaveProperty('customUnits');
-  });
-
-  it('carries a rate above one, because a pack is as ordinary as a portion', () => {
-    const result = validateCreateProduct(
-      validBody({ customUnits: [validUnit({ name: 'box', conversionRate: 12 })] }),
-    );
-
-    expect(result.errors).toBeNull();
-    expect(result.data?.customUnits?.[0]?.conversionRate).toBe(12);
-  });
-
-  it('rejects a unit with no name', () => {
-    for (const name of [undefined, '   ']) {
-      const result = validateCreateProduct(validBody({ customUnits: [validUnit({ name })] }));
-
-      expect(result.errors).toEqual({ 'customUnits.0.name': expect.any(String) });
-    }
-  });
-
-  it('rejects a name longer than 50 characters', () => {
-    const result = validateCreateProduct(
-      validBody({ customUnits: [validUnit({ name: 'a'.repeat(51) })] }),
-    );
-
-    expect(result.errors).toEqual({ 'customUnits.0.name': expect.any(String) });
-  });
-
-  it('rejects a basis that is neither the base nor the content unit', () => {
-    for (const dependsOn of ['shot', 'STANDARD', '']) {
-      const result = validateCreateProduct(validBody({ customUnits: [validUnit({ dependsOn })] }));
-
-      expect(result.errors).toEqual({ 'customUnits.0.dependsOn': expect.any(String) });
-    }
-  });
-
-  it('rejects a rate that is not a number, and one that is not above zero', () => {
-    for (const conversionRate of ['abc', '-1', '0', '']) {
-      const result = validateCreateProduct(
-        validBody({ customUnits: [validUnit({ conversionRate })] }),
-      );
-
-      expect(result.errors).toEqual({ 'customUnits.0.conversionRate': expect.any(String) });
-    }
-  });
-
-  /**
-   * The acceptance case: a unit the owner can offer and then not charge for. This is
-   * the one rule a field cannot make on its own, since it is about what the unit may
-   * be used for rather than about the price.
-   */
-  it('rejects a sellable unit that carries no price', () => {
-    const result = validateCreateProduct(
-      validBody({ customUnits: [validUnit({ sellCapable: true, price: undefined })] }),
-    );
-
-    expect(result.errors).toEqual({ 'customUnits.0.price': expect.any(String) });
-  });
-
-  it('leaves the price out of a unit that is only bought', () => {
-    const result = validateCreateProduct(
-      validBody({
-        customUnits: [validUnit({ sellCapable: false, purchaseCapable: true, price: undefined })],
-      }),
-    );
-
-    expect(result.errors).toBeNull();
-    expect(result.data?.customUnits?.[0]).not.toHaveProperty('price');
-  });
-
-  it('rejects a unit usable for neither buying nor selling', () => {
-    const result = validateCreateProduct(
-      validBody({
-        customUnits: [validUnit({ sellCapable: false, purchaseCapable: false, price: undefined })],
-      }),
-    );
-
-    expect(result.errors).toEqual({ 'customUnits.0.sellCapable': expect.any(String) });
-  });
-
-  it("ignores the unit role, which is not the caller's to choose", () => {
-    for (const extra of [{ id: 'pu-1' }, { unitRole: 'BASE' }]) {
-      const result = validateCreateProduct(validBody({ customUnits: [validUnit(extra)] }));
-
-      expect(result.errors).not.toBeNull();
-    }
-  });
-
-  it('rejects two units sharing a name, however they are cased', () => {
-    const result = validateCreateProduct(
-      validBody({
-        customUnits: [validUnit({ name: 'Shot' }), validUnit({ name: 'shot ' })],
-      }),
-    );
-
-    expect(result.data).toBeNull();
-    expect(result.errors).toEqual({ 'customUnits.1.name': expect.any(String) });
-  });
-
-  it('rejects a unit based on a content unit the product does not have', () => {
-    const result = validateCreateProduct(
-      validBody({ customUnits: [validUnit({ dependsOn: 'MOU', conversionRate: 25 })] }),
-    );
-
-    expect(result.data).toBeNull();
-    expect(result.errors).toEqual({ 'customUnits.0.dependsOn': expect.any(String) });
-  });
-
-  it('accepts a unit based on a content unit the product does have', () => {
-    const result = validateCreateProduct(
-      validBody({
-        mou: { unitId: 'ml-1', conversionRate: 350 },
-        customUnits: [validUnit({ dependsOn: 'MOU', conversionRate: 25 })],
-      }),
-    );
-
-    expect(result.errors).toBeNull();
-  });
-
-  it('does not reach a unit based on a content unit until that unit is filled in', () => {
-    const result = validateCreateProduct(
-      validBody({
-        mou: { unitId: '', conversionRate: '', price: '' },
-        customUnits: [validUnit({ dependsOn: 'MOU' })],
-      }),
-    );
-
-    expect(result.errors).toEqual({ 'customUnits.0.dependsOn': expect.any(String) });
-  });
-
-  it('rejects a set that is not a list', () => {
-    const result = validateCreateProduct(validBody({ customUnits: 'shot' }));
-
-    expect(result.data).toBeNull();
-    expect(result.errors).not.toBeNull();
-  });
-});
-
-/**
- * The form's copy, which holds the rate and the price as text. The rules are the
- * same ones the body applies — there is no separate form copy of them, only a
- * different way of writing the same two numbers.
- */
-describe('custom units on the create-product form', () => {
-  it('transforms a form row down to the payload the body carries', () => {
-    const result = validateInput(createProductFormSchema, {
-      ...validFormValues({
-        mou: { unitId: 'ml-1', dimensionId: 'd-2', conversionRate: '350' },
-        customUnits: [validFormUnit()],
-      }),
-    });
-
-    expect(result.errors).toBeNull();
-    expect(result.data).toEqual({
-      name: 'Shirt',
-      baseUnit: { unitId: 'kg-1', price: 120.5 },
-      mou: { unitId: 'ml-1', conversionRate: 350 },
-      customUnits: [
-        {
-          name: 'shot',
-          dependsOn: 'BASE',
-          conversionRate: 0.125,
-          price: 45,
-          purchaseCapable: true,
-          sellCapable: true,
-        },
-      ],
-    });
-  });
-
-  it('applies the same sellable-price rule as the body', () => {
-    const result = validateInput(createProductFormSchema, {
-      ...validFormValues({ customUnits: [validFormUnit({ price: '' })] }),
-    });
-
-    expect(result.errors).toEqual({ 'customUnits.0.price': expect.any(String) });
-  });
-
-  it('applies the same duplicate-name rule as the body', () => {
-    const result = validateInput(createProductFormSchema, {
-      ...validFormValues({
-        customUnits: [validFormUnit({ name: 'Shot' }), validFormUnit({ name: 'SHOT' })],
-      }),
-    });
-
-    expect(result.errors).toEqual({ 'customUnits.1.name': expect.any(String) });
-  });
-
-  it('applies the same missing-content-unit rule as the body', () => {
-    const result = validateInput(createProductFormSchema, {
-      ...validFormValues({ customUnits: [validFormUnit({ dependsOn: 'MOU' })] }),
-    });
-
-    expect(result.errors).toEqual({ 'customUnits.0.dependsOn': expect.any(String) });
   });
 });

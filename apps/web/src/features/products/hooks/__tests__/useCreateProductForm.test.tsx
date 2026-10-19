@@ -2,8 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { CreateProductResponse, ProductSummaryResponse, UnitsResponse } from '@mez/types';
-import { MAX_UPLOAD_SIZE_BYTES, type CreateProductFormValues } from '@mez/validation';
+import type {
+  CreateProductFormValues,
+  CreateProductResponse,
+  ProductSummaryResponse,
+  UnitsResponse,
+} from '@mez/types';
+import { MAX_UPLOAD_SIZE_BYTES } from '@mez/validation';
 import { useCreateProductForm } from '../useCreateProductForm';
 import { productsService } from '@/features/products/api/productsService';
 import { unitsService } from '@/features/products/api/unitsService';

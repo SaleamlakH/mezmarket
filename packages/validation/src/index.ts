@@ -12,15 +12,16 @@ export {
   productInventoryDetailQuerySchema,
   productInventoryListQuerySchema,
 } from './schema/inventory.schema.js';
-export {
-  type CreateProductFormValues,
-  type CreateCustomUnitFormValues,
-  createProductSchema,
-  createProductFormSchema,
-} from './product/create.schema.js';
+export { createProductSchema, createProductFormSchema } from './product/create.schema.js';
+export { createProductUnitSchema, updateProductUnitsSchema } from './product/units.schema.js';
+export { updateProductActiveSchema, updateProductSchema } from './product/fields.schema.js';
+export { PRODUCT_LIST_STATUSES, productListQuerySchema } from './product/filters.schema.js';
 export {
   type UploadMimeType,
   type CreateUploadClientInput,
+  type UpdateUploadClientInput,
+  createUploadSchema,
+  updateUploadSchema,
   UPLOAD_MIME_TYPES,
   MAX_UPLOAD_SIZE_BYTES,
 } from './schema/upload.schema.js';

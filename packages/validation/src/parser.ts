@@ -1,11 +1,15 @@
 import type { ZodType } from 'zod';
 import type { FieldErrors, ValidationResult } from './types.js';
 import { updateOwnerSchema, type UpdateOwnerFormValues } from './schema/owner.schema.js';
-import { createUploadSchema, type CreateUploadClientInput } from './schema/upload.schema.js';
+import {
+  createUploadSchema,
+  type CreateUploadClientInput,
+  updateUploadSchema,
+  type UpdateUploadClientInput,
+} from './schema/upload.schema.js';
 import type {
   BatchFormValues,
   BatchLineFormValues,
-  CreateProductInput,
   CustomerFormValues,
   CreateUploadInput,
   PaymentFormValues,
@@ -20,6 +24,7 @@ import type {
   UpdateBatchLineFormValues,
   UpdateSaleFormValues,
   UpdateSaleLineFormValues,
+  UpdateUploadInput,
   VoidSaleFormValues,
 } from '@mez/types';
 import {
@@ -42,6 +47,9 @@ import {
 } from './schema/business.schema.js';
 import { createCustomerSchema } from './schema/customer.schema.js';
 import { createProductSchema } from './product/create.schema.js';
+import { updateProductActiveSchema, updateProductSchema } from './product/fields.schema.js';
+import { productListQuerySchema } from './product/filters.schema.js';
+import { createProductUnitSchema, updateProductUnitsSchema } from './product/units.schema.js';
 import {
   createSaleLineSchema,
   createSaleSchema,
@@ -100,7 +108,27 @@ export function validateUpdateBusiness(
 }
 
 export function validateCreateProduct(values: unknown) {
-  return validateInput(createProductSchema, values) as ValidationResult<CreateProductInput>;
+  return validateInput(createProductSchema, values);
+}
+
+export function validateCreateProductUnit(values: unknown) {
+  return validateInput(createProductUnitSchema, values);
+}
+
+export function validateProductListQuery(values: unknown) {
+  return validateInput(productListQuerySchema, values);
+}
+
+export function validateUpdateProduct(values: unknown) {
+  return validateInput(updateProductSchema, values);
+}
+
+export function validateUpdateProductUnits(values: unknown) {
+  return validateInput(updateProductUnitsSchema, values);
+}
+
+export function validateUpdateProductActive(values: unknown) {
+  return validateInput(updateProductActiveSchema, values);
 }
 
 export function validateCreateCustomer(values: CustomerFormValues) {
@@ -109,6 +137,10 @@ export function validateCreateCustomer(values: CustomerFormValues) {
 
 export function validateCreateUpload(values: CreateUploadClientInput) {
   return validateInput(createUploadSchema, values) as ValidationResult<CreateUploadInput>;
+}
+
+export function validateUpdateUpload(values: UpdateUploadClientInput) {
+  return validateInput(updateUploadSchema, values) as ValidationResult<UpdateUploadInput>;
 }
 export function validateCreateBatch(values: BatchFormValues) {
   return validateInput(createBatchSchema, values);

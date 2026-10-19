@@ -23,11 +23,10 @@ const recordTypeSchema = z.enum(
 );
 
 /**
- * Payload a client sends automatically when requesting an upload —
- * `record` is the entity the file belongs to and `mimeType`/`sizeBytes` are
- * extracted from the selected file, not entered by the user.
- * `mimeType` is required (instead of optional) because the API has
- * to derive the storage key extension from it.
+ * Payload a client sends when requesting an upload. `record` is the entity the file
+ * belongs to; `mimeType`/`sizeBytes` are read from the selected file, not entered by
+ * the user. `mimeType` is required because the API derives the storage key extension
+ * from it.
  */
 export type CreateUploadClientInput = Omit<CreateUploadInput, 'mimeType'> & {
   mimeType: UploadMimeType;
@@ -45,3 +44,11 @@ export const createUploadSchema = z
       .optional(),
   })
   .strict();
+
+/**
+ * Payload a client sends to set or replace an upload. Same fields as creation — the
+ * record names which upload to resolve — so it is the create shape.
+ */
+export type UpdateUploadClientInput = CreateUploadClientInput;
+
+export const updateUploadSchema = createUploadSchema;

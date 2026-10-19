@@ -4,6 +4,8 @@ import type { BaseSyntheticEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type {
+  CreateCustomUnitFormValues,
+  CreateProductFormValues,
   CreateProductInput,
   CreateProductResponse,
   DimensionResponse,
@@ -12,8 +14,6 @@ import type {
 import {
   createProductFormSchema,
   validateCreateUpload,
-  type CreateCustomUnitFormValues,
-  type CreateProductFormValues,
   type UploadMimeType,
 } from '@mez/validation';
 import { ApiError } from '@/lib/apiClient';
