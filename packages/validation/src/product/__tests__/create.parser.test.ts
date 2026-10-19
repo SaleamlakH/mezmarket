@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { validateCreateProduct, validateInput } from '../parser.js';
+import { validateCreateProduct, validateInput } from '../../parser.js';
 import {
   createProductFormSchema,
   type CreateCustomUnitFormValues,
   type CreateProductFormValues,
-} from '../schema/product.schema.js';
+} from '../create.schema.js';
 
 /** A minimal request body: no dimension, because the API resolves it from the unit. */
 function validBody(overrides: Record<string, unknown> = {}) {

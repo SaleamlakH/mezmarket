@@ -17,7 +17,7 @@ export {
   type CreateCustomUnitFormValues,
   createProductSchema,
   createProductFormSchema,
-} from './schema/product.schema.js';
+} from './product/create.schema.js';
 export {
   type UploadMimeType,
   type CreateUploadClientInput,

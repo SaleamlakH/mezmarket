@@ -41,7 +41,7 @@ import {
   type UpdateBusinessFormValues,
 } from './schema/business.schema.js';
 import { createCustomerSchema } from './schema/customer.schema.js';
-import { createProductSchema } from './schema/product.schema.js';
+import { createProductSchema } from './product/create.schema.js';
 import {
   createSaleLineSchema,
   createSaleSchema,
