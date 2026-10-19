@@ -6,6 +6,7 @@ import { ErrorState } from '@/components/ErrorState';
 import { LoadingState } from '@/components/LoadingState';
 import { SectionHeader } from '@/components/SectionHeader';
 import { SALES_ALL_PATH } from '@/layouts/navigation';
+import { useForwardNavigationState } from '@/layouts/useNavigationHistory';
 import { useBusinessProducts } from '@/hooks/useCatalogApi';
 import { useCurrency } from '@/hooks/useCurrency';
 import { useProductUploadUrls } from '@/hooks/useProductUploadUrls';
@@ -27,6 +28,7 @@ export function SalesPage() {
   } = useBusinessProducts();
   const currency = useCurrency();
   const navigate = useNavigate();
+  const forwardState = useForwardNavigationState();
   const { currentBusiness } = useBusinessContext();
   const businessId = currentBusiness?.id;
   const { data: uploadUrls } = useProductUploadUrls(businessId);
@@ -43,7 +45,7 @@ export function SalesPage() {
         <SectionHeader
           icon={<ShoppingCart size={14} aria-hidden />}
           title="Sales Transactions"
-          onSeeMore={() => navigate(SALES_ALL_PATH)}
+          onSeeMore={() => navigate(SALES_ALL_PATH, { state: forwardState })}
           seeMoreLabel="See more"
         />
 

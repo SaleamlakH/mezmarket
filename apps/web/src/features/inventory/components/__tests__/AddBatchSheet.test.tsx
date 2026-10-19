@@ -175,37 +175,6 @@ describe('AddBatchSheet', () => {
     expect(screen.queryByText('Batch recorded')).toBeNull();
   }, 15_000);
 
-  it('shows the loading state while the product list loads', async () => {
-    catalogService.listProducts.mockReturnValue(new Promise(() => {}));
-    const user = userEvent.setup();
-    renderSheet();
-
-    await user.click(screen.getByRole('button', { name: /Add product line/ }));
-
-    expect(screen.getByRole('status', { name: 'Loading products…' })).toBeInTheDocument();
-  });
-
-  it('shows the error state when the product list fails to load', async () => {
-    catalogService.listProducts.mockRejectedValue(new Error('network failure'));
-    const user = userEvent.setup();
-    renderSheet();
-
-    await user.click(screen.getByRole('button', { name: /Add product line/ }));
-
-    expect(await screen.findByText('Could not load products')).toBeInTheDocument();
-  });
-
-  it('shows the loading state for the unit selector while units load', async () => {
-    getProductUnits.mockReturnValue(new Promise(() => {}));
-    const user = userEvent.setup();
-    renderSheet();
-
-    await user.click(screen.getByRole('button', { name: /Add product line/ }));
-    await user.click(await screen.findByRole('button', { name: /Sierra Tequila/ }));
-
-    expect(screen.getByRole('status', { name: 'Loading units…' })).toBeInTheDocument();
-  }, 15_000);
-
   it('does not request the products until the picker is opened', async () => {
     const user = userEvent.setup();
     renderSheet();

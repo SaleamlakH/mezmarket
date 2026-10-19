@@ -1,4 +1,5 @@
 import type {
+  ProductInventoryDetailResponse,
   ProductInventorySummaryResponse,
   ProductUnitOptionResponse,
   StockBatchDetailResponse,
@@ -6,13 +7,8 @@ import type {
 
 const FIXTURE_TIMESTAMP = '2026-09-28T08:00:00.000Z';
 
-const makeProduct = (
-  product: Omit<ProductInventorySummaryResponse, 'createdAt' | 'updatedAt'>,
-): ProductInventorySummaryResponse => ({
-  ...product,
-  createdAt: FIXTURE_TIMESTAMP,
-  updatedAt: FIXTURE_TIMESTAMP,
-});
+const makeProduct = (product: ProductInventorySummaryResponse): ProductInventorySummaryResponse =>
+  product;
 
 export const products: ProductInventorySummaryResponse[] = [
   makeProduct({
@@ -25,8 +21,7 @@ export const products: ProductInventorySummaryResponse[] = [
     lowStockThreshold: 12,
     active: true,
     totalCost: 1240000,
-    earliestExpiry: null,
-    expiryCount: 0,
+    expiry: { lotCount: 0, quantity: 0 },
     numberOfBatches: 3,
     stockStatus: 'IN_STOCK',
   }),
@@ -40,12 +35,96 @@ export const products: ProductInventorySummaryResponse[] = [
     lowStockThreshold: 10,
     active: true,
     totalCost: 178560,
-    earliestExpiry: '2026-10-20T00:00:00.000Z',
-    expiryCount: 3,
+    expiry: { lotCount: 3, quantity: 48 },
     numberOfBatches: 2,
     stockStatus: 'IN_STOCK',
   }),
 ];
+
+/**
+ * One product's inventory detail: 70 kg of rice across three batch lines, one
+ * already expired and one expiring within the week, bought partly by the sack.
+ * Batches are newest batch date first, the order the API returns them in.
+ */
+export const productInventoryDetail: ProductInventoryDetailResponse = {
+  id: 'prod_rice',
+  name: 'Rice',
+  brand: 'Generics',
+  baseUnitLabel: 'Kilogram',
+  uploadId: null,
+  currentSealedStock: 70,
+  lowStockThreshold: 10,
+  active: true,
+  totalCost: 134.2,
+  expiry: { lotCount: 2, quantity: 58 },
+  numberOfBatches: 3,
+  stockStatus: 'IN_STOCK',
+  batches: [
+    {
+      id: 'batch_rice_0042',
+      batchDate: '2026-10-17T00:00:00.000Z',
+      supplierName: 'Mango Wholesale',
+      referenceNumber: '0042',
+      lines: [
+        {
+          id: 'line_rice_0042',
+          purchaseQuantity: 12,
+          purchaseUnit: 'Kilogram',
+          purchaseUnitCost: 2,
+          standardQuantity: 12,
+          standardUnit: 'kg',
+          quantityRemaining: 12,
+          baseUnit: 'Kilogram',
+          remainingPurchaseQuantity: 12,
+          remainingCost: 24,
+          expiryDate: null,
+        },
+      ],
+    },
+    {
+      id: 'batch_rice_0038',
+      batchDate: '2026-10-03T00:00:00.000Z',
+      supplierName: 'Mango Wholesale',
+      referenceNumber: '0038',
+      lines: [
+        {
+          id: 'line_rice_0038',
+          purchaseQuantity: 2,
+          purchaseUnit: 'Sack',
+          purchaseUnitCost: 95,
+          standardQuantity: 100,
+          standardUnit: 'kg',
+          quantityRemaining: 50,
+          baseUnit: 'Kilogram',
+          remainingPurchaseQuantity: 1,
+          remainingCost: 95,
+          expiryDate: '2026-10-24T00:00:00.000Z',
+        },
+      ],
+    },
+    {
+      id: 'batch_rice_0031',
+      batchDate: '2026-09-12T00:00:00.000Z',
+      supplierName: 'Mango Wholesale',
+      referenceNumber: '0031',
+      lines: [
+        {
+          id: 'line_rice_0031',
+          purchaseQuantity: 20,
+          purchaseUnit: 'Kilogram',
+          purchaseUnitCost: 1.9,
+          standardQuantity: 20,
+          standardUnit: 'kg',
+          quantityRemaining: 8,
+          baseUnit: 'Kilogram',
+          remainingPurchaseQuantity: 8,
+          remainingCost: 15.2,
+          expiryDate: '2026-10-09T00:00:00.000Z',
+        },
+      ],
+    },
+  ],
+};
 
 type PurchasableUnit = Omit<ProductUnitOptionResponse, 'purchaseCapable'> & {
   purchaseCapable: true;

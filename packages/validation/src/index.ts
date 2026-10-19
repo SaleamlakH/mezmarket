@@ -9,6 +9,10 @@ export type {
 export { createCustomerSchema } from './schema/customer.schema.js';
 export { BUSINESS_MEMBER_ROLES, memberListQuerySchema } from './schema/member.schema.js';
 export {
+  productInventoryDetailQuerySchema,
+  productInventoryListQuerySchema,
+} from './schema/inventory.schema.js';
+export {
   type CreateProductFormValues,
   type CreateCustomUnitFormValues,
   createProductSchema,

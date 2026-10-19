@@ -7,7 +7,7 @@ import type {
   StockLot,
   StockLotDecrement,
 } from '../sales.types.js';
-import { roundQuantity } from './rounding.js';
+import { roundQuantity } from '../../../shared/utils/rounding.js';
 
 /**
  * Draws every line against the lots of its product, oldest first, splitting a

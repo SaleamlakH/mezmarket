@@ -36,11 +36,9 @@ app.use('/api', unitsRoutes);
 // protect all api endpoints
 app.use('/api', auth);
 app.use('/api', businessRoutes);
-app.use('/api', batchRoutes);
-
-app.use('/api', businessRoutes);
 app.use('/api', ownerRoutes);
 app.use('/api', productsRoutes);
+app.use('/api', batchRoutes);
 app.use('/api', salesRoutes);
 app.use('/api', customersRoutes);
 app.use('/api', membersRoutes);

@@ -1,11 +1,14 @@
 import type { Request, Response } from 'express';
+import type { ProductInventoryDetailFilters, ProductInventoryListFilters } from '@mez/types';
 import type { BatchService, CreateBatchInput } from './batches.types.js';
 import type { Actor, Scope } from '../../shared/types/session.types.js';
 
 export type BatchController = {
   createBatch(req: Request, res: Response): Promise<void>;
   listBatches(req: Request, res: Response): Promise<void>;
+  getBatchDetail(req: Request, res: Response): Promise<void>;
   listProductInventorySummaries(req: Request, res: Response): Promise<void>;
+  getProductInventoryDetail(req: Request, res: Response): Promise<void>;
 };
 
 /** The scope the authorize middleware resolved onto the request. */
@@ -35,9 +38,23 @@ export function createBatchController(service: BatchService): BatchController {
       res.status(200).json(batches);
     },
 
+    async getBatchDetail(req, res) {
+      const batchId = req.params.batchId as string;
+      const batch = await service.getBatchDetail(scopeOf(req), batchId);
+      res.status(200).json(batch);
+    },
+
     async listProductInventorySummaries(req, res) {
-      const summaries = await service.listProductInventorySummaries(scopeOf(req));
+      const filters = req.validQuery as ProductInventoryListFilters;
+      const summaries = await service.listProductInventorySummaries(scopeOf(req), filters);
       res.status(200).json(summaries);
+    },
+
+    async getProductInventoryDetail(req, res) {
+      const productId = req.params.productId as string;
+      const filters = req.validQuery as ProductInventoryDetailFilters;
+      const product = await service.getProductInventoryDetail(scopeOf(req), productId, filters);
+      res.status(200).json(product);
     },
   };
 }

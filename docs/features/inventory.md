@@ -43,29 +43,23 @@ recorded.
   product's base unit, to `currentSealedStock`.
 
 - The product view summarises each active product: on-hand stock, a low/out/in
-  status against its threshold, the remaining cost of the stock still held, the
-  nearest expiry and how many lots carry one, how many batches still hold stock
-  of it, and its photo.
+  status against its threshold, the remaining cost of the stock still held, how
+  many lots expire by the caller's cutoff and how much they hold, how many
+  batches still hold stock of it, and its photo. A **lot** is one batch line that
+  still has quantity remaining.
 
 ## Frontend UI flow
 
-The Inventory page leads with **Add batch**, a one-line rail of recent batch
-tiles, then the product stock list, each product a table row on wide screens and
-a card on narrow ones; "See all" opens the All batches grid.
-
-Recording a batch is one three-step dialog — the batch, a product picker, one
-line's fields — with the lines shown as short rows and the running total. The
-picker offers every product, and the catalog and a product's units are fetched
-only as those steps open; the line form lists only units the product can be
-bought in. Confirm records the batch, toasts, and refreshes the listings;
-closing clears the draft and drops the dialog's catalog and unit caches.
-
-Product photos appear on every surface — stock rows and cards, picker rows and
-saved lines — each fetched once and cached for the session, with a placeholder
-until it lands. Inventory reads the catalog through an injected service instead
-of importing the products feature: the product list, a product's units and the
-signed image urls all come through the app-wired port, so the dependency runs one
-way.
+- Browse recent batches and open the full batch list.
+- Browse every product's stock position, value, status, and lots expiring within
+  seven days.
+- Open a product for its stock by purchase unit, expiry warning, and purchase
+  history grouped by batch.
+- Follow a batch from a product's history to the batch record.
+- Record a batch with its date, supplier, and reference, then add product lines.
+- Pick products from the catalog and choose a purchase-capable unit for each
+  line, see the running total while building a batch, then Confirm to add the stock
+  and refresh the listings; close to discard the draft.
 
 ## Request flow
 
@@ -80,12 +74,29 @@ Client -> Authorization: Bearer <jwt>
       and resolves the business's default branch
    -> repository returns that scope's batches,
       newest batch date first, each with its lines and receiver
-   -> service narrows the stored decimals to plain numbers and
-      flattens each product's name and brand onto its line
-   -> 200 [ { batch, lines, receivedBy }, ... ]
+   -> service flattens each product's name and brand onto its line
+   -> 200 StockBatchDetailResponse[]
 ```
 
 An empty history is a `200` with an empty list, not a `404`.
+
+### GET /api/businesses/:businessId/inventory/batches/:batchId
+
+Reads one recorded batch, in the same shape the list returns for it.
+
+```
+Client -> Authorization: Bearer <jwt>
+   -> auth middleware resolves the owner
+   -> business middleware checks the caller belongs to :businessId
+      and resolves the business's default branch
+   -> repository returns that scope's batch by id, with its lines
+      and receiver
+   -> service flattens each product's name and brand onto its line
+   -> 200 StockBatchDetailResponse
+```
+
+An unknown id, or one outside the caller's business or branch, is a `404`, so
+the endpoint never reveals a batch the caller could not already list.
 
 ### POST /api/businesses/:businessId/inventory/batches
 
@@ -108,7 +119,7 @@ Client -> Authorization: Bearer <jwt> + JSON body
          2. insert one line per product line
          3. increment each product's sealed stock by the sum of its
             lines' base-unit quantities
-   -> 201 { batch, lines, receivedBy }
+   -> 201 StockBatchDetailResponse
 ```
 
 The whole thing is one transaction: a batch never exists without its lines, and
@@ -124,21 +135,57 @@ Summarises the stock position of every active product.
 Client -> Authorization: Bearer <jwt>
    -> auth middleware resolves the owner
    -> business middleware resolves the scope
+   -> validation middleware reads the optional expiry cutoff
    -> repository returns the active products of that scope and branch,
       each with its base unit and the lines still holding stock
    -> service attaches the live image of each product and computes, per product:
          - stock status against the low-stock threshold
          - the remaining cost of the stock still held
-         - the nearest expiry and how many lines carry one
+         - the lots expiring by the cutoff, and their quantity in base units
          - how many batches still hold stock of it
-   -> 200 [ { id, name, brand, currentSealedStock, baseUnitLabel,
-             lowStockThreshold, stockStatus, totalCost, earliestExpiry,
-             expiryCount, numberOfBatches, uploadId, active }, ... ]
+   -> 200 ProductInventorySummaryResponse[]
 ```
+
+`GET .../inventory/products?expiryBefore=<ISO instant>` sets the cutoff. Without
+it the API uses the moment of the request, so already-expired lots still count.
+Only lines with quantity remaining are lots; a line with no expiry is never
+counted.
 
 Status reads the threshold the product was configured with: zero or less is out
 of stock, below the threshold is low, anything else is in stock. A product with
 no threshold has no level to be low against and is never reported low.
+
+### GET /api/businesses/:businessId/inventory/products/:productId
+
+Reads one product's stock position and the full history of batches it appeared
+in, newest batch date first.
+
+```
+Client -> Authorization: Bearer <jwt>
+   -> auth middleware resolves the owner
+   -> business middleware resolves the scope
+   -> validation middleware reads the optional expiry cutoff
+   -> repository returns the product of that scope and branch with its
+      base unit and every line of it, each carrying the batch it belongs to
+   -> service attaches the live image of the product, computes the stock
+      header and the expiry totals of the lines still holding stock, and
+      groups the lines under the batch that carried them, newest first
+   -> 200 ProductInventoryDetailResponse
+```
+
+`GET .../inventory/products/:productId?expiryBefore=<ISO instant>` sets the
+expiry cutoff. The cutoff follows the list: without it the API uses the moment
+of the request, and already-expired lots still count.
+
+Batches are returned newest first; lines keep the order they were recorded in.
+Each line also carries `baseUnit`, `remainingPurchaseQuantity` (how much of the
+bought unit is left) and `remainingCost` (what that stock cost), so the client
+does not re-derive either.
+
+The header is returned for an inactive product too, and a batch is listed
+whether or not its line still holds stock, so a product's purchase history
+stays complete. An unknown id, or one outside the caller's business or branch,
+is a `404`.
 
 ### GET /api/businesses/:businessId/products
 
@@ -150,8 +197,7 @@ Client -> Authorization: Bearer <jwt>
    -> business middleware resolves the business and default branch
    -> repository returns the scope's products, ordered by name
    -> service attaches the base unit label and the live image of each
-   -> 200 [ { id, name, brand, currentSealedStock, baseUnitLabel,
-             lowStockThreshold, active, uploadId }, ... ]
+   -> 200 ProductSummaryResponse[]
 ```
 
 This belongs to the products feature (see [products.md](products.md)), but the
@@ -173,8 +219,7 @@ Client -> Authorization: Bearer <jwt>
    -> repository loads the product by id, scoped to the business
    -> service returns its units as options, ordered by role —
       Base, MOU, Standard, Custom — then by name
-   -> 200 [ { id, productId, name, purchaseCapable, sellCapable,
-             unitRole, dependsOn, conversionRate }, ... ]
+   -> 200 ProductUnitOptionResponse[]
 ```
 
 Also part of the products feature, called here through the injected catalog
@@ -226,15 +271,14 @@ guessing a conversion.
   sealed one — is not recorded against a lot, so every draw is taken from sealed
   stock.
 
-- **A line whose purchase unit is missing drops its cost silently.** A product's
-  remaining cost is derived line by line: the quantity bought is converted to
-  base units through the unit's live conversion facts, then scaled by the
-  fraction still unsold. A line whose purchased unit is no longer among the
-  product's units has no rate to convert with, so it contributes nothing and the
-  product's `totalCost` is understated — with no error and no marker on the
-  response. Units cannot currently be deleted, so this is a defensive branch
-  rather than a reachable state, but the summary would not surface it if it ever
-  happened.
+- **A line whose purchase unit is missing drops its cost silently.** A line's
+  `remainingCost` is derived from the quantity bought, converted to base units
+  through the unit's live conversion facts and scaled by the fraction still
+  unsold. A line whose purchased unit is no longer among the product's units has
+  no rate to convert with, so it contributes nothing and the product's
+  `totalCost` is understated — with no error and no marker on the response.
+  Units cannot currently be deleted, so this is a defensive branch rather than a
+  reachable state, but the summary would not surface it if it ever happened.
 
 - **Lists are unbounded.** A branch's batches and products are returned whole,
   with no pagination or limit, so the reads scale with the size of the catalog

@@ -60,13 +60,23 @@ export function TableRow({ children, ...rest }: TableRowProps) {
   );
 }
 
+export interface TableHeadCellProps extends ThHTMLAttributes<HTMLTableCellElement> {
+  variant?: 'column' | 'row';
+}
+
 export function TableHeadCell({
   children,
   className = '',
+  variant = 'column',
   ...rest
-}: ThHTMLAttributes<HTMLTableCellElement>) {
+}: TableHeadCellProps) {
+  const row = variant === 'row';
   return (
-    <th scope="col" className={`${HEAD_CELL} ${className}`} {...rest}>
+    <th
+      scope={row ? 'row' : 'col'}
+      className={`${row ? `${BODY_CELL} text-left font-normal` : HEAD_CELL} ${className}`}
+      {...rest}
+    >
       {children}
     </th>
   );

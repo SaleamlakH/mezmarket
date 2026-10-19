@@ -2,23 +2,32 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
-import type { BusinessResponse, CreateBatchInput, StockBatchDetailResponse } from '@mez/types';
+import type {
+  BusinessResponse,
+  CreateBatchInput,
+  ProductInventoryDetailResponse,
+  StockBatchDetailResponse,
+} from '@mez/types';
 import type { BusinessContextValue } from '@/providers/business/types';
 import { inventoryService } from '../../api/inventoryService';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
 import { catalogKeys } from '@/hooks/useCatalogApi';
 import {
   inventoryKeys,
+  useBatchDetail,
   useCreateBatch,
   useInventoryBatches,
   useInventoryProducts,
+  useProductInventoryDetail,
 } from '../useInventoryApi';
-import { batches, products } from '../../__tests__/fixtures';
+import { batches, productInventoryDetail, products } from '../../__tests__/fixtures';
 
 vi.mock('../../api/inventoryService', () => ({
   inventoryService: {
     getBatches: vi.fn(),
+    getBatch: vi.fn(),
     getInventoryProducts: vi.fn(),
+    getInventoryProduct: vi.fn(),
     createBatch: vi.fn(),
   },
 }));
@@ -109,6 +118,38 @@ describe('useInventoryApi', () => {
     });
   });
 
+  describe('useBatchDetail', () => {
+    it('fetches the requested batch of the current business', async () => {
+      const batch = batches[0] as StockBatchDetailResponse;
+      vi.mocked(inventoryService.getBatch).mockResolvedValue(batch);
+
+      const { result } = renderHook(() => useBatchDetail('batch_1'), { wrapper });
+
+      expect(result.current.isPending).toBe(true);
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(inventoryService.getBatch).toHaveBeenCalledWith('b1', 'batch_1');
+      expect(result.current.data).toEqual(batch);
+      expect(queryClient.getQueryData(inventoryKeys.batch('b1', 'batch_1'))).toEqual(batch);
+    });
+
+    it('stays idle without a selected business', () => {
+      setBusiness(null);
+
+      const { result } = renderHook(() => useBatchDetail('batch_1'), { wrapper });
+
+      expect(result.current.fetchStatus).toBe('idle');
+      expect(inventoryService.getBatch).not.toHaveBeenCalled();
+    });
+
+    it('stays idle without a batch id', () => {
+      const { result } = renderHook(() => useBatchDetail(undefined), { wrapper });
+
+      expect(result.current.fetchStatus).toBe('idle');
+      expect(inventoryService.getBatch).not.toHaveBeenCalled();
+    });
+  });
+
   describe('useInventoryProducts', () => {
     it('fetches the inventory products of the current business', async () => {
       vi.mocked(inventoryService.getInventoryProducts).mockResolvedValue(products);
@@ -117,9 +158,23 @@ describe('useInventoryApi', () => {
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-      expect(inventoryService.getInventoryProducts).toHaveBeenCalledWith('b1');
+      expect(inventoryService.getInventoryProducts).toHaveBeenCalledWith('b1', undefined);
       expect(result.current.data).toEqual(products);
       expect(queryClient.getQueryData(inventoryKeys.inventoryProducts('b1'))).toEqual(products);
+    });
+
+    it('asks for the summary against the caller cutoff', async () => {
+      const expiryBefore = new Date('2026-10-24T00:00:00.000Z');
+      vi.mocked(inventoryService.getInventoryProducts).mockResolvedValue(products);
+
+      const { result } = renderHook(() => useInventoryProducts(expiryBefore), { wrapper });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(inventoryService.getInventoryProducts).toHaveBeenCalledWith('b1', expiryBefore);
+      expect(
+        queryClient.getQueryData(inventoryKeys.inventoryProducts('b1', expiryBefore.toISOString())),
+      ).toEqual(products);
     });
 
     it('stays idle without a selected business', () => {
@@ -128,6 +183,61 @@ describe('useInventoryApi', () => {
       renderHook(() => useInventoryProducts(), { wrapper });
 
       expect(inventoryService.getInventoryProducts).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('useProductInventoryDetail', () => {
+    it('fetches the requested product of the current business', async () => {
+      const detail = productInventoryDetail as ProductInventoryDetailResponse;
+      vi.mocked(inventoryService.getInventoryProduct).mockResolvedValue(detail);
+
+      const { result } = renderHook(() => useProductInventoryDetail('prod_1'), { wrapper });
+
+      expect(result.current.isPending).toBe(true);
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(inventoryService.getInventoryProduct).toHaveBeenCalledWith('b1', 'prod_1', undefined);
+      expect(result.current.data).toEqual(detail);
+      expect(queryClient.getQueryData(inventoryKeys.inventoryProduct('b1', 'prod_1'))).toEqual(
+        detail,
+      );
+    });
+
+    it('asks for expiry against the caller cutoff', async () => {
+      const detail = productInventoryDetail as ProductInventoryDetailResponse;
+      const expiryBefore = new Date('2026-10-24T00:00:00.000Z');
+      vi.mocked(inventoryService.getInventoryProduct).mockResolvedValue(detail);
+
+      const { result } = renderHook(() => useProductInventoryDetail('prod_1', expiryBefore), {
+        wrapper,
+      });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(inventoryService.getInventoryProduct).toHaveBeenCalledWith(
+        'b1',
+        'prod_1',
+        expiryBefore,
+      );
+      expect(
+        queryClient.getQueryData(
+          inventoryKeys.inventoryProduct('b1', 'prod_1', expiryBefore.toISOString()),
+        ),
+      ).toEqual(detail);
+    });
+
+    it('stays idle without a selected business', () => {
+      setBusiness(null);
+
+      renderHook(() => useProductInventoryDetail('prod_1'), { wrapper });
+
+      expect(inventoryService.getInventoryProduct).not.toHaveBeenCalled();
+    });
+
+    it('stays idle without a product id', () => {
+      renderHook(() => useProductInventoryDetail(undefined), { wrapper });
+
+      expect(inventoryService.getInventoryProduct).not.toHaveBeenCalled();
     });
   });
 

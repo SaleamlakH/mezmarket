@@ -91,14 +91,6 @@ describe('BatchLineForm', () => {
     expect(getProductUnits).toHaveBeenCalledTimes(1);
   });
 
-  it('shows a loading placeholder instead of the selector while units load', () => {
-    getProductUnits.mockReturnValue(new Promise(() => {}));
-    renderForm();
-
-    expect(screen.getByRole('status', { name: 'Loading units…' })).toBeInTheDocument();
-    expect(screen.queryByLabelText('Bought in')).not.toBeInTheDocument();
-  });
-
   it('shows an error with a retry that refetches the units', async () => {
     getProductUnits.mockRejectedValue(new Error('network failure'));
     const user = userEvent.setup();

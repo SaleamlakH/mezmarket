@@ -28,6 +28,8 @@ import { SaleDetailPage } from './features/sales/pages/SaleDetailPage';
 import { SaleDraftProvider } from './features/sales/state/SaleDraftProvider';
 import { InventoryPage } from './features/inventory/pages/InventoryPage';
 import { BatchesPage } from './features/inventory/pages/BatchesPage';
+import { BatchDetailPage } from './features/inventory/pages/BatchDetailPage';
+import { ProductInventoryDetailPage } from './features/inventory/pages/ProductInventoryDetailPage';
 import { SettingsPage } from './features/settings/pages/SettingsPage';
 import { BusinessProfilePage } from './features/business/pages/BusinessProfilePage';
 import { businessService } from './features/business/api/businessService';
@@ -80,6 +82,11 @@ const router = createBrowserRouter([
               },
               { path: 'inventory', element: <InventoryPage /> },
               { path: 'inventory/batches', element: <BatchesPage /> },
+              { path: 'inventory/batches/:batchId', element: <BatchDetailPage /> },
+              {
+                path: 'inventory/products/:productId',
+                element: <ProductInventoryDetailPage />,
+              },
               { path: 'settings', element: <SettingsPage /> },
               { path: 'settings/profile', element: <OwnerProfilePage ownerApi={ownerApi} /> },
               { path: 'settings/business', element: <BusinessProfilePage /> },
