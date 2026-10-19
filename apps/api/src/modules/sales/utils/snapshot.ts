@@ -10,7 +10,7 @@ import type {
   ProductUnitSellContext,
   ResolvedSaleLine,
 } from '../sales.types.js';
-import { roundQuantity } from './rounding.js';
+import { roundQuantity } from '../../../shared/utils/rounding.js';
 
 /**
  * The sale snapshot: the shared catalog walk bound to the sale line resolver,

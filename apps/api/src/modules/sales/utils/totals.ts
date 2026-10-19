@@ -1,6 +1,6 @@
 import type { ResolvedSaleLine } from '../sales.types.js';
 import { AppError, ERROR_CODES } from '../../../shared/errors/app-error.js';
-import { roundMoney } from './rounding.js';
+import { roundMoney } from '../../../shared/utils/rounding.js';
 
 /**
  * The sale's money totals from its resolved lines, the tax rate applied and an
