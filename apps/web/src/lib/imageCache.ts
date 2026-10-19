@@ -22,6 +22,18 @@ export const imageCache = {
     cache.set(uploadId, URL.createObjectURL(blob));
   },
 
+  /**
+   * Drops an image so the next read refetches it. Used after a replace, when the
+   * same upload id now points at new bytes and the cached copy is stale.
+   */
+  remove(uploadId: string): void {
+    const existing = cache.get(uploadId);
+    if (existing) {
+      URL.revokeObjectURL(existing);
+      cache.delete(uploadId);
+    }
+  },
+
   clear(): void {
     for (const objectUrl of cache.values()) {
       URL.revokeObjectURL(objectUrl);
