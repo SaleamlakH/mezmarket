@@ -42,33 +42,32 @@ export function ProductCard({
     >
       <RailCard
         variant="thumbnail"
+        thumbVariant="wide"
         className="shadow-(--shadow-md)"
         thumb={{ imageUrl: imageUrl ?? null, imageAlt: name }}
         badge={active ? undefined : <Badge tone="neutral">Inactive</Badge>}
         badgePosition="overlay"
-        footer={
-          sub || price ? (
-            <div className="flex items-baseline justify-between gap-2">
-              {sub && (
-                <p
-                  className={`font-mono text-[13px] font-bold whitespace-nowrap ${
-                    low ? 'text-(--warning)' : 'text-(--text)'
-                  }`}
-                >
-                  {sub}
-                </p>
-              )}
-              {price && (
-                <p className="m-0 font-mono text-[11px] whitespace-nowrap text-(--text-muted)">
-                  {price}
-                </p>
-              )}
-            </div>
-          ) : undefined
-        }
       >
         <p className="m-0 truncate text-[15px] font-semibold text-(--text)">{name}</p>
         {meta && <p className="m-0 truncate font-mono text-[11px] text-(--text-muted)">{meta}</p>}
+        {(sub || price) && (
+          <div className="mt-1 flex items-baseline justify-between gap-2">
+            {sub && (
+              <p
+                className={`m-0 font-mono text-[13px] font-bold whitespace-nowrap ${
+                  low ? 'text-(--warning)' : 'text-(--text)'
+                }`}
+              >
+                {sub}
+              </p>
+            )}
+            {price && (
+              <p className="m-0 font-mono text-[11px] whitespace-nowrap text-(--text-muted)">
+                {price}
+              </p>
+            )}
+          </div>
+        )}
       </RailCard>
     </Link>
   );
