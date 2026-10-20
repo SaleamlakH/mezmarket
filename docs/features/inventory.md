@@ -65,20 +65,22 @@ recorded.
 
 ### GET /api/businesses/:businessId/inventory/batches
 
-Lists a business' recorded batches, newest batch date first.
+Lists a business' batches, newest batch date first. `status=draft|confirmed|all` selects the set; it defaults to `all`. `status=draft` requires manager access and returns `403` for staff.
 
 ```
 Client -> Authorization: Bearer <jwt>
    -> auth middleware resolves the owner
    -> business middleware checks the caller belongs to :businessId
       and resolves the business's default branch
-   -> repository returns that scope's batches,
+   -> validation middleware reads the optional status filter
+   -> role middleware requires manager tier when status=draft
+   -> repository returns that scope's batches, filtered by status,
       newest batch date first, each with its lines and receiver
    -> service flattens each product's name and brand onto its line
    -> 200 StockBatchDetailResponse[]
 ```
 
-An empty history is a `200` with an empty list, not a `404`.
+An empty history is a `200` with an empty list, not a `404`. A draft has `confirmedAt` null, so the list response must allow that field to be null; today the write flow always confirms a batch, so drafts are not produced yet.
 
 ### GET /api/businesses/:businessId/inventory/batches/:batchId
 
@@ -129,31 +131,49 @@ or a half-applied increment behind.
 
 ### GET /api/businesses/:businessId/inventory/products
 
-Summarises the stock position of every active product.
+Summarises the stock position of products. The default set is the active products, matching the inventory page.
 
 ```
 Client -> Authorization: Bearer <jwt>
    -> auth middleware resolves the owner
    -> business middleware resolves the scope
-   -> validation middleware reads the optional expiry cutoff
-   -> repository returns the active products of that scope and branch,
+   -> validation middleware reads the optional status, stock, and expiry filters
+   -> repository returns the products of that scope and branch,
       each with its base unit and the lines still holding stock
    -> service attaches the live image of each product and computes, per product:
          - stock status against the low-stock threshold
          - the remaining cost of the stock still held
-         - the lots expiring by the cutoff, and their quantity in base units
+         - the lots expiring by the cutoff, their quantity in base units,
+           and their earliest expiry
          - how many batches still hold stock of it
    -> 200 ProductInventorySummaryResponse[]
 ```
 
-`GET .../inventory/products?expiryBefore=<ISO instant>` sets the cutoff. Without
-it the API uses the moment of the request, so already-expired lots still count.
+Filters:
+
+- `status=active|inactive|all` selects the product set; it defaults to `active`.
+- `stockStatus=low_stock,out_of_stock` selects products by stock level. Values are
+  comma-separated; low and out are exclusive. The dashboard's low/out drill-down
+  sends both and `status=active`.
+- `expiryStatus=expired,soon` selects products with at least one lot in the
+  matching group. `expired` means `expiryDate < asOf`; `soon` means
+  `asOf <= expiryDate < asOf + 30 days`. The dashboard's expiring drill-down
+  sends both and `status=all`, so inactive products with physical stock are
+  included.
+- `expiryBefore=<ISO instant>` remains the custom cutoff. Without it the API
+  uses the moment of the request, so already-expired lots still count. It cannot
+  be combined with `expiryStatus`; sending both returns `400`.
+- The expiry filter selects products; `expiry.lotCount` and `expiry.quantity`
+  still describe all lots in the 30-day window, expired included. The response
+  adds `expiry.earliestExpiryDate`.
+
 Only lines with quantity remaining are lots; a line with no expiry is never
 counted.
 
-Status reads the threshold the product was configured with: zero or less is out
-of stock, below the threshold is low, anything else is in stock. A product with
-no threshold has no level to be low against and is never reported low.
+Status reads the effective threshold: the product's `lowStockThreshold`, falling
+back to the business's `lowStockDefaultThreshold`. Zero or less is out of stock,
+below the effective threshold is low, anything else is in stock. A product with
+neither threshold has no level to be low against and is never reported low.
 
 ### GET /api/businesses/:businessId/inventory/products/:productId
 
@@ -284,9 +304,10 @@ guessing a conversion.
   with no pagination or limit, so the reads scale with the size of the catalog
   and its history.
 
-- **Inactive products disappear.** The product view returns only active
-  products, so a deactivated product's stock, however much is on hand, is not
-  shown anywhere in this feature.
+- **Inactive products are hidden by default.** The product view returns only
+  active products unless `status=all` is sent. The expiry drill-down uses that
+  option so a deactivated product's stock, however much is on hand, still
+  appears there; other surfaces continue to hide it.
 
 - **Purchases are not restricted by dimension.** Any purchase-capable unit may
   be bought, content-based and owner-defined ones included, even though intake

@@ -121,10 +121,12 @@ Client -> Authorization: Bearer <jwt>
          - status: paymentStatus
          - from / to: saleDatetime range, inclusive
          - productId: sales that have a line for that product
+         - unpaid: only non-voided sales with balanceDue > 0
+         - overdue: unpaid sales with saleDatetime older than 7 days
    -> 200 [ SaleSummaryResponse, ... ]
 ```
 
-An empty history is a `200` with an empty list, not a `404`. `SaleListFilters.from` and `.to` are ISO 8601 instants, the form they take in the query string. The filters are the target contract; the API does not apply them yet.
+An empty history is a `200` with an empty list, not a `404`. `SaleListFilters.from` and `.to` are ISO 8601 instants, the form they take in the query string. `unpaid=true` and `overdue=true` are the dashboard's attention filters; `overdue=true` implies unpaid and uses the server's seven-day cutoff. The list summary carries `taxAmount`, `amountPaid`, and `balanceDue` alongside the existing header fields, so the unpaid row does not need a detail read. The filters are the target contract; the API does not apply them yet.
 
 ### GET /api/businesses/:businessId/sales/:saleId
 
@@ -273,7 +275,7 @@ Client -> Authorization: Bearer <jwt>
 
 - **Update, void, refund and the invoice are documented but not implemented.** The API exposes list, get, create and record-payment only; their validation rules exist but no service, repository or route uses them.
 - **No audit-log writes.** The sale actions and entity type exist in the schema, but no sale write records one.
-- **List filters are ignored.** The status, date-range and product filters are part of the contract, but the API returns the whole list.
+- **List filters are ignored.** The status, date-range, product, unpaid, and overdue filters are part of the contract, but the API returns the whole list.
 - **Stock is business-scoped while sales are branch-scoped.** A sale is scoped to one branch but draws from the business's lots, so stock can move across branches.
 - **The payment status is caller-asserted.** A sale can read `PAID` and still carry a balance, and an overpayment is kept while the balance floors at zero.
 
@@ -308,6 +310,7 @@ Every failure is delivered as a structured error envelope by the global error ha
 - [members.md](members.md) — the server attribution and member roles.
 - [products.md](products.md) — the products and units a sale line is built from.
 - [inventory.md](inventory.md) — where the stock a sale draws comes from.
+- [dashboard.md](dashboard.md) — the payment summary by method and other reporting reads.
 - [error-handling.md](error-handling.md) — the structured error envelope.
 - [../schema.md](../schema.md) — the `Sale`, `SaleLine`, `SaleLineCost` and `Payment` entities.
 - [../unit-system-architecture.md](../unit-system-architecture.md) — how a sale line's snapshotted standard-unit figure is computed.
