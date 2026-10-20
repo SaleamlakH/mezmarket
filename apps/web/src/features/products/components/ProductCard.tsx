@@ -45,7 +45,7 @@ export function ProductCard({
         thumbVariant="wide"
         className="shadow-(--shadow-md)"
         thumb={{ imageUrl: imageUrl ?? null, imageAlt: name }}
-        badge={active ? undefined : <Badge tone="neutral">Inactive</Badge>}
+        badge={active ? undefined : <Badge tone="warning">Inactive</Badge>}
         badgePosition="overlay"
       >
         <p className="m-0 truncate text-[15px] font-semibold text-(--text)">{name}</p>
