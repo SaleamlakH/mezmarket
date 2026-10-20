@@ -33,7 +33,13 @@ import { createProductsController } from './modules/products/products.controller
 import { createProductsRouter } from './modules/products/products.routes.js';
 import {
   createUploadResolver,
+  validateProductActiveInput,
+  validateProductIdParam,
   validateProductInput,
+  validateProductListFilters,
+  validateProductUnitInput,
+  validateProductUnitsUpdateInput,
+  validateProductUpdateInput,
 } from './modules/products/products.middleware.js';
 import { createSaleRepository } from './modules/sales/sales.repository.js';
 import { createSaleService } from './modules/sales/sales.service.js';
@@ -164,7 +170,13 @@ const uploadsRouter: Router = createUploadsRouter(
 export const productsRoutes = createProductsRouter(
   productsController,
   authorizeBusiness,
+  validateProductIdParam,
   validateProductInput,
+  validateProductListFilters,
+  validateProductUpdateInput,
+  validateProductUnitInput,
+  validateProductUnitsUpdateInput,
+  validateProductActiveInput,
   uploadsRouter,
 );
 
