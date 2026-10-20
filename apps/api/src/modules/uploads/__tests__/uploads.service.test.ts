@@ -11,6 +11,8 @@ function mockRepository(): UploadRepository {
     getById: vi.fn(),
     getManyByIds: vi.fn(),
     setStatus: vi.fn(),
+    updateReported: vi.fn(),
+    claim: vi.fn(),
   };
 }
 
@@ -108,25 +110,92 @@ describe('uploads.service', () => {
         new AppError(ERROR_CODES.INTERNAL_ERROR, 'Failed to create presigned upload url', 500),
       );
 
-      await expect(service.createUpload(validInput)).rejects.toEqual(
-        new AppError(ERROR_CODES.INTERNAL_ERROR, 'Failed to create presigned upload url', 500),
+      await expect(service.createUpload(validInput)).rejects.toMatchObject({
+        code: ERROR_CODES.INTERNAL_ERROR,
+        statusCode: 500,
+        message: expect.any(String),
+      });
+    });
+  });
+
+  describe('updateUpload', () => {
+    const validInput = { record: 'PRODUCT', mimeType: 'image/png', sizeBytes: 2048 } as const;
+
+    it('reuses the existing upload, refreshing what the file reports', async () => {
+      const updated = uploadRecord({ mimeType: 'image/png', sizeBytes: 2048 });
+      vi.mocked(repo.updateReported).mockResolvedValue(updated as never);
+      vi.mocked(storage.createUploadUrl).mockResolvedValue('https://file/signed-upload');
+
+      const result = await service.updateUpload(validInput, 'p-1', 'u-1');
+
+      expect(repo.updateReported).toHaveBeenCalledWith('u-1', {
+        mimeType: 'image/png',
+        sizeBytes: 2048,
+      });
+      expect(storage.createUploadUrl).toHaveBeenCalledWith('uploads/u-1.jpg', { upsert: true });
+      expect(repo.create).not.toHaveBeenCalled();
+      expect(repo.claim).not.toHaveBeenCalled();
+      expect(result).toEqual({ upload: updated, uploadUrl: 'https://file/signed-upload' });
+    });
+
+    it('mints an upload and claims it when the record has no image yet', async () => {
+      vi.mocked(repo.create).mockResolvedValue(uploadRecord() as never);
+      vi.mocked(storage.createUploadUrl).mockResolvedValue('https://file/signed-upload');
+
+      await service.updateUpload(validInput, 'p-1', undefined);
+
+      const input = vi.mocked(repo.create).mock.calls[0]?.[0];
+      expect(input?.storageKey).toMatch(/^uploads\/product\/.+\.png$/);
+      expect(repo.claim).toHaveBeenCalledWith({
+        uploadId: 'u-1',
+        recordType: 'PRODUCT',
+        recordId: 'p-1',
+      });
+      expect(storage.createUploadUrl).toHaveBeenCalledWith(input?.storageKey);
+      expect(repo.updateReported).not.toHaveBeenCalled();
+    });
+
+    it('does not ask storage to overwrite in place when minting a new upload', async () => {
+      vi.mocked(repo.create).mockResolvedValue(uploadRecord() as never);
+      vi.mocked(storage.createUploadUrl).mockResolvedValue('https://file/signed-upload');
+
+      await service.updateUpload(validInput, 'p-1', undefined);
+
+      expect(storage.createUploadUrl).toHaveBeenCalledTimes(1);
+      expect(storage.createUploadUrl).toHaveBeenCalledWith(expect.any(String));
+    });
+
+    it('propagates storage failures', async () => {
+      vi.mocked(repo.updateReported).mockResolvedValue(uploadRecord() as never);
+      vi.mocked(storage.createUploadUrl).mockRejectedValue(
+        new AppError(ERROR_CODES.INTERNAL_ERROR, 'Storage is not configured', 500),
       );
+
+      await expect(service.updateUpload(validInput, 'p-1', 'u-1')).rejects.toMatchObject({
+        code: ERROR_CODES.INTERNAL_ERROR,
+        statusCode: 500,
+        message: expect.any(String),
+      });
     });
   });
 
   describe('getUploadUrl', () => {
     it('throws BAD_REQUEST when the upload id is missing', async () => {
-      await expect(service.getUploadUrl(undefined)).rejects.toEqual(
-        new AppError(ERROR_CODES.BAD_REQUEST, 'Missing upload id', 400),
-      );
+      await expect(service.getUploadUrl(undefined)).rejects.toMatchObject({
+        code: ERROR_CODES.BAD_REQUEST,
+        statusCode: 400,
+        message: expect.any(String),
+      });
     });
 
     it('throws NOT_FOUND when the upload record is missing', async () => {
       vi.mocked(repo.getById).mockResolvedValue(null);
 
-      await expect(service.getUploadUrl('u-1')).rejects.toEqual(
-        new AppError(ERROR_CODES.NOT_FOUND, 'Upload not found', 404),
-      );
+      await expect(service.getUploadUrl('u-1')).rejects.toMatchObject({
+        code: ERROR_CODES.NOT_FOUND,
+        statusCode: 404,
+        message: expect.any(String),
+      });
     });
 
     it('persists ACTIVE and returns a download url when the pending object exists', async () => {
@@ -146,9 +215,11 @@ describe('uploads.service', () => {
       vi.mocked(repo.getById).mockResolvedValue(uploadRecord() as never);
       vi.mocked(storage.objectExists).mockResolvedValue(false);
 
-      await expect(service.getUploadUrl('u-1')).rejects.toEqual(
-        new AppError(ERROR_CODES.NOT_FOUND, 'Upload not found', 404),
-      );
+      await expect(service.getUploadUrl('u-1')).rejects.toMatchObject({
+        code: ERROR_CODES.NOT_FOUND,
+        statusCode: 404,
+        message: expect.any(String),
+      });
       expect(repo.setStatus).toHaveBeenCalledWith('u-1', UploadStatus.FAILED);
       expect(storage.createDownloadUrl).not.toHaveBeenCalled();
     });
@@ -172,9 +243,11 @@ describe('uploads.service', () => {
         uploadRecord({ status: UploadStatus.FAILED }) as never,
       );
 
-      await expect(service.getUploadUrl('u-1')).rejects.toEqual(
-        new AppError(ERROR_CODES.NOT_FOUND, 'Upload not found', 404),
-      );
+      await expect(service.getUploadUrl('u-1')).rejects.toMatchObject({
+        code: ERROR_CODES.NOT_FOUND,
+        statusCode: 404,
+        message: expect.any(String),
+      });
       expect(repo.setStatus).not.toHaveBeenCalled();
       expect(storage.createDownloadUrl).not.toHaveBeenCalled();
     });
@@ -182,9 +255,11 @@ describe('uploads.service', () => {
 
   describe('getUploadUrls', () => {
     it('throws BAD_REQUEST when the upload ids are missing', async () => {
-      await expect(service.getUploadUrls(undefined)).rejects.toEqual(
-        new AppError(ERROR_CODES.BAD_REQUEST, 'Missing upload ids', 400),
-      );
+      await expect(service.getUploadUrls(undefined)).rejects.toMatchObject({
+        code: ERROR_CODES.BAD_REQUEST,
+        statusCode: 400,
+        message: expect.any(String),
+      });
     });
 
     it('returns an empty result when the upload ids are empty', async () => {

@@ -1,8 +1,9 @@
 import type { Request, Response } from 'express';
-import type { CreateUploadInput, UploadService } from './uploads.types.js';
+import type { CreateUploadInput, UpdateUploadInput, UploadService } from './uploads.types.js';
 
 export type UploadController = {
   createUpload(req: Request, res: Response): Promise<void>;
+  updateUpload(req: Request, res: Response): Promise<void>;
   getUploadUrl(req: Request, res: Response): Promise<void>;
   getUploadUrls(req: Request, res: Response): Promise<void>;
 };
@@ -14,9 +15,17 @@ export function createUploadsController(service: UploadService): UploadControlle
       res.status(201).json(result);
     },
 
+    async updateUpload(req: Request, res: Response) {
+      const result = await service.updateUpload(
+        req.validBody as UpdateUploadInput,
+        req.params.recordId as string,
+        req.params.uploadId as string | undefined,
+      );
+      res.status(200).json(result);
+    },
+
     async getUploadUrl(req: Request, res: Response) {
-      const uploadId = req.params.uploadId;
-      const result = await service.getUploadUrl(Array.isArray(uploadId) ? uploadId[0] : uploadId);
+      const result = await service.getUploadUrl(req.params.uploadId as string);
       res.status(200).json(result);
     },
 

@@ -39,5 +39,26 @@ export function createUploadsRepository(prisma: PrismaClient): UploadRepository 
         data: { status },
       });
     },
+
+    async updateReported(uploadId, input) {
+      return prisma.upload.update({
+        where: { id: uploadId },
+        data: {
+          mimeType: input.mimeType,
+          sizeBytes: input.sizeBytes,
+          status: UploadStatus.PENDING,
+        },
+      });
+    },
+
+    async claim(input) {
+      return prisma.attachment.create({
+        data: {
+          uploadId: input.uploadId,
+          recordType: input.recordType,
+          recordId: input.recordId,
+        },
+      });
+    },
   };
 }

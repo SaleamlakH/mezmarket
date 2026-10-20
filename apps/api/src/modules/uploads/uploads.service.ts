@@ -7,6 +7,8 @@ import type {
   CreateUploadResult,
   DownloadUrlResult,
   DownloadUrlsResult,
+  UpdateUploadInput,
+  UpdateUploadResult,
   UploadRepository,
   UploadService,
 } from './uploads.types.js';
@@ -26,6 +28,49 @@ export function createUploadsService(
         storageKey,
         mimeType: input.mimeType ?? null,
         sizeBytes: input.sizeBytes ?? null,
+      });
+
+      const uploadUrl = await storage.createUploadUrl(storageKey);
+
+      return { upload: record, uploadUrl };
+    },
+
+    /**
+     * Sets or replaces the record's file. The upload and its claim are reused when
+     * the record already has one — the same object is overwritten in place, so an
+     * interrupted replacement leaves the old file intact. Only a record without a
+     * file mints a new upload and claim.
+     */
+    async updateUpload(
+      input: UpdateUploadInput,
+      recordId: string,
+      existingUploadId: string | undefined,
+    ): Promise<UpdateUploadResult> {
+      if (existingUploadId) {
+        const upload = await repository.updateReported(existingUploadId, {
+          mimeType: input.mimeType ?? null,
+          sizeBytes: input.sizeBytes ?? null,
+        });
+
+        const uploadUrl = await storage.createUploadUrl(upload.storageKey, { upsert: true });
+
+        return { upload, uploadUrl };
+      }
+
+      const id = ulid();
+      const storageKey = generateStorageKey(input.record, id, input.mimeType);
+
+      const record = await repository.create({
+        id,
+        storageKey,
+        mimeType: input.mimeType ?? null,
+        sizeBytes: input.sizeBytes ?? null,
+      });
+
+      await repository.claim({
+        uploadId: record.id,
+        recordType: input.record,
+        recordId,
       });
 
       const uploadUrl = await storage.createUploadUrl(storageKey);

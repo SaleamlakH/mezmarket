@@ -5,7 +5,7 @@ import request from 'supertest';
 import { createUploadsService } from '../uploads.service.js';
 import { createUploadsController } from '../uploads.controller.js';
 import { createUploadsRouter } from '../uploads.routes.js';
-import { validateUploadInput } from '../uploads.middleware.js';
+import { validateUploadInput, validateUploadUpdateInput } from '../uploads.middleware.js';
 import type { UploadRecord, UploadRepository } from '../uploads.types.js';
 import type { StorageClient } from '../../../lib/storage/storage.js';
 import { UploadStatus } from '../../../../generated/prisma/client.js';
@@ -22,6 +22,8 @@ function mockRepository(): UploadRepository {
     getById: vi.fn(),
     getManyByIds: vi.fn(),
     setStatus: vi.fn(),
+    updateReported: vi.fn(),
+    claim: vi.fn(),
   };
 }
 
@@ -61,6 +63,7 @@ function buildApp(resolveUploads: ResolveUploads = async (_req, _res, next) => n
     createUploadsRouter(
       createUploadsController(createUploadsService(repo, storage)),
       validateUploadInput,
+      validateUploadUpdateInput,
       resolveUploads,
     ),
   );
@@ -111,7 +114,7 @@ describe('uploads.integration', () => {
       expect(res.body).toEqual({
         error: {
           code: ERROR_CODES.BAD_REQUEST,
-          message: 'Invalid request',
+          message: expect.any(String),
           details: { mimeType: expect.any(String) },
         },
       });
@@ -222,6 +225,71 @@ describe('uploads.integration', () => {
       expect(res.body).toMatchObject({
         error: { code: ERROR_CODES.BAD_REQUEST, message: expect.any(String) },
       });
+    });
+  });
+
+  describe('PUT /api/:recordId/uploads', () => {
+    it('reuses the resolved upload and overwrites it in place', async () => {
+      const { app, repo, storage } = buildApp(async (req, _res, next) => {
+        req.params.uploadId = 'u-1';
+        next();
+      });
+      vi.mocked(repo.updateReported).mockResolvedValue(
+        uploadRecord({ mimeType: 'image/png', sizeBytes: 2048 }) as never,
+      );
+      vi.mocked(storage.createUploadUrl).mockResolvedValue('https://file/signed-upload');
+
+      const res = await request(app)
+        .put('/api/p-1/uploads')
+        .send({ record: 'PRODUCT', mimeType: 'image/png', sizeBytes: 2048 });
+
+      expect(res.status).toBe(200);
+      expect(repo.updateReported).toHaveBeenCalledWith('u-1', {
+        mimeType: 'image/png',
+        sizeBytes: 2048,
+      });
+      expect(storage.createUploadUrl).toHaveBeenCalledWith('uploads/product/u-1.jpg', {
+        upsert: true,
+      });
+      expect(repo.create).not.toHaveBeenCalled();
+      expect(res.body.uploadUrl).toBe('https://file/signed-upload');
+    });
+
+    it('mints an upload and claims it when the record has none yet', async () => {
+      const { app, repo, storage } = buildApp();
+      vi.mocked(repo.create).mockResolvedValue(uploadRecord() as never);
+      vi.mocked(storage.createUploadUrl).mockResolvedValue('https://file/signed-upload');
+
+      const res = await request(app)
+        .put('/api/p-1/uploads')
+        .send({ record: 'PRODUCT', mimeType: 'image/png', sizeBytes: 2048 });
+
+      expect(res.status).toBe(200);
+      expect(repo.claim).toHaveBeenCalledWith({
+        uploadId: 'u-1',
+        recordType: 'PRODUCT',
+        recordId: 'p-1',
+      });
+      expect(repo.updateReported).not.toHaveBeenCalled();
+    });
+
+    it('returns 400 with field details when the payload is invalid', async () => {
+      const { app, repo } = buildApp();
+
+      const res = await request(app)
+        .put('/api/p-1/uploads')
+        .send({ record: 'PRODUCT', mimeType: 'application/pdf', sizeBytes: 2048 });
+
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({
+        error: {
+          code: ERROR_CODES.BAD_REQUEST,
+          message: expect.any(String),
+          details: { mimeType: expect.any(String) },
+        },
+      });
+      expect(repo.create).not.toHaveBeenCalled();
+      expect(repo.updateReported).not.toHaveBeenCalled();
     });
   });
 

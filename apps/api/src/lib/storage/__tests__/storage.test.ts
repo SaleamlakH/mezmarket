@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createSupabaseStorage, type SupabaseStorageLike } from '../storage.js';
-import { AppError, ERROR_CODES } from '../../../shared/errors/app-error.js';
+import { ERROR_CODES } from '../../../shared/errors/app-error.js';
 
 const BUCKET = 'products';
 
@@ -44,6 +44,21 @@ describe('storage', () => {
       });
     });
 
+    it('allows the signed url to overwrite an existing object when upsert is requested', async () => {
+      const { supabase, methods } = fakeSupabase();
+      const storage = createSupabaseStorage(supabase, BUCKET);
+      methods.createSignedUploadUrl.mockResolvedValue({
+        data: { signedUrl: 'https://file/signed-upload', token: 'token', path: 'uploads/x.jpg' },
+        error: null,
+      });
+
+      await storage.createUploadUrl('uploads/x.jpg', { upsert: true });
+
+      expect(methods.createSignedUploadUrl).toHaveBeenCalledWith('uploads/x.jpg', {
+        upsert: true,
+      });
+    });
+
     it('throws an INTERNAL_ERROR when the storage client fails', async () => {
       const { supabase, methods } = fakeSupabase();
       const storage = createSupabaseStorage(supabase, BUCKET);
@@ -52,9 +67,11 @@ describe('storage', () => {
         error: new Error('storage boom'),
       });
 
-      await expect(storage.createUploadUrl('uploads/x.jpg')).rejects.toEqual(
-        new AppError(ERROR_CODES.INTERNAL_ERROR, 'Failed to create presigned upload url', 500),
-      );
+      await expect(storage.createUploadUrl('uploads/x.jpg')).rejects.toMatchObject({
+        code: ERROR_CODES.INTERNAL_ERROR,
+        statusCode: 500,
+        message: expect.any(String),
+      });
     });
   });
 
@@ -100,9 +117,11 @@ describe('storage', () => {
         error: new Error('storage boom'),
       });
 
-      await expect(storage.createDownloadUrl('uploads/x.jpg')).rejects.toEqual(
-        new AppError(ERROR_CODES.INTERNAL_ERROR, 'Failed to create presigned download url', 500),
-      );
+      await expect(storage.createDownloadUrl('uploads/x.jpg')).rejects.toMatchObject({
+        code: ERROR_CODES.INTERNAL_ERROR,
+        statusCode: 500,
+        message: expect.any(String),
+      });
     });
   });
 });

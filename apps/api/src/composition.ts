@@ -67,7 +67,10 @@ import { createUploadsRepository } from './modules/uploads/uploads.repository.js
 import { createUploadsService } from './modules/uploads/uploads.service.js';
 import { createUploadsController } from './modules/uploads/uploads.controller.js';
 import { createUploadsRouter } from './modules/uploads/uploads.routes.js';
-import { validateUploadInput } from './modules/uploads/uploads.middleware.js';
+import {
+  validateUploadInput,
+  validateUploadUpdateInput,
+} from './modules/uploads/uploads.middleware.js';
 import type { Router } from 'express';
 
 // --- Storage ---
@@ -154,6 +157,7 @@ const resolveUploads = createUploadResolver(productsService);
 const uploadsRouter: Router = createUploadsRouter(
   uploadsController,
   validateUploadInput,
+  validateUploadUpdateInput,
   resolveUploads,
 );
 
