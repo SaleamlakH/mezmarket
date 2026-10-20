@@ -2,11 +2,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { CreateProductResponse, ProductSummaryResponse, UnitsResponse } from '@mez/types';
-import { MAX_UPLOAD_SIZE_BYTES, type CreateProductFormValues } from '@mez/validation';
+import type {
+  CreateProductFormValues,
+  CreateProductResponse,
+  ProductSummaryResponse,
+  UnitsResponse,
+} from '@mez/types';
+import { MAX_UPLOAD_SIZE_BYTES } from '@mez/validation';
 import { useCreateProductForm } from '../useCreateProductForm';
 import { productsService } from '@/features/products/api/productsService';
 import { unitsService } from '@/features/products/api/unitsService';
+import { catalogKeys } from '@/hooks/useCatalogApi';
 
 vi.mock('@/features/products/api/productsService', () => ({
   productsService: {
@@ -683,6 +689,33 @@ describe('useCreateProductForm', () => {
     await waitFor(() =>
       expect(client.getQueryData(['products', 'b-1'])).toEqual([createdSummary, existing]),
     );
+  });
+
+  it('prepends to the loaded sales catalog without creating it', async () => {
+    const client = createClient();
+    const other = { ...createdSummary, id: 'p-0' };
+    client.setQueryData(catalogKeys.products('b-1'), [other]);
+
+    const { result } = renderHook(() => useCreateProductForm({ businessId: 'b-1', onCreated }), {
+      wrapper: wrapper(client),
+    });
+
+    fillBaseUnit(result.current);
+    await submit(result.current);
+
+    await waitFor(() =>
+      expect(client.getQueryData(catalogKeys.products('b-1'))).toEqual([createdSummary, other]),
+    );
+
+    const untouched = createClient();
+    const { result: second } = renderHook(
+      () => useCreateProductForm({ businessId: 'b-1', onCreated }),
+      { wrapper: wrapper(untouched) },
+    );
+    fillBaseUnit(second.current);
+    await submit(second.current);
+
+    expect(untouched.getQueryData(catalogKeys.products('b-1'))).toBeUndefined();
   });
 
   it('surfaces the creation failure and skips onCreated', async () => {

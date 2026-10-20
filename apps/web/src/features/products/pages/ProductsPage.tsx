@@ -107,6 +107,8 @@ export function ProductsPage() {
           {products.map((product) => (
             <ProductCard
               key={product.id}
+              productId={product.id}
+              active={product.active}
               businessId={businessId}
               uploadId={product.uploadId ?? undefined}
               uploadUrls={uploadUrls}

@@ -21,6 +21,7 @@ import { DesignSystem } from './DesignSystem';
 import { AppLayout } from './layouts/AppLayout';
 import { DashboardPage } from './features/dashboard/pages/DashboardPage';
 import { ProductsPage } from './features/products/pages/ProductsPage';
+import { ProductDetailPage } from './features/products/pages/ProductDetailPage';
 import { SaleDock } from './features/sales/components/SaleDock';
 import { SalesPage } from './features/sales/pages/SalesPage';
 import { AllSalesPage } from './features/sales/pages/AllSalesPage';
@@ -67,6 +68,7 @@ const router = createBrowserRouter([
               { index: true, element: <Navigate to="dashboard" replace /> },
               { path: 'dashboard', element: <DashboardPage /> },
               { path: 'products', element: <ProductsPage /> },
+              { path: 'products/:productId', element: <ProductDetailPage /> },
               {
                 path: 'sales',
                 element: <SalesPage />,

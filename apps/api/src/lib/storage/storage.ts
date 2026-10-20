@@ -1,8 +1,16 @@
 import { createClient } from '@supabase/supabase-js';
 import { AppError, ERROR_CODES } from '../../shared/errors/app-error.js';
 
+export interface CreateUploadUrlOptions {
+  /**
+   * Allow the signed write to overwrite an existing object at the same key.
+   * Used when replacing a record's file
+   */
+  upsert?: boolean;
+}
+
 export type StorageClient = {
-  createUploadUrl(key: string): Promise<string>;
+  createUploadUrl(key: string, options?: CreateUploadUrlOptions): Promise<string>;
   objectExists(key: string): Promise<boolean>;
   createDownloadUrl(key: string): Promise<string>;
 };
@@ -31,9 +39,9 @@ export function createSupabaseStorage(
   bucket: string,
 ): StorageClient {
   return {
-    async createUploadUrl(key: string): Promise<string> {
+    async createUploadUrl(key: string, options?: CreateUploadUrlOptions): Promise<string> {
       const { data, error } = await supabase.storage.from(bucket).createSignedUploadUrl(key, {
-        upsert: false,
+        upsert: options?.upsert ?? false,
       });
 
       if (error || !data?.signedUrl) {

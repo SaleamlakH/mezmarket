@@ -8,6 +8,7 @@ import type { UploadService } from '../uploads.types.js';
 function mockService(): UploadService {
   return {
     createUpload: vi.fn(),
+    updateUpload: vi.fn(),
     getUploadUrl: vi.fn(),
     getUploadUrls: vi.fn(),
   };
@@ -75,7 +76,83 @@ describe('uploads.controller', () => {
           mockReq({ validBody: { record: 'PRODUCT', mimeType: 'application/pdf' } }),
           mockRes(),
         ),
-      ).rejects.toThrow(new AppError(ERROR_CODES.BAD_REQUEST, 'Invalid request', 400));
+      ).rejects.toMatchObject({
+        code: ERROR_CODES.BAD_REQUEST,
+        statusCode: 400,
+        message: expect.any(String),
+      });
+    });
+  });
+
+  describe('updateUpload', () => {
+    it('returns 200 with the upload and its presigned url', async () => {
+      const controller = createUploadsController(service);
+      const result = {
+        upload: { id: 'u-1', mimeType: 'image/png', status: UploadStatus.PENDING },
+        uploadUrl: 'https://file/signed-upload',
+      };
+      vi.mocked(service.updateUpload).mockResolvedValue(result as never);
+      const res = mockRes();
+
+      await controller.updateUpload(
+        mockReq({
+          params: { recordId: 'p-1', uploadId: 'u-1' },
+          validBody: { record: 'PRODUCT', mimeType: 'image/png', sizeBytes: 2048 },
+        }),
+        res,
+      );
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(result);
+    });
+
+    it('passes the validated payload, record id and existing upload id to the service', async () => {
+      const controller = createUploadsController(service);
+      const validBody = { record: 'PRODUCT', mimeType: 'image/png', sizeBytes: 2048 };
+      vi.mocked(service.updateUpload).mockResolvedValue({} as never);
+
+      await controller.updateUpload(
+        mockReq({ params: { recordId: 'p-1', uploadId: 'u-1' }, validBody }),
+        mockRes(),
+      );
+
+      expect(service.updateUpload).toHaveBeenCalledWith(validBody, 'p-1', 'u-1');
+    });
+
+    it('passes an undefined existing upload id when the record has none yet', async () => {
+      const controller = createUploadsController(service);
+      vi.mocked(service.updateUpload).mockResolvedValue({} as never);
+
+      await controller.updateUpload(
+        mockReq({
+          params: { recordId: 'p-1' },
+          validBody: { record: 'PRODUCT', mimeType: 'image/png', sizeBytes: 2048 },
+        }),
+        mockRes(),
+      );
+
+      expect(service.updateUpload).toHaveBeenCalledWith(expect.any(Object), 'p-1', undefined);
+    });
+
+    it('propagates service errors', async () => {
+      const controller = createUploadsController(service);
+      vi.mocked(service.updateUpload).mockRejectedValue(
+        new AppError(ERROR_CODES.NOT_FOUND, 'Product not found', 404),
+      );
+
+      await expect(
+        controller.updateUpload(
+          mockReq({
+            params: { recordId: 'p-1' },
+            validBody: { record: 'PRODUCT', mimeType: 'image/png', sizeBytes: 2048 },
+          }),
+          mockRes(),
+        ),
+      ).rejects.toMatchObject({
+        code: ERROR_CODES.NOT_FOUND,
+        statusCode: 404,
+        message: expect.any(String),
+      });
     });
   });
 
@@ -108,7 +185,11 @@ describe('uploads.controller', () => {
 
       await expect(
         controller.getUploadUrl(mockReq({ params: { uploadId: 'u-1' } }), mockRes()),
-      ).rejects.toThrow(new AppError(ERROR_CODES.NOT_FOUND, 'Upload not found', 404));
+      ).rejects.toMatchObject({
+        code: ERROR_CODES.NOT_FOUND,
+        statusCode: 404,
+        message: expect.any(String),
+      });
     });
   });
 
@@ -143,9 +224,11 @@ describe('uploads.controller', () => {
         new AppError(ERROR_CODES.BAD_REQUEST, 'Missing upload ids', 400),
       );
 
-      await expect(controller.getUploadUrls(mockReq({}), mockRes())).rejects.toThrow(
-        new AppError(ERROR_CODES.BAD_REQUEST, 'Missing upload ids', 400),
-      );
+      await expect(controller.getUploadUrls(mockReq({}), mockRes())).rejects.toMatchObject({
+        code: ERROR_CODES.BAD_REQUEST,
+        statusCode: 400,
+        message: expect.any(String),
+      });
     });
   });
 });

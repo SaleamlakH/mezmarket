@@ -2,14 +2,21 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createProductsService } from '../products.service.js';
 import type {
   CreateProductInput,
+  CreateProductRepoResult,
+  CreateProductUnitInput,
+  ProductListFilters,
   ProductRecord,
   ProductRecordWithBaseUnit,
   ProductRecordWithUnits,
   ProductRepository,
   ProductService,
   ProductUnitRecord,
+  StandardUnitRecord,
+  UpdateProductInput,
+  UpdateProductRepoResult,
+  UpdateProductUnitsInput,
 } from '../products.types.js';
-import { AppError, ERROR_CODES } from '../../../shared/errors/app-error.js';
+import { ERROR_CODES } from '../../../shared/errors/app-error.js';
 import type { Decimal } from '../../../../generated/prisma/internal/prismaNamespace.js';
 import type { Prisma } from '../../../../generated/prisma/client.js';
 
@@ -17,11 +24,18 @@ function mockRepository(): ProductRepository {
   return {
     listForBusiness: vi.fn(),
     getByIdWithUnits: vi.fn(),
-    createForBusiness: vi.fn(),
     listAttachmentsForProducts: vi.fn().mockResolvedValue([]),
     getProductAttachment: vi.fn().mockResolvedValue(null),
+    findStandardUnits: vi.fn().mockResolvedValue([]),
+    createProduct: vi.fn(),
+    createUnit: vi.fn(),
+    updateUnits: vi.fn().mockResolvedValue(updateRow()),
+    updateProduct: vi.fn(),
+    setActive: vi.fn(),
   };
 }
+
+const ACTIVE: ProductListFilters = { status: 'active' };
 
 function input(overrides: Partial<CreateProductInput> = {}): CreateProductInput {
   return {
@@ -32,17 +46,19 @@ function input(overrides: Partial<CreateProductInput> = {}): CreateProductInput 
     trackAsPartial: false,
     lowStockThreshold: null,
     baseUnit: { unitId: 'kg-1', price: 50 },
-    ...(overrides.name !== undefined && { name: overrides.name }),
-    ...(overrides.categoryId !== undefined && { categoryId: overrides.categoryId }),
-    ...(overrides.brand !== undefined && { brand: overrides.brand }),
-    ...(overrides.description !== undefined && { description: overrides.description }),
-    ...(overrides.trackAsPartial !== undefined && { trackAsPartial: overrides.trackAsPartial }),
-    ...(overrides.lowStockThreshold !== undefined && {
-      lowStockThreshold: overrides.lowStockThreshold,
-    }),
-    ...(overrides.baseUnit !== undefined && { baseUnit: overrides.baseUnit }),
-    ...(overrides.mou !== undefined && { mou: overrides.mou }),
-    ...(overrides.uploadId !== undefined && { uploadId: overrides.uploadId }),
+    ...overrides,
+  };
+}
+
+function updateInput(overrides: Partial<UpdateProductInput> = {}): UpdateProductInput {
+  return {
+    name: 'Sugar',
+    categoryId: null,
+    brand: null,
+    description: null,
+    trackAsPartial: false,
+    lowStockThreshold: null,
+    ...overrides,
   };
 }
 
@@ -135,6 +151,28 @@ function prismaUnit(overrides: Record<string, unknown> = {}): ProductUnitRecord 
   };
 }
 
+function standardUnitRow(id: string, symbol: string, dimensionId: string): StandardUnitRecord {
+  return { id, symbol, dimensionId } as unknown as StandardUnitRecord;
+}
+
+function updateRow(overrides: Record<string, unknown> = {}): UpdateProductRepoResult {
+  return {
+    ...prismaProduct(),
+    productUnits: [prismaUnit()],
+    attachments: [],
+    ...overrides,
+  } as UpdateProductRepoResult;
+}
+
+function createdRow(overrides: Record<string, unknown> = {}): CreateProductRepoResult {
+  return {
+    ...prismaProduct(),
+    units: [prismaUnit()],
+    attachment: null,
+    ...overrides,
+  } as CreateProductRepoResult;
+}
+
 describe('products.service', () => {
   let repo: ProductRepository;
   let service: ProductService;
@@ -152,7 +190,7 @@ describe('products.service', () => {
         productRow({ id: 'p-tshirt', name: 'T-Shirt', brand: null, active: false }),
       ] as never);
 
-      const result = await service.listProducts(SCOPE);
+      const result = await service.listProducts(SCOPE, ACTIVE);
 
       expect(result).toEqual([
         {
@@ -181,7 +219,7 @@ describe('products.service', () => {
     it('answers with an empty list when the business has no products', async () => {
       vi.mocked(repo.listForBusiness).mockResolvedValue([] as never);
 
-      await expect(service.listProducts(SCOPE)).resolves.toEqual([]);
+      await expect(service.listProducts(SCOPE, ACTIVE)).resolves.toEqual([]);
     });
 
     it('fails the request when a product has no base unit to label its stock with', async () => {
@@ -189,7 +227,7 @@ describe('products.service', () => {
         productRow({ productUnits: [] }),
       ] as never);
 
-      await expect(service.listProducts(SCOPE)).rejects.toMatchObject({
+      await expect(service.listProducts(SCOPE, ACTIVE)).rejects.toMatchObject({
         code: ERROR_CODES.INTERNAL_ERROR,
         statusCode: 500,
         message: expect.any(String),
@@ -201,7 +239,7 @@ describe('products.service', () => {
         productRow({ brand: null, lowStockThreshold: null }),
       ] as never);
 
-      const result = await service.listProducts(SCOPE);
+      const result = await service.listProducts(SCOPE, ACTIVE);
 
       expect(result[0]).toMatchObject({ brand: null, lowStockThreshold: null });
     });
@@ -209,7 +247,7 @@ describe('products.service', () => {
     it('skips the attachment lookup when there are no products', async () => {
       vi.mocked(repo.listForBusiness).mockResolvedValue([] as never);
 
-      await service.listProducts(SCOPE);
+      await service.listProducts(SCOPE, ACTIVE);
 
       expect(repo.listAttachmentsForProducts).not.toHaveBeenCalled();
     });
@@ -224,7 +262,7 @@ describe('products.service', () => {
         { recordId: 'p-2', uploadId: null },
       ] as never);
 
-      const result = await service.listProducts(SCOPE);
+      const result = await service.listProducts(SCOPE, ACTIVE);
 
       expect(repo.listAttachmentsForProducts).toHaveBeenCalledWith(['p-1', 'p-2']);
       expect(result.map((product) => product.uploadId)).toEqual(['u-1', null]);
@@ -324,15 +362,19 @@ describe('products.service', () => {
     it('throws NOT_FOUND when the record is not found', async () => {
       vi.mocked(repo.getByIdWithUnits).mockResolvedValue(null);
 
-      await expect(service.getProduct('missing', 'b-1', 'br-1')).rejects.toEqual(
-        new AppError(ERROR_CODES.NOT_FOUND, 'Product not found', 404),
-      );
+      await expect(service.getProduct('missing', 'b-1', 'br-1')).rejects.toMatchObject({
+        code: ERROR_CODES.NOT_FOUND,
+        statusCode: 404,
+        message: expect.any(String),
+      });
     });
 
     it('throws BAD_REQUEST when the product id is missing', async () => {
-      await expect(service.getProduct(undefined, 'b-1', 'br-1')).rejects.toEqual(
-        new AppError(ERROR_CODES.BAD_REQUEST, 'Missing product id', 400),
-      );
+      await expect(service.getProduct(undefined, 'b-1', 'br-1')).rejects.toMatchObject({
+        code: ERROR_CODES.BAD_REQUEST,
+        statusCode: 400,
+        message: expect.any(String),
+      });
     });
 
     it('maps the found record to the domain shape', async () => {
@@ -384,86 +426,1034 @@ describe('products.service', () => {
   });
 
   describe('createProduct', () => {
-    it('calls createForBusiness with the business, branch and input', async () => {
-      vi.mocked(repo.createForBusiness).mockResolvedValue({
-        ...prismaProduct(),
-        units: [prismaUnit()],
-      } as never);
+    const base = standardUnitRow('kg-1', 'kg', 'mass');
 
-      await service.createProduct(
-        'b-1',
-        'br-1',
-        input({ baseUnit: { unitId: 'kg-1', price: 50 } }),
+    function standards(rows: StandardUnitRecord[]) {
+      vi.mocked(repo.findStandardUnits).mockImplementation((ids) =>
+        Promise.resolve(rows.filter((row) => ids.includes(row.id))),
       );
+    }
 
-      expect(repo.createForBusiness).toHaveBeenCalledWith(
-        'b-1',
-        'br-1',
-        input({ baseUnit: { unitId: 'kg-1', price: 50 } }),
-      );
+    it('resolves the standard unit the base unit names', async () => {
+      standards([base]);
+      vi.mocked(repo.createProduct).mockResolvedValue(createdRow());
+
+      await service.createProduct('b-1', 'br-1', input());
+
+      expect(repo.findStandardUnits).toHaveBeenCalledWith(['kg-1']);
     });
 
-    it('maps the created record to the domain shape including units', async () => {
-      vi.mocked(repo.createForBusiness).mockResolvedValue({
-        ...prismaProduct({ lowStockThreshold: decimal(0) }),
-        units: [prismaUnit()],
-      } as never);
+    it('hands the repository a command built from the resolved standard units', async () => {
+      const mou = standardUnitRow('pc-1', 'pc', 'count');
+      standards([base, mou]);
+      vi.mocked(repo.createProduct).mockResolvedValue(createdRow());
+
+      const payload = input({
+        baseUnit: { unitId: 'kg-1', price: 50 },
+        mou: { unitId: 'pc-1', conversionRate: 12 },
+      });
+      await service.createProduct('b-1', 'br-1', payload);
+
+      expect(repo.findStandardUnits).toHaveBeenCalledWith(['kg-1', 'pc-1']);
+      expect(repo.createProduct).toHaveBeenCalledWith({
+        businessId: 'b-1',
+        branchId: 'br-1',
+        product: payload,
+        baseStandardUnit: { id: 'kg-1', name: 'kg' },
+        mouStandardUnit: { id: 'pc-1', name: 'pc' },
+      });
+    });
+
+    it('fails the request when the base unit names no standard unit', async () => {
+      standards([]);
+
+      await expect(service.createProduct('b-1', 'br-1', input())).rejects.toMatchObject({
+        code: ERROR_CODES.BAD_REQUEST,
+        statusCode: 400,
+        message: expect.any(String),
+      });
+      expect(repo.createProduct).not.toHaveBeenCalled();
+    });
+
+    it('fails the request when the content unit names no standard unit', async () => {
+      standards([base]);
+
+      await expect(
+        service.createProduct(
+          'b-1',
+          'br-1',
+          input({ mou: { unitId: 'pc-1', conversionRate: 12 } }),
+        ),
+      ).rejects.toMatchObject({
+        code: ERROR_CODES.BAD_REQUEST,
+        message: expect.any(String),
+      });
+    });
+
+    it('fails the request when the content unit is in the base unit dimension', async () => {
+      standards([base, standardUnitRow('kg-2', 'kg', 'mass')]);
+
+      await expect(
+        service.createProduct('b-1', 'br-1', input({ mou: { unitId: 'kg-2', conversionRate: 2 } })),
+      ).rejects.toMatchObject({
+        message: expect.any(String),
+      });
+    });
+
+    it('refuses a custom unit named after the base unit, pointing at its field', async () => {
+      standards([base]);
+
+      await expect(
+        service.createProduct(
+          'b-1',
+          'br-1',
+          input({
+            customUnits: [
+              {
+                name: 'Shot',
+                dependsOn: 'BASE',
+                conversionRate: 25,
+                purchaseCapable: true,
+                sellCapable: false,
+              },
+              {
+                name: ' kg ',
+                dependsOn: 'BASE',
+                conversionRate: 30,
+                purchaseCapable: true,
+                sellCapable: false,
+              },
+            ],
+          }),
+        ),
+      ).rejects.toMatchObject({
+        code: ERROR_CODES.BAD_REQUEST,
+        details: { 'customUnits.1.name': expect.any(String) },
+      });
+      expect(repo.createProduct).not.toHaveBeenCalled();
+    });
+
+    it('refuses two custom units that share a name', async () => {
+      standards([base]);
+
+      await expect(
+        service.createProduct(
+          'b-1',
+          'br-1',
+          input({
+            customUnits: [
+              {
+                name: 'Shot',
+                dependsOn: 'BASE',
+                conversionRate: 25,
+                purchaseCapable: true,
+                sellCapable: false,
+              },
+              {
+                name: 'shot ',
+                dependsOn: 'BASE',
+                conversionRate: 30,
+                purchaseCapable: true,
+                sellCapable: false,
+              },
+            ],
+          }),
+        ),
+      ).rejects.toMatchObject({
+        details: { 'customUnits.1.name': expect.any(String) },
+      });
+    });
+
+    it('answers a racing name clash with the fieldless message', async () => {
+      standards([base]);
+      vi.mocked(repo.createProduct).mockRejectedValue({ code: 'P2002' });
+
+      await expect(service.createProduct('b-1', 'br-1', input())).rejects.toMatchObject({
+        code: ERROR_CODES.BAD_REQUEST,
+        statusCode: 400,
+        message: expect.any(String),
+      });
+    });
+
+    it('maps the created record including its units and image', async () => {
+      standards([base]);
+      vi.mocked(repo.createProduct).mockResolvedValue(
+        createdRow({ attachment: { id: 'a-1', uploadId: 'u-1' } }),
+      );
 
       const result = await service.createProduct('b-1', 'br-1', input());
 
       expect(result).toMatchObject({
         id: 'p-1',
-        lowStockThreshold: 0,
         currentSealedStock: 0,
-        units: [{ id: 'pu-1', conversionRate: null, price: 50 }],
+        uploadId: 'u-1',
+        units: [{ id: 'pu-1', price: 50 }],
       });
-    });
-
-    it('propagates the base unit error from the repository', async () => {
-      vi.mocked(repo.createForBusiness).mockRejectedValue(
-        new AppError(ERROR_CODES.BAD_REQUEST, 'Base unit not found', 400),
-      );
-
-      await expect(service.createProduct('b-1', 'br-1', input())).rejects.toEqual(
-        new AppError(ERROR_CODES.BAD_REQUEST, 'Base unit not found', 400),
-      );
-    });
-
-    it('passes the uploadId through to the repository input', async () => {
-      vi.mocked(repo.createForBusiness).mockResolvedValue({
-        ...prismaProduct(),
-        units: [prismaUnit()],
-      } as never);
-
-      await service.createProduct('b-1', 'br-1', input({ uploadId: 'u-1' }));
-
-      const repoInput = vi.mocked(repo.createForBusiness).mock.calls[0]?.[2];
-      expect(repoInput?.uploadId).toBe('u-1');
-    });
-
-    it('exposes the uploadId from the created attachment', async () => {
-      vi.mocked(repo.createForBusiness).mockResolvedValue({
-        ...prismaProduct(),
-        units: [prismaUnit()],
-        attachment: { id: 'a-1', uploadId: 'u-1' },
-      } as never);
-
-      const result = await service.createProduct('b-1', 'br-1', input());
-
-      expect(result.uploadId).toBe('u-1');
       expect(result).not.toHaveProperty('attachment');
     });
 
     it('exposes a null uploadId when no attachment was created', async () => {
-      vi.mocked(repo.createForBusiness).mockResolvedValue({
-        ...prismaProduct(),
-        units: [prismaUnit()],
-        attachment: null,
-      } as never);
+      standards([base]);
+      vi.mocked(repo.createProduct).mockResolvedValue(createdRow({ attachment: null }));
 
       const result = await service.createProduct('b-1', 'br-1', input());
 
       expect(result.uploadId).toBeNull();
+    });
+
+    it('throws UNAUTHORIZED when the scope is missing', async () => {
+      await expect(service.createProduct(undefined, undefined, input())).rejects.toMatchObject({
+        code: ERROR_CODES.UNAUTHORIZED,
+        statusCode: 401,
+        message: expect.any(String),
+      });
+    });
+  });
+
+  describe('createProductUnit', () => {
+    const customPayload: CreateProductUnitInput = {
+      unitRole: 'CUSTOM',
+      name: 'Shot',
+      dependsOn: 'BASE',
+      conversionRate: 25,
+      purchaseCapable: true,
+      sellCapable: true,
+      price: 120,
+    };
+
+    const baseUnit = prismaUnit({
+      id: 'pu-base',
+      unitRole: 'BASE',
+      standardUnitId: 'kg-1',
+      name: 'kg',
+      dependsOn: null,
+      conversionRate: null,
+    });
+
+    function standards(rows: StandardUnitRecord[]) {
+      vi.mocked(repo.findStandardUnits).mockImplementation((ids) =>
+        Promise.resolve(rows.filter((row) => ids.includes(row.id))),
+      );
+    }
+
+    it('writes a custom unit the owner named, with the capabilities and price given', async () => {
+      vi.mocked(repo.getByIdWithUnits).mockResolvedValue(
+        productWithUnits('p-1', [baseUnit]) as never,
+      );
+      const createdUnit = prismaUnit({
+        id: 'pu-custom',
+        unitRole: 'CUSTOM',
+        standardUnitId: null,
+        name: 'Shot',
+        dependsOn: 'BASE',
+        conversionRate: decimal(25),
+        price: decimal(120),
+      });
+      vi.mocked(repo.createUnit).mockResolvedValue(
+        updateRow({ productUnits: [baseUnit, createdUnit] }) as never,
+      );
+
+      const result = await service.createProductUnit('p-1', 'b-1', 'br-1', customPayload);
+
+      expect(repo.createUnit).toHaveBeenCalledWith({
+        productId: 'p-1',
+        unitRole: 'CUSTOM',
+        standardUnitId: null,
+        name: 'Shot',
+        dependsOn: 'BASE',
+        conversionRate: 25,
+        price: 120,
+        purchaseCapable: true,
+        sellCapable: true,
+      });
+      expect(result).toMatchObject({
+        id: 'p-1',
+        units: [
+          { id: 'pu-base' },
+          { id: 'pu-custom', unitRole: 'CUSTOM', conversionRate: 25, price: 120 },
+        ],
+      });
+    });
+
+    it('leaves the price off a custom unit that cannot be sold', async () => {
+      vi.mocked(repo.getByIdWithUnits).mockResolvedValue(
+        productWithUnits('p-1', [baseUnit]) as never,
+      );
+      vi.mocked(repo.createUnit).mockResolvedValue(updateRow() as never);
+
+      const payload: CreateProductUnitInput = {
+        unitRole: 'CUSTOM',
+        name: 'Box',
+        dependsOn: 'BASE',
+        conversionRate: 12,
+        purchaseCapable: true,
+        sellCapable: false,
+      };
+      await service.createProductUnit('p-1', 'b-1', 'br-1', payload);
+
+      const passed = vi.mocked(repo.createUnit).mock.calls[0]?.[0];
+      expect(passed).toMatchObject({ name: 'Box', sellCapable: false });
+      expect(passed).not.toHaveProperty('price');
+    });
+
+    it('refuses a name another unit already holds, pointing at the field', async () => {
+      vi.mocked(repo.getByIdWithUnits).mockResolvedValue(
+        productWithUnits('p-1', [baseUnit]) as never,
+      );
+
+      await expect(
+        service.createProductUnit('p-1', 'b-1', 'br-1', { ...customPayload, name: ' kg ' }),
+      ).rejects.toMatchObject({
+        code: ERROR_CODES.BAD_REQUEST,
+        details: { name: expect.any(String) },
+      });
+      expect(repo.createUnit).not.toHaveBeenCalled();
+    });
+
+    it('refuses a unit based on a content unit when there is none yet', async () => {
+      vi.mocked(repo.getByIdWithUnits).mockResolvedValue(
+        productWithUnits('p-1', [baseUnit]) as never,
+      );
+
+      await expect(
+        service.createProductUnit('p-1', 'b-1', 'br-1', { ...customPayload, dependsOn: 'MOU' }),
+      ).rejects.toMatchObject({
+        details: {
+          dependsOn: 'Set a content unit first, or base this unit on the base unit instead',
+        },
+      });
+    });
+
+    it('fails the request when the product is not found in the business', async () => {
+      vi.mocked(repo.getByIdWithUnits).mockResolvedValue(null);
+
+      await expect(
+        service.createProductUnit('p-missing', 'b-1', 'br-1', customPayload),
+      ).rejects.toMatchObject({
+        code: ERROR_CODES.NOT_FOUND,
+        statusCode: 404,
+        message: expect.any(String),
+      });
+    });
+
+    it('writes a content unit named after its standard unit', async () => {
+      standards([standardUnitRow('kg-1', 'kg', 'mass'), standardUnitRow('ml-1', 'ml', 'volume')]);
+      vi.mocked(repo.getByIdWithUnits).mockResolvedValue(
+        productWithUnits('p-1', [baseUnit]) as never,
+      );
+      const createdMou = prismaUnit({
+        id: 'pu-mou',
+        unitRole: 'MOU',
+        standardUnitId: 'ml-1',
+        name: 'ml',
+        dependsOn: 'BASE',
+        conversionRate: decimal(750),
+        price: decimal(40),
+        purchaseCapable: false,
+        sellCapable: true,
+      });
+      vi.mocked(repo.createUnit).mockResolvedValue(
+        updateRow({ productUnits: [baseUnit, createdMou] }) as never,
+      );
+
+      const result = await service.createProductUnit('p-1', 'b-1', 'br-1', {
+        unitRole: 'MOU',
+        unitId: 'ml-1',
+        conversionRate: 750,
+        price: 40,
+      });
+
+      expect(repo.createUnit).toHaveBeenCalledWith({
+        productId: 'p-1',
+        unitRole: 'MOU',
+        standardUnitId: 'ml-1',
+        name: 'ml',
+        dependsOn: 'BASE',
+        conversionRate: 750,
+        price: 40,
+        purchaseCapable: false,
+        sellCapable: true,
+      });
+      expect(result).toMatchObject({
+        id: 'p-1',
+        units: [{ id: 'pu-base' }, { id: 'pu-mou', unitRole: 'MOU', conversionRate: 750 }],
+      });
+    });
+
+    it('refuses a second content unit', async () => {
+      vi.mocked(repo.getByIdWithUnits).mockResolvedValue(
+        productWithUnits('p-1', [
+          baseUnit,
+          prismaUnit({
+            id: 'pu-mou',
+            unitRole: 'MOU',
+            standardUnitId: 'ml-1',
+            name: 'ml',
+            dependsOn: 'BASE',
+            conversionRate: decimal(750),
+          }),
+        ]) as never,
+      );
+
+      await expect(
+        service.createProductUnit('p-1', 'b-1', 'br-1', {
+          unitRole: 'MOU',
+          unitId: 'ml-1',
+          conversionRate: 750,
+        }),
+      ).rejects.toMatchObject({
+        details: { unitRole: expect.any(String) },
+      });
+    });
+
+    it('refuses a content unit that names no standard unit', async () => {
+      standards([standardUnitRow('kg-1', 'kg', 'mass')]);
+      vi.mocked(repo.getByIdWithUnits).mockResolvedValue(
+        productWithUnits('p-1', [baseUnit]) as never,
+      );
+
+      await expect(
+        service.createProductUnit('p-1', 'b-1', 'br-1', {
+          unitRole: 'MOU',
+          unitId: 'ml-1',
+          conversionRate: 750,
+        }),
+      ).rejects.toMatchObject({ details: { unitId: expect.any(String) } });
+    });
+
+    it('refuses a content unit in the base unit dimension', async () => {
+      standards([standardUnitRow('kg-1', 'kg', 'mass'), standardUnitRow('kg-2', 'kg', 'mass')]);
+      vi.mocked(repo.getByIdWithUnits).mockResolvedValue(
+        productWithUnits('p-1', [baseUnit]) as never,
+      );
+
+      await expect(
+        service.createProductUnit('p-1', 'b-1', 'br-1', {
+          unitRole: 'MOU',
+          unitId: 'kg-2',
+          conversionRate: 2,
+        }),
+      ).rejects.toMatchObject({
+        details: { unitId: expect.any(String) },
+      });
+    });
+
+    it('refuses a content unit whose name another unit already holds', async () => {
+      standards([standardUnitRow('kg-1', 'kg', 'mass'), standardUnitRow('ml-1', 'ml', 'volume')]);
+      vi.mocked(repo.getByIdWithUnits).mockResolvedValue(
+        productWithUnits('p-1', [
+          baseUnit,
+          prismaUnit({
+            id: 'pu-x',
+            unitRole: 'CUSTOM',
+            standardUnitId: null,
+            name: 'ml',
+            dependsOn: 'BASE',
+            conversionRate: decimal(750),
+          }),
+        ]) as never,
+      );
+
+      await expect(
+        service.createProductUnit('p-1', 'b-1', 'br-1', {
+          unitRole: 'MOU',
+          unitId: 'ml-1',
+          conversionRate: 750,
+        }),
+      ).rejects.toMatchObject({
+        details: { unitId: expect.any(String) },
+      });
+    });
+
+    it('answers a racing name clash with the fieldless message', async () => {
+      vi.mocked(repo.getByIdWithUnits).mockResolvedValue(
+        productWithUnits('p-1', [baseUnit]) as never,
+      );
+      vi.mocked(repo.createUnit).mockRejectedValue({ code: 'P2002' });
+
+      await expect(
+        service.createProductUnit('p-1', 'b-1', 'br-1', customPayload),
+      ).rejects.toMatchObject({
+        code: ERROR_CODES.BAD_REQUEST,
+        statusCode: 400,
+        message: expect.any(String),
+      });
+    });
+
+    it('throws BAD_REQUEST when the product id is missing', async () => {
+      await expect(
+        service.createProductUnit(undefined, 'b-1', 'br-1', customPayload),
+      ).rejects.toMatchObject({
+        code: ERROR_CODES.BAD_REQUEST,
+        statusCode: 400,
+        message: expect.any(String),
+      });
+    });
+
+    it('throws UNAUTHORIZED when the scope is missing', async () => {
+      await expect(
+        service.createProductUnit('p-1', undefined, undefined, customPayload),
+      ).rejects.toMatchObject({
+        code: ERROR_CODES.UNAUTHORIZED,
+        statusCode: 401,
+        message: expect.any(String),
+      });
+    });
+  });
+
+  describe('updateProduct', () => {
+    it('checks the product is in scope, then writes the fields given', async () => {
+      vi.mocked(repo.getByIdWithUnits).mockResolvedValue(prismaProduct() as never);
+      vi.mocked(repo.updateProduct).mockResolvedValue(updateRow() as never);
+
+      const payload = updateInput({ name: 'Brown Sugar', categoryId: 'c-1' });
+      await service.updateProduct('p-1', 'b-1', 'br-1', payload);
+
+      expect(repo.getByIdWithUnits).toHaveBeenCalledWith('p-1', 'b-1');
+      expect(repo.updateProduct).toHaveBeenCalledWith('p-1', payload);
+    });
+
+    it('fails the request when the product is not found in the business', async () => {
+      vi.mocked(repo.getByIdWithUnits).mockResolvedValue(null);
+
+      await expect(
+        service.updateProduct('p-missing', 'b-1', 'br-1', updateInput()),
+      ).rejects.toMatchObject({
+        code: ERROR_CODES.NOT_FOUND,
+        statusCode: 404,
+        message: expect.any(String),
+      });
+      expect(repo.updateProduct).not.toHaveBeenCalled();
+    });
+
+    it('maps the updated record including its units and image', async () => {
+      vi.mocked(repo.getByIdWithUnits).mockResolvedValue(prismaProduct() as never);
+      vi.mocked(repo.updateProduct).mockResolvedValue(
+        updateRow({
+          lowStockThreshold: decimal(5),
+          productUnits: [prismaUnit({ price: decimal(80) })],
+          attachments: [{ uploadId: 'u-9' }],
+        }) as never,
+      );
+
+      const result = await service.updateProduct('p-1', 'b-1', 'br-1', updateInput());
+
+      expect(result).toMatchObject({
+        id: 'p-1',
+        lowStockThreshold: 5,
+        uploadId: 'u-9',
+        units: [{ id: 'pu-1', price: 80 }],
+      });
+    });
+
+    it('throws BAD_REQUEST when the product id is missing', async () => {
+      await expect(
+        service.updateProduct(undefined, 'b-1', 'br-1', updateInput()),
+      ).rejects.toMatchObject({
+        code: ERROR_CODES.BAD_REQUEST,
+        statusCode: 400,
+        message: expect.any(String),
+      });
+    });
+
+    it('throws UNAUTHORIZED when the scope is missing', async () => {
+      await expect(
+        service.updateProduct('p-1', undefined, undefined, updateInput()),
+      ).rejects.toMatchObject({
+        code: ERROR_CODES.UNAUTHORIZED,
+        statusCode: 401,
+        message: expect.any(String),
+      });
+    });
+  });
+
+  describe('updateProductUnits', () => {
+    const customUnit = prismaUnit({
+      id: 'pu-c',
+      unitRole: 'CUSTOM',
+      standardUnitId: null,
+      name: 'Shot',
+      dependsOn: 'BASE',
+      conversionRate: decimal(25),
+      price: decimal(120),
+    });
+    const platformBase = prismaUnit({
+      id: 'pu-b',
+      unitRole: 'BASE',
+      standardUnitId: 'kg-1',
+      name: 'kg',
+      dependsOn: null,
+      conversionRate: null,
+    });
+
+    function productWith(units: ProductUnitRecord[]) {
+      vi.mocked(repo.getByIdWithUnits).mockResolvedValue(productWithUnits('p-1', units) as never);
+    }
+
+    it('fails the request when the product is not found in the business', async () => {
+      vi.mocked(repo.getByIdWithUnits).mockResolvedValue(null);
+
+      await expect(
+        service.updateProductUnits('p-missing', 'b-1', 'br-1', { units: [] }),
+      ).rejects.toMatchObject({ code: ERROR_CODES.NOT_FOUND, statusCode: 404 });
+      expect(repo.updateUnits).not.toHaveBeenCalled();
+    });
+
+    it('writes the fields a custom unit edit carries and answers with the product', async () => {
+      productWith([customUnit]);
+      vi.mocked(repo.updateUnits).mockResolvedValue(
+        updateRow({
+          productUnits: [
+            prismaUnit({
+              id: 'pu-c',
+              unitRole: 'CUSTOM',
+              standardUnitId: null,
+              name: 'Shot',
+              dependsOn: 'BASE',
+              conversionRate: decimal(25),
+              price: decimal(75),
+            }),
+          ],
+        }) as never,
+      );
+
+      const result = await service.updateProductUnits('p-1', 'b-1', 'br-1', {
+        units: [
+          {
+            unitRole: 'CUSTOM',
+            id: 'pu-c',
+            name: 'Shot',
+            purchaseCapable: true,
+            sellCapable: true,
+            price: 75,
+          },
+        ],
+      });
+
+      expect(repo.updateUnits).toHaveBeenCalledWith('p-1', [
+        { id: 'pu-c', purchaseCapable: true, sellCapable: true, price: 75 },
+      ]);
+      expect(result).toMatchObject({
+        id: 'p-1',
+        units: [{ id: 'pu-c', price: 75 }],
+      });
+    });
+
+    it('keeps the price of a custom unit when selling is turned off', async () => {
+      productWith([customUnit]);
+      vi.mocked(repo.updateUnits).mockResolvedValue(updateRow() as never);
+
+      await service.updateProductUnits('p-1', 'b-1', 'br-1', {
+        units: [
+          {
+            unitRole: 'CUSTOM',
+            id: 'pu-c',
+            name: 'Shot',
+            purchaseCapable: true,
+            sellCapable: false,
+          },
+        ],
+      });
+
+      expect(repo.updateUnits).toHaveBeenCalledWith('p-1', [
+        { id: 'pu-c', purchaseCapable: true, sellCapable: false },
+      ]);
+    });
+
+    it('writes a price and selling capability when a unit is turned sellable', async () => {
+      productWith([prismaUnit({ ...customUnit, sellCapable: false, price: null })]);
+      vi.mocked(repo.updateUnits).mockResolvedValue(updateRow() as never);
+
+      await service.updateProductUnits('p-1', 'b-1', 'br-1', {
+        units: [
+          {
+            unitRole: 'CUSTOM',
+            id: 'pu-c',
+            name: 'Shot',
+            purchaseCapable: true,
+            sellCapable: true,
+            price: 5,
+          },
+        ],
+      });
+
+      expect(repo.updateUnits).toHaveBeenCalledWith('p-1', [
+        { id: 'pu-c', price: 5, purchaseCapable: true, sellCapable: true },
+      ]);
+    });
+
+    it('refuses a unit made sellable with no price on it', async () => {
+      productWith([prismaUnit({ ...customUnit, sellCapable: false, price: null })]);
+
+      await expect(
+        service.updateProductUnits('p-1', 'b-1', 'br-1', {
+          units: [
+            {
+              unitRole: 'CUSTOM',
+              id: 'pu-c',
+              name: 'Shot',
+              purchaseCapable: true,
+              sellCapable: true,
+            },
+          ],
+        } as unknown as UpdateProductUnitsInput),
+      ).rejects.toMatchObject({
+        code: ERROR_CODES.BAD_REQUEST,
+        details: { 'units.0.price': expect.any(String) },
+      });
+      expect(repo.updateUnits).not.toHaveBeenCalled();
+    });
+
+    it('refuses a unit that can neither be bought nor sold', async () => {
+      productWith([customUnit]);
+
+      await expect(
+        service.updateProductUnits('p-1', 'b-1', 'br-1', {
+          units: [
+            {
+              unitRole: 'CUSTOM',
+              id: 'pu-c',
+              name: 'Shot',
+              purchaseCapable: false,
+              sellCapable: false,
+            },
+          ],
+        }),
+      ).rejects.toMatchObject({
+        details: { 'units.0.sellCapable': expect.any(String) },
+      });
+    });
+
+    it('refuses a row that is not part of this product', async () => {
+      productWith([customUnit]);
+
+      await expect(
+        service.updateProductUnits('p-1', 'b-1', 'br-1', {
+          units: [
+            {
+              unitRole: 'CUSTOM',
+              id: 'pu-x',
+              name: 'Box',
+              purchaseCapable: true,
+              sellCapable: false,
+            },
+          ],
+        }),
+      ).rejects.toMatchObject({
+        details: { 'units.0.id': expect.any(String) },
+      });
+    });
+
+    it('refuses a row whose role does not match the stored unit', async () => {
+      productWith([customUnit]);
+
+      await expect(
+        service.updateProductUnits('p-1', 'b-1', 'br-1', {
+          units: [{ unitRole: 'BASE', id: 'pu-c', price: 60 }],
+        }),
+      ).rejects.toMatchObject({
+        details: { 'units.0.unitRole': expect.any(String) },
+      });
+    });
+
+    it('writes only the price on a base unit', async () => {
+      productWith([platformBase]);
+      vi.mocked(repo.updateUnits).mockResolvedValue(updateRow() as never);
+
+      const result = await service.updateProductUnits('p-1', 'b-1', 'br-1', {
+        units: [{ unitRole: 'BASE', id: 'pu-b', price: 60 }],
+      });
+
+      expect(repo.updateUnits).toHaveBeenCalledWith('p-1', [{ id: 'pu-b', price: 60 }]);
+      expect(result).toMatchObject({ id: 'p-1' });
+    });
+
+    it('clears an MOU price when the payload sends null', async () => {
+      const mou = prismaUnit({
+        id: 'pu-m',
+        unitRole: 'MOU',
+        standardUnitId: 'ml-1',
+        name: 'ml',
+        dependsOn: 'BASE',
+        conversionRate: decimal(750),
+        price: decimal(40),
+      });
+      productWith([mou]);
+      vi.mocked(repo.updateUnits).mockResolvedValue(updateRow() as never);
+
+      await service.updateProductUnits('p-1', 'b-1', 'br-1', {
+        units: [{ unitRole: 'MOU', id: 'pu-m', price: null }],
+      });
+
+      expect(repo.updateUnits).toHaveBeenCalledWith('p-1', [{ id: 'pu-m', price: null }]);
+    });
+
+    it('refuses a rename onto a name another unit holds, blaming the renamed row', async () => {
+      productWith([
+        prismaUnit({ ...customUnit, id: 'pu-a', name: 'Shot' }),
+        prismaUnit({ ...customUnit, id: 'pu-b2', name: 'Box' }),
+      ]);
+
+      await expect(
+        service.updateProductUnits('p-1', 'b-1', 'br-1', {
+          units: [
+            {
+              unitRole: 'CUSTOM',
+              id: 'pu-a',
+              name: 'Box',
+              purchaseCapable: true,
+              sellCapable: false,
+            },
+          ],
+        }),
+      ).rejects.toMatchObject({
+        details: { 'units.0.name': expect.any(String) },
+      });
+    });
+
+    it('allows a custom unit to keep its own name', async () => {
+      productWith([customUnit]);
+      vi.mocked(repo.updateUnits).mockResolvedValue(updateRow() as never);
+
+      await service.updateProductUnits('p-1', 'b-1', 'br-1', {
+        units: [
+          {
+            unitRole: 'CUSTOM',
+            id: 'pu-c',
+            name: 'shot',
+            purchaseCapable: true,
+            sellCapable: true,
+            price: 120,
+          },
+        ],
+      });
+
+      expect(repo.updateUnits).toHaveBeenCalledWith('p-1', [
+        { id: 'pu-c', name: 'shot', price: 120, purchaseCapable: true, sellCapable: true },
+      ]);
+    });
+
+    it('accepts a custom rename to an unused name', async () => {
+      productWith([customUnit]);
+      vi.mocked(repo.updateUnits).mockResolvedValue(updateRow() as never);
+
+      await service.updateProductUnits('p-1', 'b-1', 'br-1', {
+        units: [
+          {
+            unitRole: 'CUSTOM',
+            id: 'pu-c',
+            name: 'Bag',
+            purchaseCapable: true,
+            sellCapable: true,
+            price: 120,
+          },
+        ],
+      });
+
+      expect(repo.updateUnits).toHaveBeenCalledWith('p-1', [
+        { id: 'pu-c', name: 'Bag', price: 120, purchaseCapable: true, sellCapable: true },
+      ]);
+    });
+
+    it('refuses a rename onto a name another row vacates in the same request', async () => {
+      productWith([
+        customUnit,
+        prismaUnit({ ...customUnit, id: 'pu-c2', name: 'Box', price: decimal(100) }),
+      ]);
+
+      await expect(
+        service.updateProductUnits('p-1', 'b-1', 'br-1', {
+          units: [
+            {
+              unitRole: 'CUSTOM',
+              id: 'pu-c',
+              name: 'Bag',
+              purchaseCapable: true,
+              sellCapable: true,
+              price: 120,
+            },
+            {
+              unitRole: 'CUSTOM',
+              id: 'pu-c2',
+              name: 'Shot',
+              purchaseCapable: true,
+              sellCapable: true,
+              price: 100,
+            },
+          ],
+        }),
+      ).rejects.toMatchObject({
+        details: { 'units.1.name': expect.any(String) },
+      });
+      expect(repo.updateUnits).not.toHaveBeenCalled();
+    });
+
+    it('refuses two rows renamed to the same new name', async () => {
+      productWith([
+        customUnit,
+        prismaUnit({ ...customUnit, id: 'pu-c2', name: 'Box', price: decimal(100) }),
+      ]);
+
+      await expect(
+        service.updateProductUnits('p-1', 'b-1', 'br-1', {
+          units: [
+            {
+              unitRole: 'CUSTOM',
+              id: 'pu-c',
+              name: 'Bag',
+              purchaseCapable: true,
+              sellCapable: true,
+              price: 120,
+            },
+            {
+              unitRole: 'CUSTOM',
+              id: 'pu-c2',
+              name: 'bag',
+              purchaseCapable: true,
+              sellCapable: true,
+              price: 100,
+            },
+          ],
+        }),
+      ).rejects.toMatchObject({
+        details: { 'units.1.name': expect.any(String) },
+      });
+      expect(repo.updateUnits).not.toHaveBeenCalled();
+    });
+
+    it('answers a racing name clash with the fieldless message', async () => {
+      productWith([customUnit]);
+      vi.mocked(repo.updateUnits).mockRejectedValue({ code: 'P2002' });
+
+      const payload: UpdateProductUnitsInput = {
+        units: [
+          {
+            unitRole: 'CUSTOM',
+            id: 'pu-c',
+            name: 'Shot',
+            purchaseCapable: true,
+            sellCapable: false,
+          },
+        ],
+      };
+      await expect(service.updateProductUnits('p-1', 'b-1', 'br-1', payload)).rejects.toMatchObject(
+        {
+          code: ERROR_CODES.BAD_REQUEST,
+          statusCode: 400,
+          message: expect.any(String),
+        },
+      );
+    });
+
+    it('throws UNAUTHORIZED when the scope is missing', async () => {
+      await expect(
+        service.updateProductUnits('p-1', undefined, undefined, { units: [] }),
+      ).rejects.toMatchObject({
+        code: ERROR_CODES.UNAUTHORIZED,
+        statusCode: 401,
+        message: expect.any(String),
+      });
+    });
+  });
+
+  describe('setProductActive', () => {
+    it('checks the product is in scope, then flips the flag', async () => {
+      vi.mocked(repo.getByIdWithUnits).mockResolvedValue(prismaProduct() as never);
+      vi.mocked(repo.setActive).mockResolvedValue(updateRow({ active: false }) as never);
+
+      await service.setProductActive('p-1', 'b-1', 'br-1', false);
+
+      expect(repo.getByIdWithUnits).toHaveBeenCalledWith('p-1', 'b-1');
+      expect(repo.setActive).toHaveBeenCalledWith('p-1', false);
+    });
+
+    it('fails the request when the product is not found in the business', async () => {
+      vi.mocked(repo.getByIdWithUnits).mockResolvedValue(null);
+
+      await expect(
+        service.setProductActive('p-missing', 'b-1', 'br-1', false),
+      ).rejects.toMatchObject({
+        code: ERROR_CODES.NOT_FOUND,
+        statusCode: 404,
+        message: expect.any(String),
+      });
+      expect(repo.setActive).not.toHaveBeenCalled();
+    });
+
+    it('maps the updated record including its units', async () => {
+      vi.mocked(repo.getByIdWithUnits).mockResolvedValue(prismaProduct() as never);
+      vi.mocked(repo.setActive).mockResolvedValue(updateRow({ active: false }) as never);
+
+      const result = await service.setProductActive('p-1', 'b-1', 'br-1', false);
+
+      expect(result).toMatchObject({ id: 'p-1', active: false, units: [{ id: 'pu-1' }] });
+    });
+
+    it('throws BAD_REQUEST when the product id is missing', async () => {
+      await expect(service.setProductActive(undefined, 'b-1', 'br-1', false)).rejects.toMatchObject(
+        {
+          code: ERROR_CODES.BAD_REQUEST,
+          statusCode: 400,
+          message: expect.any(String),
+        },
+      );
+    });
+
+    it('throws UNAUTHORIZED when the scope is missing', async () => {
+      await expect(
+        service.setProductActive('p-1', undefined, undefined, false),
+      ).rejects.toMatchObject({
+        code: ERROR_CODES.UNAUTHORIZED,
+        statusCode: 401,
+        message: expect.any(String),
+      });
+    });
+  });
+
+  describe('resolveUploadTarget', () => {
+    it('returns the uploadId of the product live attachment', async () => {
+      vi.mocked(repo.getByIdWithUnits).mockResolvedValue(prismaProduct() as never);
+      vi.mocked(repo.getProductAttachment).mockResolvedValue({ uploadId: 'u-1' } as never);
+
+      const result = await service.resolveUploadTarget('p-1', 'b-1');
+
+      expect(repo.getByIdWithUnits).toHaveBeenCalledWith('p-1', 'b-1');
+      expect(result).toEqual({ productId: 'p-1', uploadId: 'u-1' });
+    });
+
+    it('answers with a null uploadId when the product has no live attachment', async () => {
+      vi.mocked(repo.getByIdWithUnits).mockResolvedValue(prismaProduct() as never);
+      vi.mocked(repo.getProductAttachment).mockResolvedValue(null);
+
+      const result = await service.resolveUploadTarget('p-1', 'b-1');
+
+      expect(result).toEqual({ productId: 'p-1', uploadId: null });
+    });
+
+    it('throws NOT_FOUND when the product is not in scope', async () => {
+      vi.mocked(repo.getByIdWithUnits).mockResolvedValue(null);
+
+      await expect(service.resolveUploadTarget('p-1', 'b-1')).rejects.toMatchObject({
+        code: ERROR_CODES.NOT_FOUND,
+        statusCode: 404,
+        message: expect.any(String),
+      });
+    });
+
+    it('throws BAD_REQUEST when the product id is missing', async () => {
+      await expect(service.resolveUploadTarget(undefined, 'b-1')).rejects.toMatchObject({
+        code: ERROR_CODES.BAD_REQUEST,
+        statusCode: 400,
+        message: expect.any(String),
+      });
+    });
+
+    it('throws UNAUTHORIZED when the business id is missing', async () => {
+      await expect(service.resolveUploadTarget('p-1', undefined)).rejects.toMatchObject({
+        code: ERROR_CODES.UNAUTHORIZED,
+        statusCode: 401,
+        message: expect.any(String),
+      });
     });
   });
 
@@ -482,9 +1472,11 @@ describe('products.service', () => {
     it('throws NOT_FOUND when the product is not in scope', async () => {
       vi.mocked(repo.getByIdWithUnits).mockResolvedValue(null);
 
-      await expect(service.resolveUploadId('p-1', 'b-1')).rejects.toEqual(
-        new AppError(ERROR_CODES.NOT_FOUND, 'Upload not found', 404),
-      );
+      await expect(service.resolveUploadId('p-1', 'b-1')).rejects.toMatchObject({
+        code: ERROR_CODES.NOT_FOUND,
+        statusCode: 404,
+        message: expect.any(String),
+      });
       expect(repo.getProductAttachment).not.toHaveBeenCalled();
     });
 
@@ -492,22 +1484,28 @@ describe('products.service', () => {
       vi.mocked(repo.getByIdWithUnits).mockResolvedValue(prismaProduct() as never);
       vi.mocked(repo.getProductAttachment).mockResolvedValue(null);
 
-      await expect(service.resolveUploadId('p-1', 'b-1')).rejects.toEqual(
-        new AppError(ERROR_CODES.NOT_FOUND, 'Upload not found', 404),
-      );
+      await expect(service.resolveUploadId('p-1', 'b-1')).rejects.toMatchObject({
+        code: ERROR_CODES.NOT_FOUND,
+        statusCode: 404,
+        message: expect.any(String),
+      });
       expect(repo.getProductAttachment).toHaveBeenCalledWith('p-1');
     });
 
     it('throws BAD_REQUEST when the product id is missing', async () => {
-      await expect(service.resolveUploadId(undefined, 'b-1')).rejects.toEqual(
-        new AppError(ERROR_CODES.BAD_REQUEST, 'Missing product id', 400),
-      );
+      await expect(service.resolveUploadId(undefined, 'b-1')).rejects.toMatchObject({
+        code: ERROR_CODES.BAD_REQUEST,
+        statusCode: 400,
+        message: expect.any(String),
+      });
     });
 
     it('throws UNAUTHORIZED when the business id is missing', async () => {
-      await expect(service.resolveUploadId('p-1', undefined)).rejects.toEqual(
-        new AppError(ERROR_CODES.UNAUTHORIZED, 'Unauthorized', 401),
-      );
+      await expect(service.resolveUploadId('p-1', undefined)).rejects.toMatchObject({
+        code: ERROR_CODES.UNAUTHORIZED,
+        statusCode: 401,
+        message: expect.any(String),
+      });
     });
   });
 
@@ -526,7 +1524,7 @@ describe('products.service', () => {
 
       const result = await service.resolveUploadIds('b-1', 'br-1');
 
-      expect(repo.listForBusiness).toHaveBeenCalledWith('b-1', 'br-1');
+      expect(repo.listForBusiness).toHaveBeenCalledWith('b-1', 'br-1', { status: 'all' });
       expect(repo.listAttachmentsForProducts).toHaveBeenCalledWith(['p-1', 'p-2']);
       expect(result).toEqual(['u-1', 'u-2']);
     });
@@ -541,15 +1539,19 @@ describe('products.service', () => {
     });
 
     it('throws UNAUTHORIZED when the business id is missing', async () => {
-      await expect(service.resolveUploadIds(undefined, 'br-1')).rejects.toEqual(
-        new AppError(ERROR_CODES.UNAUTHORIZED, 'Unauthorized', 401),
-      );
+      await expect(service.resolveUploadIds(undefined, 'br-1')).rejects.toMatchObject({
+        code: ERROR_CODES.UNAUTHORIZED,
+        statusCode: 401,
+        message: expect.any(String),
+      });
     });
 
     it('throws UNAUTHORIZED when the branch id is missing', async () => {
-      await expect(service.resolveUploadIds('b-1', undefined)).rejects.toEqual(
-        new AppError(ERROR_CODES.UNAUTHORIZED, 'Unauthorized', 401),
-      );
+      await expect(service.resolveUploadIds('b-1', undefined)).rejects.toMatchObject({
+        code: ERROR_CODES.UNAUTHORIZED,
+        statusCode: 401,
+        message: expect.any(String),
+      });
     });
   });
 });

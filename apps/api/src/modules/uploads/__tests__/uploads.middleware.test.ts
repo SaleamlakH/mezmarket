@@ -1,7 +1,17 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { NextFunction, Request, Response } from 'express';
 import { validateUploadInput } from '../uploads.middleware.js';
-import { AppError, ERROR_CODES } from '../../../shared/errors/app-error.js';
+import { ERROR_CODES } from '../../../shared/errors/app-error.js';
+
+function thrownBy(fn: () => unknown): unknown {
+  try {
+    fn();
+  } catch (error) {
+    return error;
+  }
+
+  throw new Error('Expected the function to throw');
+}
 
 function call(body: unknown) {
   const req = { body } as unknown as Request;
@@ -27,22 +37,24 @@ describe('validateUploadInput', () => {
   it('rejects an unsupported mime type with field details', () => {
     const { run, next } = call({ record: 'PRODUCT', mimeType: 'application/pdf' });
 
-    expect(run).toThrow(
-      new AppError(ERROR_CODES.BAD_REQUEST, 'Invalid request', 400, {
-        mimeType: expect.any(String),
-      }),
-    );
+    expect(thrownBy(run)).toMatchObject({
+      code: ERROR_CODES.BAD_REQUEST,
+      statusCode: 400,
+      message: expect.any(String),
+      details: { mimeType: expect.any(String) },
+    });
     expect(next).not.toHaveBeenCalled();
   });
 
   it('rejects a payload missing the record type', () => {
     const { run, next } = call({ mimeType: 'image/jpeg', sizeBytes: 1024 });
 
-    expect(run).toThrow(
-      new AppError(ERROR_CODES.BAD_REQUEST, 'Invalid request', 400, {
-        record: expect.any(String),
-      }),
-    );
+    expect(thrownBy(run)).toMatchObject({
+      code: ERROR_CODES.BAD_REQUEST,
+      statusCode: 400,
+      message: expect.any(String),
+      details: { record: expect.any(String) },
+    });
     expect(next).not.toHaveBeenCalled();
   });
 });

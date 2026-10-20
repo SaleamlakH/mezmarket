@@ -16,6 +16,8 @@ export const SETTINGS_PATH = '/settings';
 export const PROFILE_PATH = '/settings/profile';
 export const INVENTORY_PATH = '/inventory';
 export const BATCHES_PATH = '/inventory/batches';
+export const PRODUCTS_PATH = '/products';
+export const productDetailPath = (productId: string) => `${PRODUCTS_PATH}/${productId}`;
 export const SALES_PATH = '/sales';
 export const SALES_ALL_PATH = '/sales/all';
 

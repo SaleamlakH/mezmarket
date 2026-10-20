@@ -29,7 +29,7 @@ export function Field({
       {label && (
         <label
           htmlFor={id}
-          className={`flex-1 block text-[11px] font-semibold uppercase tracking-[0.08em] ${
+          className={`block text-[11px] font-semibold uppercase tracking-[0.08em] ${
             muted ? 'text-(--text-muted)' : 'text-(--text)'
           }`}
         >

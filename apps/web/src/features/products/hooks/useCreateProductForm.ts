@@ -4,6 +4,8 @@ import type { BaseSyntheticEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type {
+  CreateCustomUnitFormValues,
+  CreateProductFormValues,
   CreateProductInput,
   CreateProductResponse,
   DimensionResponse,
@@ -12,12 +14,11 @@ import type {
 import {
   createProductFormSchema,
   validateCreateUpload,
-  type CreateCustomUnitFormValues,
-  type CreateProductFormValues,
   type UploadMimeType,
 } from '@mez/validation';
 import { ApiError } from '@/lib/apiClient';
 import { catalogKeys } from '@/hooks/useCatalogApi';
+import { toProductSummary } from '@/lib/productCache';
 import {
   productsService as defaultProductsService,
   type ProductsService,
@@ -61,22 +62,6 @@ function buildUnitIndex(dimensions: DimensionResponse[]) {
     }
   }
   return { dimensionByUnitId, unitNames, unitSymbols };
-}
-
-/** The catalog list answers with summaries, so a freshly created product is
- * projected down to that shape before it is written into the list cache. */
-function toProductSummary(product: CreateProductResponse): ProductSummaryResponse {
-  const baseUnit = product.units.find((unit) => unit.unitRole === 'BASE');
-  return {
-    id: product.id,
-    name: product.name,
-    brand: product.brand,
-    currentSealedStock: product.currentSealedStock,
-    lowStockThreshold: product.lowStockThreshold,
-    active: product.active,
-    baseUnitLabel: baseUnit?.name ?? '',
-    uploadId: product.uploadId,
-  };
 }
 
 function validateProductImage(file: File | null): { file: File | null; error: string | null } {
@@ -239,12 +224,17 @@ export function useCreateProductForm({
         ...(prepared ? { uploadId: prepared.uploadId } : undefined),
       });
 
+      const summary = toProductSummary(created);
       queryClient.setQueryData<ProductSummaryResponse[]>(['products', businessId], (old) => [
-        toProductSummary(created),
+        summary,
         ...(old ?? []),
       ]);
-      void queryClient.invalidateQueries({ queryKey: ['products', businessId] });
-      void queryClient.invalidateQueries({ queryKey: catalogKeys.products(businessId) });
+      if (created.active) {
+        queryClient.setQueryData<ProductSummaryResponse[]>(
+          catalogKeys.products(businessId),
+          (old) => (old ? [summary, ...old] : old),
+        );
+      }
       onCreated(created);
     } catch (error) {
       // A rejection the server can name a field for — a unit name already taken on

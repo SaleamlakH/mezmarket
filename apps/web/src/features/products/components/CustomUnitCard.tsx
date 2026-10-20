@@ -11,8 +11,7 @@ import { Field } from '@/components/Field';
 import { Input } from '@/components/Input';
 import { Select } from '@/components/Select';
 import { Switch } from '@/components/Switch';
-import type { CreateProductInput } from '@mez/types';
-import type { CreateProductFormValues } from '@mez/validation';
+import type { CreateProductFormValues, CreateProductInput } from '@mez/types';
 
 export interface CustomUnitCardProps {
   control: Control<CreateProductFormValues, unknown, CreateProductInput>;

@@ -1,5 +1,13 @@
 import { describe, it, expect, expectTypeOf } from 'vitest';
-import type { CreateBusinessInput, CreateUploadInput } from '@mez/types';
+import type {
+  CreateBusinessInput,
+  CreateCustomUnitFormValues,
+  CreateProductFormValues,
+  CreateUploadInput,
+  ProductListFilters,
+  UpdateCustomUnitFormValues,
+  UpdateUploadInput,
+} from '@mez/types';
 import {
   type FieldErrors,
   validateLoginValues,
@@ -11,12 +19,25 @@ import {
   validateUpdateOwnerValues,
   type UpdateOwnerFormValues,
   validateCreateProduct,
-  type CreateProductFormValues,
-  type CreateCustomUnitFormValues,
+  validateCreateProductUnit,
+  validateUpdateProduct,
+  validateUpdateProductUnits,
+  validateUpdateProductActive,
   createProductSchema,
   createProductFormSchema,
+  createProductUnitSchema,
+  updateProductSchema,
+  updateProductUnitsSchema,
+  updateProductActiveSchema,
+  productListQuerySchema,
+  PRODUCT_LIST_STATUSES,
+  validateProductListQuery,
   validateCreateUpload,
   type CreateUploadClientInput,
+  validateUpdateUpload,
+  type UpdateUploadClientInput,
+  createUploadSchema,
+  updateUploadSchema,
   type ValidationResult,
   createBatchSchema,
   updateBatchSchema,
@@ -85,18 +106,62 @@ describe('index', () => {
     expectTypeOf<CreateBusinessFormValues>().toEqualTypeOf<CreateBusinessInput>();
   });
 
-  it('exports CreateProductFormValues', () => {
-    expectTypeOf<CreateProductFormValues>().toBeObject();
-  });
-
   it('exports createProductFormSchema and createProductSchema', () => {
     expect(createProductFormSchema).toBeDefined();
     expect(createProductSchema).toBeDefined();
   });
 
-  it('holds the form rate and price as text, and the input as numbers', () => {
-    expectTypeOf<CreateCustomUnitFormValues['conversionRate']>().toEqualTypeOf<string>();
-    expectTypeOf<CreateCustomUnitFormValues['price']>().toEqualTypeOf<string>();
+  it('exports updateProductSchema and updateProductActiveSchema', () => {
+    expect(updateProductSchema).toBeDefined();
+    expect(updateProductActiveSchema).toBeDefined();
+  });
+
+  it('exports updateProductUnitsSchema', () => {
+    expect(updateProductUnitsSchema).toBeDefined();
+  });
+
+  it('exports createProductUnitSchema and validateCreateProductUnit', () => {
+    expect(createProductUnitSchema).toBeDefined();
+    expect(validateCreateProductUnit).toBeDefined();
+  });
+
+  it('exports validateUpdateProductUnits', () => {
+    expect(validateUpdateProductUnits).toBeDefined();
+  });
+
+  it('exports validateUpdateProduct', () => {
+    expect(validateUpdateProduct).toBeDefined();
+  });
+
+  it('exports validateUpdateProductActive', () => {
+    expect(validateUpdateProductActive).toBeDefined();
+  });
+
+  it('exports productListQuerySchema and validateProductListQuery', () => {
+    expect(productListQuerySchema).toBeDefined();
+    expect(validateProductListQuery).toBeDefined();
+  });
+
+  it('exports PRODUCT_LIST_STATUSES', () => {
+    expect(PRODUCT_LIST_STATUSES).toContain('active');
+    expect(PRODUCT_LIST_STATUSES).toContain('all');
+  });
+
+  it('carries the list filters as a status', () => {
+    expectTypeOf<ProductListFilters['status']>().toEqualTypeOf<'active' | 'inactive' | 'all'>();
+  });
+
+  it('holds the form rate as text and the price only when sellable', () => {
+    type SellableCreateUnit = Extract<CreateCustomUnitFormValues, { sellCapable: true }>;
+    type PurchaseOnlyCreateUnit = Extract<CreateCustomUnitFormValues, { sellCapable: false }>;
+    type SellableUpdateUnit = Extract<UpdateCustomUnitFormValues, { sellCapable: true }>;
+    type PurchaseOnlyUpdateUnit = Extract<UpdateCustomUnitFormValues, { sellCapable: false }>;
+
+    expectTypeOf<SellableCreateUnit['conversionRate']>().toEqualTypeOf<string>();
+    expectTypeOf<SellableCreateUnit['price']>().toEqualTypeOf<string>();
+    expectTypeOf<PurchaseOnlyCreateUnit['price']>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<SellableUpdateUnit['price']>().toEqualTypeOf<string>();
+    expectTypeOf<PurchaseOnlyUpdateUnit['price']>().toEqualTypeOf<string | undefined>();
   });
 
   it('carries the custom units as a field on the create-product shape', () => {
@@ -111,6 +176,19 @@ describe('index', () => {
 
   it('derives CreateUploadClientInput from @mez/types', () => {
     expectTypeOf<CreateUploadClientInput>().toMatchTypeOf<CreateUploadInput>();
+  });
+
+  it('exports validateUpdateUpload', () => {
+    expect(validateUpdateUpload).toBeDefined();
+  });
+
+  it('exports createUploadSchema and updateUploadSchema', () => {
+    expect(createUploadSchema).toBeDefined();
+    expect(updateUploadSchema).toBeDefined();
+  });
+
+  it('derives UpdateUploadClientInput from @mez/types', () => {
+    expectTypeOf<UpdateUploadClientInput>().toMatchTypeOf<UpdateUploadInput>();
   });
 
   it('exports UpdateOwnerFormValues', () => {

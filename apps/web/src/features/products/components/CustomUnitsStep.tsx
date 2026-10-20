@@ -3,8 +3,7 @@ import { Plus } from 'lucide-react';
 import type { UseFormRegister, FieldErrors, Control } from 'react-hook-form';
 import { Button } from '@/components/Button';
 import { CustomUnitCard } from '@/features/products/components/CustomUnitCard';
-import type { CreateProductInput } from '@mez/types';
-import type { CreateProductFormValues } from '@mez/validation';
+import type { CreateProductFormValues, CreateProductInput } from '@mez/types';
 
 export interface CustomUnitsStepProps {
   control: Control<CreateProductFormValues, unknown, CreateProductInput>;

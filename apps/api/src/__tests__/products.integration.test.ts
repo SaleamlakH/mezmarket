@@ -5,7 +5,7 @@ import type { BusinessRepository } from '../modules/business/business.types.js';
 import type { ProductRepository } from '../modules/products/products.types.js';
 import type { UploadRepository } from '../modules/uploads/uploads.types.js';
 import { UploadStatus } from '../../generated/prisma/client.js';
-import { AppError, ERROR_CODES } from '../shared/errors/app-error.js';
+import { ERROR_CODES } from '../shared/errors/app-error.js';
 
 const {
   verifyJwt,
@@ -37,15 +37,22 @@ const {
     productsRepository: {
       listForBusiness: vi.fn(),
       getByIdWithUnits: vi.fn(),
-      createForBusiness: vi.fn(),
       listAttachmentsForProducts: vi.fn(),
       getProductAttachment: vi.fn(),
+      findStandardUnits: vi.fn(),
+      createProduct: vi.fn(),
+      createUnit: vi.fn(),
+      updateUnits: vi.fn(),
+      updateProduct: vi.fn(),
+      setActive: vi.fn(),
     } satisfies ProductRepository,
     uploadsRepository: {
       create: vi.fn(),
       getById: vi.fn(),
       getManyByIds: vi.fn(),
       setStatus: vi.fn(),
+      updateReported: vi.fn(),
+      claim: vi.fn(),
     } satisfies UploadRepository,
     storage: {
       createUploadUrl: vi.fn(),
@@ -136,6 +143,10 @@ function productUnit(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function standardUnit(id: string, symbol: string, dimensionId: string) {
+  return { id, symbol, dimensionId } as never;
+}
+
 async function authenticate(ownerId = 'owner-1') {
   verifyJwt.mockResolvedValue({ sub: 'user-1', email: 'user@test.com' });
   authRepository.findIdentity.mockResolvedValue({
@@ -164,6 +175,22 @@ describe('products.integration', () => {
     );
     productsRepository.listAttachmentsForProducts.mockResolvedValue([]);
     productsRepository.getProductAttachment.mockResolvedValue(null);
+    productsRepository.findStandardUnits.mockResolvedValue([]);
+    productsRepository.updateUnits.mockResolvedValue({
+      ...productRecord(),
+      productUnits: [productUnit()],
+      attachments: [],
+    });
+    productsRepository.updateProduct.mockResolvedValue({
+      ...productRecord(),
+      productUnits: [productUnit()],
+      attachments: [],
+    });
+    productsRepository.setActive.mockResolvedValue({
+      ...productRecord({ active: false }),
+      productUnits: [productUnit()],
+      attachments: [],
+    });
     uploadsRepository.getManyByIds.mockResolvedValue([]);
   });
 
@@ -188,7 +215,7 @@ describe('products.integration', () => {
       expect(res.body).toEqual({
         error: { code: ERROR_CODES.UNAUTHORIZED, message: expect.any(String) },
       });
-      expect(productsRepository.createForBusiness).not.toHaveBeenCalled();
+      expect(productsRepository.createProduct).not.toHaveBeenCalled();
     });
 
     it('rejects getting a product without a token', async () => {
@@ -266,7 +293,41 @@ describe('products.integration', () => {
 
       await request(app).get('/api/businesses/b-1/products').set('Authorization', 'Bearer token');
 
-      expect(productsRepository.listForBusiness).toHaveBeenCalledWith('b-1', 'br-1');
+      expect(productsRepository.listForBusiness).toHaveBeenCalledWith('b-1', 'br-1', {
+        status: 'active',
+      });
+    });
+
+    it('lets the catalog ask for every product, inactive ones included', async () => {
+      await authenticate('owner-1');
+      authorize('b-1', 'br-1');
+
+      await request(app)
+        .get('/api/businesses/b-1/products?status=all')
+        .set('Authorization', 'Bearer token');
+
+      expect(productsRepository.listForBusiness).toHaveBeenCalledWith('b-1', 'br-1', {
+        status: 'all',
+      });
+    });
+
+    it('rejects an unknown status before reaching the repository', async () => {
+      await authenticate('owner-1');
+      authorize('b-1', 'br-1');
+
+      const res = await request(app)
+        .get('/api/businesses/b-1/products?status=archived')
+        .set('Authorization', 'Bearer token');
+
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({
+        error: {
+          code: ERROR_CODES.BAD_REQUEST,
+          message: expect.any(String),
+          details: { status: expect.any(String) },
+        },
+      });
+      expect(productsRepository.listForBusiness).not.toHaveBeenCalled();
     });
 
     it('exposes the uploadId of the live attachment in each summary', async () => {
@@ -319,12 +380,21 @@ describe('products.integration', () => {
     it('creates a product with base and MOU units', async () => {
       await authenticate('owner-1');
       authorize('b-1', 'br-1');
+      productsRepository.findStandardUnits.mockResolvedValue([
+        standardUnit('kg-1', 'kg', 'mass'),
+        standardUnit('pc-1', 'pc', 'count'),
+      ]);
       const body = {
         name: 'Shirt',
         baseUnit: { unitId: 'kg-1', price: '120.50' },
         mou: { unitId: 'pc-1', conversionRate: 10, price: 10 },
       };
       const validatedBody = {
+        brand: null,
+        description: null,
+        lowStockThreshold: null,
+        trackAsPartial: false,
+        categoryId: null,
         name: 'Shirt',
         baseUnit: { unitId: 'kg-1', price: 120.5 },
         mou: { unitId: 'pc-1', conversionRate: 10, price: 10 },
@@ -341,7 +411,7 @@ describe('products.integration', () => {
         purchaseCapable: false,
         sellCapable: true,
       };
-      productsRepository.createForBusiness.mockResolvedValue({
+      productsRepository.createProduct.mockResolvedValue({
         ...productRecord(),
         units: [
           productUnit(),
@@ -366,27 +436,35 @@ describe('products.integration', () => {
 
       expect(res.status).toBe(201);
       expect(res.body).toEqual({ ...WIRE_PRODUCT, units: [BASE_UNIT_WIRE, mouWire] });
-      expect(productsRepository.createForBusiness).toHaveBeenCalledWith(
-        'b-1',
-        'br-1',
-        validatedBody,
-      );
+      expect(productsRepository.createProduct).toHaveBeenCalledWith({
+        businessId: 'b-1',
+        branchId: 'br-1',
+        product: validatedBody,
+        baseStandardUnit: { id: 'kg-1', name: 'kg' },
+        mouStandardUnit: { id: 'pc-1', name: 'pc' },
+      });
     });
 
     it('creates a product with an uploaded image and echoes the uploadId', async () => {
       await authenticate('owner-1');
       authorize('b-1', 'br-1');
+      productsRepository.findStandardUnits.mockResolvedValue([standardUnit('kg-1', 'kg', 'mass')]);
       const body = {
         name: 'Shirt',
         baseUnit: { unitId: 'kg-1', price: '120.50' },
         uploadId: 'u-1',
       };
       const validatedBody = {
+        brand: null,
+        description: null,
+        lowStockThreshold: null,
+        trackAsPartial: false,
+        categoryId: null,
         name: 'Shirt',
         baseUnit: { unitId: 'kg-1', price: 120.5 },
         uploadId: 'u-1',
       };
-      productsRepository.createForBusiness.mockResolvedValue({
+      productsRepository.createProduct.mockResolvedValue({
         ...productRecord(),
         units: [productUnit()],
         attachment: { id: 'a-1', uploadId: 'u-1' },
@@ -400,16 +478,18 @@ describe('products.integration', () => {
       expect(res.status).toBe(201);
       expect(res.body.uploadId).toBe('u-1');
       expect(res.body).not.toHaveProperty('attachment');
-      expect(productsRepository.createForBusiness).toHaveBeenCalledWith(
-        'b-1',
-        'br-1',
-        validatedBody,
-      );
+      expect(productsRepository.createProduct).toHaveBeenCalledWith({
+        businessId: 'b-1',
+        branchId: 'br-1',
+        product: validatedBody,
+        baseStandardUnit: { id: 'kg-1', name: 'kg' },
+      });
     });
 
     it('creates a product together with its own units', async () => {
       await authenticate('owner-1');
       authorize('b-1', 'br-1');
+      productsRepository.findStandardUnits.mockResolvedValue([standardUnit('kg-1', 'kg', 'mass')]);
       const body = {
         name: 'Shirt',
         baseUnit: { unitId: 'kg-1', price: '120.50' },
@@ -425,6 +505,11 @@ describe('products.integration', () => {
         ],
       };
       const validatedBody = {
+        brand: null,
+        description: null,
+        lowStockThreshold: null,
+        trackAsPartial: false,
+        categoryId: null,
         name: 'Shirt',
         baseUnit: { unitId: 'kg-1', price: 120.5 },
         customUnits: [
@@ -467,7 +552,7 @@ describe('products.integration', () => {
         price: null,
         sellCapable: false,
       };
-      productsRepository.createForBusiness.mockResolvedValue({
+      productsRepository.createProduct.mockResolvedValue({
         ...productRecord(),
         units: [
           productUnit(),
@@ -500,21 +585,18 @@ describe('products.integration', () => {
 
       expect(res.status).toBe(201);
       expect(res.body).toEqual({ ...WIRE_PRODUCT, units: [BASE_UNIT_WIRE, shotWire, boxWire] });
-      expect(productsRepository.createForBusiness).toHaveBeenCalledWith(
-        'b-1',
-        'br-1',
-        validatedBody,
-      );
+      expect(productsRepository.createProduct).toHaveBeenCalledWith({
+        businessId: 'b-1',
+        branchId: 'br-1',
+        product: validatedBody,
+        baseStandardUnit: { id: 'kg-1', name: 'kg' },
+      });
     });
 
-    it('refuses a unit named after one the product already has', async () => {
+    it('refuses a unit named after the base unit it is being created with', async () => {
       await authenticate('owner-1');
       authorize('b-1', 'br-1');
-      productsRepository.createForBusiness.mockRejectedValue(
-        new AppError(ERROR_CODES.BAD_REQUEST, 'This product already has a unit named "kg"', 400, {
-          'customUnits.0.name': 'This product already has a unit named "kg"',
-        }),
-      );
+      productsRepository.findStandardUnits.mockResolvedValue([standardUnit('kg-1', 'kg', 'mass')]);
 
       const res = await request(app)
         .post('/api/businesses/b-1/products')
@@ -529,10 +611,11 @@ describe('products.integration', () => {
       expect(res.body).toEqual({
         error: {
           code: ERROR_CODES.BAD_REQUEST,
-          message: 'This product already has a unit named "kg"',
-          details: { 'customUnits.0.name': 'This product already has a unit named "kg"' },
+          message: expect.any(String),
+          details: { 'customUnits.0.name': expect.any(String) },
         },
       });
+      expect(productsRepository.createProduct).not.toHaveBeenCalled();
     });
 
     it('rejects a sellable unit with no price before reaching the repository', async () => {
@@ -552,11 +635,11 @@ describe('products.integration', () => {
       expect(res.body).toEqual({
         error: {
           code: ERROR_CODES.BAD_REQUEST,
-          message: 'Invalid request',
+          message: expect.any(String),
           details: { 'customUnits.0.price': expect.any(String) },
         },
       });
-      expect(productsRepository.createForBusiness).not.toHaveBeenCalled();
+      expect(productsRepository.createProduct).not.toHaveBeenCalled();
     });
 
     it('rejects a unit based on a content unit the product does not have', async () => {
@@ -576,11 +659,11 @@ describe('products.integration', () => {
       expect(res.body).toEqual({
         error: {
           code: ERROR_CODES.BAD_REQUEST,
-          message: 'Invalid request',
+          message: expect.any(String),
           details: { 'customUnits.0.dependsOn': expect.any(String) },
         },
       });
-      expect(productsRepository.createForBusiness).not.toHaveBeenCalled();
+      expect(productsRepository.createProduct).not.toHaveBeenCalled();
     });
 
     it('returns BAD_REQUEST with field details when the payload is invalid', async () => {
@@ -596,19 +679,17 @@ describe('products.integration', () => {
       expect(res.body).toEqual({
         error: {
           code: ERROR_CODES.BAD_REQUEST,
-          message: 'Invalid request',
+          message: expect.any(String),
           details: { baseUnit: expect.any(String) },
         },
       });
-      expect(productsRepository.createForBusiness).not.toHaveBeenCalled();
+      expect(productsRepository.createProduct).not.toHaveBeenCalled();
     });
 
     it('returns BAD_REQUEST when the base unit is unknown', async () => {
       await authenticate('owner-1');
       authorize('b-1', 'br-1');
-      productsRepository.createForBusiness.mockRejectedValue(
-        new AppError(ERROR_CODES.BAD_REQUEST, 'Base unit not found', 400),
-      );
+      productsRepository.findStandardUnits.mockResolvedValue([]);
 
       const res = await request(app)
         .post('/api/businesses/b-1/products')
@@ -619,6 +700,7 @@ describe('products.integration', () => {
       expect(res.body).toEqual({
         error: { code: ERROR_CODES.BAD_REQUEST, message: expect.any(String) },
       });
+      expect(productsRepository.createProduct).not.toHaveBeenCalled();
     });
   });
 
@@ -650,6 +732,132 @@ describe('products.integration', () => {
       expect(res.body).toEqual({
         error: { code: ERROR_CODES.NOT_FOUND, message: expect.any(String) },
       });
+    });
+  });
+
+  describe('PUT /api/businesses/:businessId/products/:productId', () => {
+    it('rejects the update without a token', async () => {
+      const res = await request(app)
+        .put('/api/businesses/b-1/products/p-1')
+        .send({ name: 'Brown Sugar' });
+
+      expect(res.status).toBe(401);
+      expect(res.body).toEqual({
+        error: { code: ERROR_CODES.UNAUTHORIZED, message: expect.any(String) },
+      });
+      expect(productsRepository.updateProduct).not.toHaveBeenCalled();
+    });
+
+    it('updates the fields and answers with the product, units included', async () => {
+      await authenticate('owner-1');
+      authorize('b-1', 'br-1');
+
+      const res = await request(app)
+        .put('/api/businesses/b-1/products/p-1')
+        .set('Authorization', 'Bearer token')
+        .send({ name: 'Brown Sugar', lowStockThreshold: 4 });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        ...WIRE_PRODUCT,
+        name: 'Shirt',
+        units: [BASE_UNIT_WIRE],
+      });
+      expect(productsRepository.getByIdWithUnits).toHaveBeenCalledWith('p-1', 'b-1');
+      expect(productsRepository.updateProduct).toHaveBeenCalledWith('p-1', {
+        name: 'Brown Sugar',
+        categoryId: null,
+        brand: null,
+        description: null,
+        trackAsPartial: false,
+        lowStockThreshold: 4,
+      });
+    });
+
+    it('rejects an invalid field before reaching the repository', async () => {
+      await authenticate('owner-1');
+      authorize('b-1', 'br-1');
+
+      const res = await request(app)
+        .put('/api/businesses/b-1/products/p-1')
+        .set('Authorization', 'Bearer token')
+        .send({ name: '' });
+
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({
+        error: {
+          code: ERROR_CODES.BAD_REQUEST,
+          message: expect.any(String),
+          details: { name: expect.any(String) },
+        },
+      });
+      expect(productsRepository.updateProduct).not.toHaveBeenCalled();
+    });
+
+    it('answers 404 when the product is not in the business', async () => {
+      await authenticate('owner-1');
+      authorize('b-1', 'br-1');
+      productsRepository.getByIdWithUnits.mockResolvedValue(null);
+
+      const res = await request(app)
+        .put('/api/businesses/b-1/products/ghost')
+        .set('Authorization', 'Bearer token')
+        .send({ name: 'Brown Sugar' });
+
+      expect(res.status).toBe(404);
+      expect(res.body).toEqual({
+        error: { code: ERROR_CODES.NOT_FOUND, message: expect.any(String) },
+      });
+      expect(productsRepository.updateProduct).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('PATCH /api/businesses/:businessId/products/:productId/active', () => {
+    it('rejects the flip without a token', async () => {
+      const res = await request(app)
+        .patch('/api/businesses/b-1/products/p-1/active')
+        .send({ active: false });
+
+      expect(res.status).toBe(401);
+      expect(res.body).toEqual({
+        error: { code: ERROR_CODES.UNAUTHORIZED, message: expect.any(String) },
+      });
+      expect(productsRepository.setActive).not.toHaveBeenCalled();
+    });
+
+    it('flips the product and answers with it', async () => {
+      await authenticate('owner-1');
+      authorize('b-1', 'br-1');
+
+      const res = await request(app)
+        .patch('/api/businesses/b-1/products/p-1/active')
+        .set('Authorization', 'Bearer token')
+        .send({ active: false });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({ id: 'p-1', active: false, units: [BASE_UNIT_WIRE] });
+      expect(productsRepository.getByIdWithUnits).toHaveBeenCalledWith('p-1', 'b-1');
+      expect(productsRepository.setActive).toHaveBeenCalledWith('p-1', false);
+    });
+
+    it('rejects a body without the flag', async () => {
+      await authenticate('owner-1');
+      authorize('b-1', 'br-1');
+
+      const res = await request(app)
+        .patch('/api/businesses/b-1/products/p-1/active')
+        .set('Authorization', 'Bearer token')
+        .send({});
+
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({
+        error: {
+          code: ERROR_CODES.BAD_REQUEST,
+          message: expect.any(String),
+          details: { active: expect.any(String) },
+        },
+      });
+      expect(productsRepository.setActive).not.toHaveBeenCalled();
     });
   });
 
@@ -723,6 +931,105 @@ describe('products.integration', () => {
         const input = uploadsRepository.create.mock.calls[0]?.[0];
         expect(input?.storageKey).toBe(`uploads/product/${input?.id}.jpg`);
         expect(storage.createUploadUrl).toHaveBeenCalledWith(input?.storageKey);
+      });
+    });
+
+    describe('PUT /api/businesses/:businessId/products/:recordId/uploads', () => {
+      it('rejects replacing an image without a token', async () => {
+        const res = await request(app)
+          .put('/api/businesses/b-1/products/p-1/uploads')
+          .send({ record: 'PRODUCT', mimeType: 'image/png', sizeBytes: 2048 });
+
+        expect(res.status).toBe(401);
+        expect(res.body).toEqual({
+          error: { code: ERROR_CODES.UNAUTHORIZED, message: expect.any(String) },
+        });
+        expect(uploadsRepository.updateReported).not.toHaveBeenCalled();
+        expect(uploadsRepository.create).not.toHaveBeenCalled();
+      });
+
+      it('reuses the product image, overwriting it in place', async () => {
+        await authenticate('owner-1');
+        authorize('b-1', 'br-1');
+        productsRepository.getByIdWithUnits.mockResolvedValue(productRecord());
+        productsRepository.getProductAttachment.mockResolvedValue({
+          recordId: 'p-1',
+          uploadId: 'u-1',
+        });
+        uploadsRepository.updateReported.mockResolvedValue(
+          uploadRecord({ mimeType: 'image/png', sizeBytes: 2048 }),
+        );
+        storage.createUploadUrl.mockResolvedValue('https://file/signed-upload');
+
+        const res = await request(app)
+          .put('/api/businesses/b-1/products/p-1/uploads')
+          .set('Authorization', 'Bearer token')
+          .send({ record: 'PRODUCT', mimeType: 'image/png', sizeBytes: 2048 });
+
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({
+          upload: {
+            id: 'u-1',
+            storageKey: 'uploads/product/u-1.jpg',
+            mimeType: 'image/png',
+            sizeBytes: 2048,
+            status: UploadStatus.PENDING,
+            createdAt: ISO,
+            updatedAt: ISO,
+          },
+          uploadUrl: 'https://file/signed-upload',
+        });
+        expect(uploadsRepository.updateReported).toHaveBeenCalledWith('u-1', {
+          mimeType: 'image/png',
+          sizeBytes: 2048,
+        });
+        expect(storage.createUploadUrl).toHaveBeenCalledWith('uploads/product/u-1.jpg', {
+          upsert: true,
+        });
+        expect(uploadsRepository.create).not.toHaveBeenCalled();
+        expect(uploadsRepository.claim).not.toHaveBeenCalled();
+      });
+
+      it('mints an upload and its claim when the product has no image yet', async () => {
+        await authenticate('owner-1');
+        authorize('b-1', 'br-1');
+        productsRepository.getByIdWithUnits.mockResolvedValue(productRecord());
+        productsRepository.getProductAttachment.mockResolvedValue(null);
+        uploadsRepository.create.mockResolvedValue(
+          uploadRecord({ mimeType: 'image/png', sizeBytes: 2048 }),
+        );
+        storage.createUploadUrl.mockResolvedValue('https://file/signed-upload');
+
+        const res = await request(app)
+          .put('/api/businesses/b-1/products/p-1/uploads')
+          .set('Authorization', 'Bearer token')
+          .send({ record: 'PRODUCT', mimeType: 'image/png', sizeBytes: 2048 });
+
+        expect(res.status).toBe(200);
+        expect(res.body.uploadUrl).toBe('https://file/signed-upload');
+        const input = uploadsRepository.create.mock.calls[0]?.[0];
+        expect(input?.storageKey).toMatch(/^uploads\/product\/.+\.png$/);
+        expect(uploadsRepository.claim).toHaveBeenCalledWith({
+          uploadId: 'u-1',
+          recordType: 'PRODUCT',
+          recordId: 'p-1',
+        });
+        expect(uploadsRepository.updateReported).not.toHaveBeenCalled();
+      });
+
+      it('answers 404 when the product is not in the business', async () => {
+        await authenticate('owner-1');
+        authorize('b-1', 'br-1');
+        productsRepository.getByIdWithUnits.mockResolvedValue(null);
+
+        const res = await request(app)
+          .put('/api/businesses/b-1/products/ghost/uploads')
+          .set('Authorization', 'Bearer token')
+          .send({ record: 'PRODUCT', mimeType: 'image/png', sizeBytes: 2048 });
+
+        expect(res.status).toBe(404);
+        expect(uploadsRepository.create).not.toHaveBeenCalled();
+        expect(uploadsRepository.updateReported).not.toHaveBeenCalled();
       });
     });
 
@@ -879,7 +1186,9 @@ describe('products.integration', () => {
           { uploadId: 'u-1', url: 'https://file/uploads/product/u-1.jpg' },
           { uploadId: 'u-2', url: 'https://file/uploads/product/u-2.jpg' },
         ]);
-        expect(productsRepository.listForBusiness).toHaveBeenCalledWith('b-1', 'br-1');
+        expect(productsRepository.listForBusiness).toHaveBeenCalledWith('b-1', 'br-1', {
+          status: 'all',
+        });
         expect(productsRepository.listAttachmentsForProducts).toHaveBeenCalledWith(['p-1', 'p-2']);
         expect(uploadsRepository.getManyByIds).toHaveBeenCalledWith(['u-1', 'u-2']);
       });
@@ -1038,6 +1347,403 @@ describe('products.integration', () => {
 
       expect(res.status).toBe(404);
       expect(res.body).toMatchObject({ error: { code: ERROR_CODES.NOT_FOUND } });
+    });
+  });
+
+  describe('PUT /api/businesses/:businessId/products/:productId/units', () => {
+    it('rejects the update without a token', async () => {
+      const res = await request(app)
+        .put('/api/businesses/b-1/products/p-1/units')
+        .send({ units: [{ id: 'pu-1', price: 80 }] });
+
+      expect(res.status).toBe(401);
+      expect(productsRepository.updateUnits).not.toHaveBeenCalled();
+    });
+
+    it('updates the units and answers with the product', async () => {
+      await authenticate('owner-1');
+      authorize('b-1', 'br-1');
+      productsRepository.getByIdWithUnits.mockResolvedValue(
+        productRecord({
+          productUnits: [
+            productUnit(),
+            productUnit({
+              id: 'pu-2',
+              unitRole: 'CUSTOM',
+              standardUnitId: null,
+              name: 'Shot',
+              dependsOn: 'BASE',
+              conversionRate: { toNumber: () => 25 },
+              price: { toNumber: () => 120 },
+            }),
+          ],
+        }),
+      );
+      productsRepository.updateUnits.mockResolvedValue({
+        ...productRecord(),
+        productUnits: [
+          productUnit(),
+          productUnit({
+            id: 'pu-2',
+            unitRole: 'CUSTOM',
+            standardUnitId: null,
+            name: 'Bottle',
+            dependsOn: 'BASE',
+            conversionRate: { toNumber: () => 25 },
+            price: { toNumber: () => 80 },
+          }),
+        ],
+        attachments: [],
+      });
+
+      const res = await request(app)
+        .put('/api/businesses/b-1/products/p-1/units')
+        .set('Authorization', 'Bearer token')
+        .send({
+          units: [
+            {
+              unitRole: 'CUSTOM',
+              id: 'pu-2',
+              name: 'Bottle',
+              purchaseCapable: true,
+              sellCapable: true,
+              price: '80',
+            },
+          ],
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        ...WIRE_PRODUCT,
+        units: [
+          BASE_UNIT_WIRE,
+          {
+            ...BASE_UNIT_WIRE,
+            id: 'pu-2',
+            unitRole: 'CUSTOM',
+            standardUnitId: null,
+            name: 'Bottle',
+            dependsOn: 'BASE',
+            conversionRate: 25,
+            price: 80,
+          },
+        ],
+      });
+      expect(productsRepository.getByIdWithUnits).toHaveBeenCalledWith('p-1', 'b-1');
+      expect(productsRepository.updateUnits).toHaveBeenCalledWith('p-1', [
+        {
+          id: 'pu-2',
+          name: 'Bottle',
+          purchaseCapable: true,
+          sellCapable: true,
+          price: 80,
+        },
+      ]);
+    });
+
+    it('keeps the price of a custom unit when selling is turned off', async () => {
+      await authenticate('owner-1');
+      authorize('b-1', 'br-1');
+      productsRepository.getByIdWithUnits.mockResolvedValue(
+        productRecord({
+          productUnits: [
+            productUnit({
+              id: 'pu-2',
+              unitRole: 'CUSTOM',
+              standardUnitId: null,
+              name: 'Shot',
+              dependsOn: 'BASE',
+              conversionRate: { toNumber: () => 25 },
+              price: { toNumber: () => 120 },
+            }),
+          ],
+        }),
+      );
+      productsRepository.updateUnits.mockResolvedValue({
+        ...productRecord(),
+        productUnits: [
+          productUnit({
+            id: 'pu-2',
+            unitRole: 'CUSTOM',
+            standardUnitId: null,
+            name: 'Shot',
+            dependsOn: 'BASE',
+            conversionRate: { toNumber: () => 25 },
+            price: { toNumber: () => 120 },
+            sellCapable: false,
+          }),
+        ],
+        attachments: [],
+      });
+
+      const res = await request(app)
+        .put('/api/businesses/b-1/products/p-1/units')
+        .set('Authorization', 'Bearer token')
+        .send({
+          units: [
+            {
+              unitRole: 'CUSTOM',
+              id: 'pu-2',
+              name: 'Shot',
+              purchaseCapable: true,
+              sellCapable: false,
+            },
+          ],
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.units[0]).toMatchObject({ id: 'pu-2', price: 120, sellCapable: false });
+      expect(productsRepository.updateUnits).toHaveBeenCalledWith('p-1', [
+        { id: 'pu-2', purchaseCapable: true, sellCapable: false },
+      ]);
+    });
+
+    it('rejects a malformed unit payload before reaching the repository', async () => {
+      await authenticate('owner-1');
+      authorize('b-1', 'br-1');
+
+      const res = await request(app)
+        .put('/api/businesses/b-1/products/p-1/units')
+        .set('Authorization', 'Bearer token')
+        .send({ units: [{ price: 80 }] });
+
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({
+        error: {
+          code: ERROR_CODES.BAD_REQUEST,
+          message: expect.any(String),
+          details: expect.any(Object),
+        },
+      });
+      expect(productsRepository.updateUnits).not.toHaveBeenCalled();
+    });
+
+    it('answers 404 when the product is not in the business', async () => {
+      await authenticate('owner-1');
+      authorize('b-1', 'br-1');
+      productsRepository.getByIdWithUnits.mockResolvedValue(null);
+
+      const res = await request(app)
+        .put('/api/businesses/b-1/products/ghost/units')
+        .set('Authorization', 'Bearer token')
+        .send({ units: [{ unitRole: 'BASE', id: 'pu-1', price: '80' }] });
+
+      expect(res.status).toBe(404);
+      expect(productsRepository.updateUnits).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('POST /api/businesses/:businessId/products/:productId/units', () => {
+    it('rejects adding a unit without a token', async () => {
+      const res = await request(app)
+        .post('/api/businesses/b-1/products/p-1/units')
+        .send({ name: 'Shot', dependsOn: 'BASE', conversionRate: 25 });
+
+      expect(res.status).toBe(401);
+      expect(productsRepository.createUnit).not.toHaveBeenCalled();
+    });
+
+    it('creates the unit and answers 201 with it', async () => {
+      await authenticate('owner-1');
+      authorize('b-1', 'br-1');
+      productsRepository.createUnit.mockResolvedValue({
+        ...productRecord(),
+        productUnits: [
+          productUnit(),
+          productUnit({
+            id: 'pu-2',
+            unitRole: 'CUSTOM',
+            standardUnitId: null,
+            name: 'Shot',
+            dependsOn: 'BASE',
+            conversionRate: { toNumber: () => 25 },
+            price: { toNumber: () => 15 },
+          }),
+        ],
+        attachments: [],
+      });
+
+      const res = await request(app)
+        .post('/api/businesses/b-1/products/p-1/units')
+        .set('Authorization', 'Bearer token')
+        .send({
+          name: 'Shot',
+          dependsOn: 'BASE',
+          conversionRate: '25',
+          purchaseCapable: true,
+          sellCapable: true,
+          price: '15',
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body).toEqual({
+        ...WIRE_PRODUCT,
+        units: [
+          BASE_UNIT_WIRE,
+          {
+            ...BASE_UNIT_WIRE,
+            id: 'pu-2',
+            unitRole: 'CUSTOM',
+            standardUnitId: null,
+            name: 'Shot',
+            dependsOn: 'BASE',
+            conversionRate: 25,
+            price: 15,
+          },
+        ],
+      });
+      expect(productsRepository.createUnit).toHaveBeenCalledWith({
+        productId: 'p-1',
+        unitRole: 'CUSTOM',
+        standardUnitId: null,
+        name: 'Shot',
+        dependsOn: 'BASE',
+        conversionRate: 25,
+        purchaseCapable: true,
+        sellCapable: true,
+        price: 15,
+      });
+    });
+
+    it('creates a content unit from a standard unit and answers 201', async () => {
+      await authenticate('owner-1');
+      authorize('b-1', 'br-1');
+      productsRepository.findStandardUnits.mockResolvedValue([
+        standardUnit('kg-1', 'kg', 'mass'),
+        standardUnit('ml-1', 'ml', 'volume'),
+      ]);
+      productsRepository.createUnit.mockResolvedValue({
+        ...productRecord(),
+        productUnits: [
+          productUnit(),
+          productUnit({
+            id: 'pu-2',
+            unitRole: 'MOU',
+            standardUnitId: 'ml-1',
+            name: 'ml',
+            dependsOn: 'BASE',
+            conversionRate: { toNumber: () => 750 },
+            price: { toNumber: () => 40 },
+            purchaseCapable: false,
+            sellCapable: true,
+          }),
+        ],
+        attachments: [],
+      });
+
+      const res = await request(app)
+        .post('/api/businesses/b-1/products/p-1/units')
+        .set('Authorization', 'Bearer token')
+        .send({
+          unitRole: 'MOU',
+          unitId: 'ml-1',
+          conversionRate: '750',
+          price: '40',
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body).toEqual({
+        ...WIRE_PRODUCT,
+        units: [
+          BASE_UNIT_WIRE,
+          {
+            ...BASE_UNIT_WIRE,
+            id: 'pu-2',
+            unitRole: 'MOU',
+            standardUnitId: 'ml-1',
+            name: 'ml',
+            dependsOn: 'BASE',
+            conversionRate: 750,
+            price: 40,
+            purchaseCapable: false,
+            sellCapable: true,
+          },
+        ],
+      });
+      expect(productsRepository.createUnit).toHaveBeenCalledWith({
+        productId: 'p-1',
+        unitRole: 'MOU',
+        standardUnitId: 'ml-1',
+        name: 'ml',
+        dependsOn: 'BASE',
+        conversionRate: 750,
+        purchaseCapable: false,
+        sellCapable: true,
+        price: 40,
+      });
+    });
+
+    it('rejects a malformed unit payload before reaching the repository', async () => {
+      await authenticate('owner-1');
+      authorize('b-1', 'br-1');
+
+      const res = await request(app)
+        .post('/api/businesses/b-1/products/p-1/units')
+        .set('Authorization', 'Bearer token')
+        .send({ dependsOn: 'BASE', conversionRate: '25', sellCapable: false });
+
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({
+        error: {
+          code: ERROR_CODES.BAD_REQUEST,
+          message: expect.any(String),
+          details: { name: expect.any(String) },
+        },
+      });
+      expect(productsRepository.createUnit).not.toHaveBeenCalled();
+    });
+
+    it('answers 404 when the product is not in the business', async () => {
+      await authenticate('owner-1');
+      authorize('b-1', 'br-1');
+      productsRepository.getByIdWithUnits.mockResolvedValue(null);
+
+      const res = await request(app)
+        .post('/api/businesses/b-1/products/ghost/units')
+        .set('Authorization', 'Bearer token')
+        .send({ name: 'Shot', dependsOn: 'BASE', conversionRate: '25', sellCapable: false });
+
+      expect(res.status).toBe(404);
+      expect(productsRepository.createUnit).not.toHaveBeenCalled();
+    });
+
+    it('refuses a unit named after one the product already has, pointing at the field', async () => {
+      await authenticate('owner-1');
+      authorize('b-1', 'br-1');
+
+      const res = await request(app)
+        .post('/api/businesses/b-1/products/p-1/units')
+        .set('Authorization', 'Bearer token')
+        .send({ name: ' kg ', dependsOn: 'BASE', conversionRate: '25', sellCapable: false });
+
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({
+        error: {
+          code: ERROR_CODES.BAD_REQUEST,
+          message: expect.any(String),
+          details: { name: expect.any(String) },
+        },
+      });
+      expect(productsRepository.createUnit).not.toHaveBeenCalled();
+    });
+
+    it('answers a racing duplicate unit name with the fieldless message', async () => {
+      await authenticate('owner-1');
+      authorize('b-1', 'br-1');
+      productsRepository.createUnit.mockRejectedValue({ code: 'P2002' });
+
+      const res = await request(app)
+        .post('/api/businesses/b-1/products/p-1/units')
+        .set('Authorization', 'Bearer token')
+        .send({ name: 'Shot', dependsOn: 'BASE', conversionRate: '25', sellCapable: false });
+
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({
+        error: {
+          code: ERROR_CODES.BAD_REQUEST,
+          message: expect.any(String),
+        },
+      });
     });
   });
 });
