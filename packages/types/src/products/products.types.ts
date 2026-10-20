@@ -95,29 +95,6 @@ export interface ProductListFilters {
   status: ProductListStatus;
 }
 
-export type StockStatus = 'OUT_OF_STOCK' | 'LOW_STOCK' | 'IN_STOCK';
-
-/** Inventory summary for a product; quantities are in its base unit. */
-export type ProductInventorySummary = ProductSummary & {
-  currentSealedStock: number;
-  baseUnitLabel: string;
-  totalCost: number;
-  earliestExpiry: Date | null;
-  expiryCount: number;
-  numberOfBatches: number;
-  stockStatus: StockStatus;
-};
-
-/** JSON form sent to the client; dates become strings. */
-export type ProductInventorySummaryResponse = RequireAllKeys<
-  ProductInventorySummary,
-  Omit<ProductInventorySummary, 'createdAt' | 'updatedAt' | 'earliestExpiry'> & {
-    createdAt: string;
-    updatedAt: string;
-    earliestExpiry: string | null;
-  }
->;
-
 /** A unit as a picker row shows it, cut down from `ProductUnit`. `price` is its selling price. */
 export type ProductUnitOption = Pick<
   ProductUnit,
