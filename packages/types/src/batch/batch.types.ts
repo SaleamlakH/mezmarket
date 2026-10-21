@@ -1,5 +1,5 @@
 import type { BusinessMemberSummaryResponse } from '../business/business.types.js';
-import type { ProductSummary } from '../products/products.types.js';
+import type { ProductListStatus, ProductSummary } from '../products/products.types.js';
 import type { RequireAllKeys } from '../shared/require-all-keys.js';
 
 /**
@@ -91,6 +91,21 @@ export type StockBatchDetailResponse = StockBatchResponse & {
 export type StockStatus = 'OUT_OF_STOCK' | 'LOW_STOCK' | 'IN_STOCK';
 
 /**
+ * Which side of the expiry cutoff a product's on-hand stock falls: already
+ * past (`expired`) or approaching (`soon`).
+ */
+export type InventoryExpiryStatus = 'expired' | 'soon';
+
+/**
+ * Which recorded batches a list request wants: only drafts, only confirmed,
+ * or all of them.
+ */
+export type StockBatchListStatus = 'draft' | 'confirmed' | 'all';
+
+/** Filters a stock-batch list request may carry. */
+export type StockBatchListFilters = { status: StockBatchListStatus };
+
+/**
  * The stock header a product shares between the inventory list and detail.
  * Quantities are expressed in the product's Base Unit unless stated otherwise.
  */
@@ -109,6 +124,11 @@ export type ProductInventoryStock = ProductSummary & {
 export type ProductInventoryExpiry = {
   lotCount: number;
   quantity: number;
+  /**
+   * ISO 8601 instant of the earliest expiry among the counted lots. Present on
+   * the expiring drill-down list.
+   */
+  earliestExpiryDate?: string | null;
 };
 
 /**
@@ -126,6 +146,12 @@ export type ProductInventorySummaryResponse = ProductInventorySummary;
 /** Filters the inventory list applies when it totals expiry. */
 export type ProductInventoryListFilters = {
   expiryBefore?: Date | undefined;
+  /** Defaults to `active`. */
+  status?: ProductListStatus;
+  /** Mutually exclusive with `expiryStatus`. */
+  stockStatus?: StockStatus[];
+  /** Mutually exclusive with `stockStatus`. */
+  expiryStatus?: InventoryExpiryStatus[];
 };
 
 /** Filters the inventory detail applies when it totals expiry. */

@@ -165,6 +165,14 @@ export type SaleSummaryResponse = Pick<
   servedBy: BusinessMemberSummaryResponse | null;
   /** Inline summary of the attached customer; deliberately not a named type. */
   customer: { id: string; name: string } | null;
+  /**
+   * Optional so the shared base keeps compiling against the existing api
+   * mapper. The API always populates these three for the dashboard
+   * drill-downs.
+   */
+  taxAmount?: number;
+  amountPaid?: number;
+  balanceDue?: number;
 };
 
 /**
@@ -183,6 +191,14 @@ export type SaleSummaryResult = Pick<
   servedBy: BusinessMemberSummaryResponse | null;
   /** Inline summary of the attached customer; deliberately not a named type. */
   customer: { id: string; name: string } | null;
+  /**
+   * Optional so the shared base keeps compiling against the existing api
+   * mapper. The API always populates these three for the dashboard
+   * drill-downs.
+   */
+  taxAmount?: number;
+  amountPaid?: number;
+  balanceDue?: number;
 };
 
 /**
@@ -250,11 +266,21 @@ export type RefundSaleResponse = SaleDetailResponse;
  */
 export interface SaleListFilters {
   status?: PaymentStatus;
-  /** ISO 8601 instant lower bound, inclusive. */
+  /**
+   * ISO 8601 instant lower bound, inclusive for this endpoint. Also inclusive
+   * of the upper bound `to`.
+   */
   from?: string;
-  /** ISO 8601 instant upper bound, inclusive. */
+  /** ISO 8601 instant upper bound, inclusive for this endpoint. */
   to?: string;
   productId?: string;
+  /** Restricts to sales that still owe a balance. */
+  unpaid?: boolean;
+  /**
+   * Restricts to unpaid sales whose balance has aged past the overdue cutoff.
+   * `overdue` implies `unpaid`.
+   */
+  overdue?: boolean;
 }
 
 /**

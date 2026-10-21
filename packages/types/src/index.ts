@@ -3,6 +3,7 @@ export type * from './auth/auth.service.js';
 export type * from './batch/batch.types.js';
 export type * from './business/business.types.js';
 export type * from './customers/customers.types.js';
+export type * from './dashboard/dashboard.types.js';
 export type * from './owner/owner.types.js';
 export type * from './products/products.types.js';
 export type * from './sales/sales.types.js';
