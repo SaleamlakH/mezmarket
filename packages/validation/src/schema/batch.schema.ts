@@ -5,6 +5,8 @@ import type {
   BatchLineFormValues,
   CreateBatchInput,
   CreateBatchLineInput,
+  StockBatchListFilters,
+  StockBatchListStatus,
   UpdateBatchFormValues,
   UpdateBatchInput,
   UpdateBatchLineFormValues,
@@ -96,3 +98,23 @@ export const updateBatchSchema = z
     { error: 'A product line can only appear once', path: ['lines'] },
   )
   .transform(withoutUnset) satisfies ZodType<UpdateBatchInput, UpdateBatchFormValues>;
+
+/** Which batches a list request wants. Absent means all of them. */
+const batchListStatuses = [
+  'draft',
+  'confirmed',
+  'all',
+] as const satisfies readonly StockBatchListStatus[];
+
+/**
+ * Filters a stock-batch list request may carry. `status` defaults to `all`.
+ */
+export const batchListQuerySchema = z.object({
+  status: z
+    .string({ error: 'Invalid batch status' })
+    .trim()
+    .toLowerCase()
+    .pipe(z.enum(batchListStatuses, { error: 'Invalid batch status' }))
+    .optional()
+    .default('all'),
+}) satisfies ZodType<StockBatchListFilters>;
