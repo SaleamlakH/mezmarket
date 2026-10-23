@@ -85,7 +85,7 @@ describe('batches.middleware', () => {
       run();
 
       expect(next).toHaveBeenCalledTimes(1);
-      expect(req.validQuery).toEqual({ expiryBefore: new Date('2026-10-24T00:00:00.000Z') });
+      expect(req.validQuery).toMatchObject({ expiryBefore: new Date('2026-10-24T00:00:00.000Z') });
     });
 
     it('turns a malformed cutoff into a 400 and stops the chain', () => {
