@@ -63,6 +63,14 @@ import { createUnitsRepository } from './modules/units/units.repository.js';
 import { createUnitsService } from './modules/units/units.service.js';
 import { createUnitsController } from './modules/units/units.controller.js';
 import { createUnitsRouter } from './modules/units/units.routes.js';
+import { createDashboardRepository } from './modules/dashboard/dashboard.repository.js';
+import { createDashboardService } from './modules/dashboard/dashboard.service.js';
+import { createDashboardController } from './modules/dashboard/dashboard.controller.js';
+import { createDashboardRouter } from './modules/dashboard/dashboard.routes.js';
+import {
+  validateDashboardSummaryQuery,
+  validateDashboardTrendQuery,
+} from './modules/dashboard/dashboard.middleware.js';
 import {
   createSupabaseClient,
   createSupabaseStorage,
@@ -222,3 +230,16 @@ const unitsRepository = createUnitsRepository(prisma);
 const unitsService = createUnitsService(unitsRepository);
 const unitsController = createUnitsController(unitsService);
 export const unitsRoutes = createUnitsRouter(unitsController);
+
+// --- Dashboard ---
+
+const dashboardRepository = createDashboardRepository(prisma);
+const dashboardService = createDashboardService(dashboardRepository);
+const dashboardController = createDashboardController(dashboardService);
+export const dashboardRoutes = createDashboardRouter(
+  dashboardController,
+  authorizeBusiness,
+  requireBusinessRole(['OWNER', 'MANAGER']),
+  validateDashboardSummaryQuery,
+  validateDashboardTrendQuery,
+);
