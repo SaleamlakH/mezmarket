@@ -38,6 +38,7 @@ export function DashboardPage() {
         <div className="order-1 min-w-0 md:col-span-2 md:order-1">
           <SummarySection
             period={range}
+            periodKey={period}
             bucket={bucket}
             navigationState={navigationState}
             previewContext={preview}

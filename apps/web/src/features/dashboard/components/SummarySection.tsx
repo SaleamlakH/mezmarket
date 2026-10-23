@@ -9,11 +9,14 @@ import { SALES_ALL_PATH } from '@/layouts/navigation';
 import { formatQuantity, pluralize } from '@/lib/format';
 import type { DashboardPreviewContext } from '../fixtures/dashboardPreview';
 import { useDashboardSummary, useDashboardTrend } from '../hooks/useDashboardApi';
+import { grossProfitComparisonLabel } from '../lib/comparisonLabel';
+import type { DashboardPeriodKey } from '../lib/period';
 import { buildSparklinePath } from '../lib/sparkline';
 import { DevFixtureBadge } from './DevFixtureBadge';
 
 export interface SummarySectionProps {
   period: ReportingPeriod;
+  periodKey: DashboardPeriodKey;
   bucket: DashboardPeriodBucket;
   navigationState: NavigationHistoryState;
   previewContext?: DashboardPreviewContext | undefined;
@@ -43,8 +46,18 @@ function periodSearch(period: ReportingPeriod): string {
   return new URLSearchParams({ from: period.from, to: period.to }).toString();
 }
 
-function ChangeIndicator({ grossProfit }: { grossProfit: GrossProfit }) {
-  if (grossProfit.deltaPercent === null || grossProfit.previous <= 0) return null;
+function ChangeIndicator({
+  grossProfit,
+  periodKey,
+  period,
+}: {
+  grossProfit: GrossProfit;
+  periodKey: DashboardPeriodKey;
+  period: ReportingPeriod;
+}) {
+  const { deltaPercent } = grossProfit;
+  const comparison = grossProfitComparisonLabel(grossProfit, periodKey, period.from, period.to);
+  if (!comparison || deltaPercent === null) return null;
 
   const direction = changeDirection(grossProfit);
   const Icon = direction === 'up' ? TrendingUp : direction === 'down' ? TrendingDown : Minus;
@@ -54,7 +67,7 @@ function ChangeIndicator({ grossProfit }: { grossProfit: GrossProfit }) {
       className={`inline-flex items-center gap-1 text-[11px] font-semibold ${CHANGE_TONE[direction]}`}
     >
       <Icon size={13} aria-hidden />
-      {percentFormatter.format(Math.abs(grossProfit.deltaPercent))}% vs previous period
+      {percentFormatter.format(Math.abs(deltaPercent))}% {comparison}
     </span>
   );
 }
@@ -63,10 +76,14 @@ function GrossProfitBlock({
   grossProfit,
   currency,
   sparklinePath,
+  periodKey,
+  period,
 }: {
   grossProfit: GrossProfit;
   currency: string;
   sparklinePath: string;
+  periodKey: DashboardPeriodKey;
+  period: ReportingPeriod;
 }) {
   return (
     <div className="flex flex-col justify-between gap-2 px-0 py-1 md:rounded-2xl md:border md:border-(--border) md:bg-(--surface-primary) md:p-4">
@@ -78,7 +95,7 @@ function GrossProfitBlock({
           </span>
           <span className="text-[11px] font-semibold text-(--text-muted)">{currency}</span>
           <span className="ml-1">
-            <ChangeIndicator grossProfit={grossProfit} />
+            <ChangeIndicator grossProfit={grossProfit} periodKey={periodKey} period={period} />
           </span>
         </div>
       </div>
@@ -135,6 +152,7 @@ function MetricCard({
 
 export function SummarySection({
   period,
+  periodKey,
   bucket,
   navigationState,
   previewContext,
@@ -235,6 +253,8 @@ export function SummarySection({
           <GrossProfitBlock
             grossProfit={grossProfit}
             currency={currency}
+            periodKey={periodKey}
+            period={period}
             sparklinePath={buildSparklinePath(
               trend?.points.map((point) => point.grossProfit) ?? [],
             )}
