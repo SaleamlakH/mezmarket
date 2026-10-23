@@ -3,12 +3,13 @@ import type {
   CreateSaleResponse,
   RecordPaymentInput,
   SaleDetailResponse,
+  SaleListFilters,
   SaleSummaryResponse,
 } from '@mez/types';
 import { apiClient, type ApiClient } from '@/lib/apiClient';
 
 export interface SalesApi {
-  getSales(businessId: string): Promise<SaleSummaryResponse[]>;
+  getSales(businessId: string, filters?: SaleListFilters): Promise<SaleSummaryResponse[]>;
   getSale(businessId: string, saleId: string): Promise<SaleDetailResponse>;
   createSale(businessId: string, input: CreateSaleInput): Promise<CreateSaleResponse>;
   recordPayment(
@@ -18,10 +19,25 @@ export interface SalesApi {
   ): Promise<SaleDetailResponse>;
 }
 
+/** Appends only the filter parameters the caller actually set. */
+function salesPath(businessId: string, filters: SaleListFilters): string {
+  const params = new URLSearchParams();
+
+  if (filters.status !== undefined) params.set('status', filters.status);
+  if (filters.from !== undefined) params.set('from', filters.from);
+  if (filters.to !== undefined) params.set('to', filters.to);
+  if (filters.productId !== undefined) params.set('productId', filters.productId);
+  if (filters.unpaid !== undefined) params.set('unpaid', String(filters.unpaid));
+  if (filters.overdue !== undefined) params.set('overdue', String(filters.overdue));
+
+  const search = params.toString();
+  return `/api/businesses/${businessId}/sales${search ? `?${search}` : ''}`;
+}
+
 export function createSalesService(client: ApiClient): SalesApi {
   return {
-    getSales(businessId) {
-      return client.get<SaleSummaryResponse[]>(`/api/businesses/${businessId}/sales`);
+    getSales(businessId, filters = {}) {
+      return client.get<SaleSummaryResponse[]>(salesPath(businessId, filters));
     },
 
     getSale(businessId, saleId) {

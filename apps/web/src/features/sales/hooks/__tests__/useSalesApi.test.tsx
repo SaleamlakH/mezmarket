@@ -92,9 +92,21 @@ describe('useSalesApi', () => {
       expect(result.current.isPending).toBe(true);
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-      expect(salesService.getSales).toHaveBeenCalledWith('b1');
+      expect(salesService.getSales).toHaveBeenCalledWith('b1', {});
       expect(result.current.data).toEqual(sales);
-      expect(queryClient.getQueryData(salesKeys.list('b1'))).toEqual(sales);
+      expect(queryClient.getQueryData(salesKeys.list('b1', {}))).toEqual(sales);
+    });
+
+    it('fetches the sales narrowed by the filter and caches each filter separately', async () => {
+      vi.mocked(salesService.getSales).mockResolvedValue(sales);
+
+      const { result } = renderHook(() => useSales({ unpaid: true }), { wrapper });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(salesService.getSales).toHaveBeenCalledWith('b1', { unpaid: true });
+      expect(queryClient.getQueryData(salesKeys.list('b1', { unpaid: true }))).toEqual(sales);
+      expect(queryClient.getQueryData(salesKeys.list('b1', {}))).toBeUndefined();
     });
 
     it('stays idle without a selected business', () => {
@@ -140,7 +152,7 @@ describe('useSalesApi', () => {
 
       expect(salesService.createSale).toHaveBeenCalledWith('b1', createInput);
       await waitFor(() => expect(result.current.data).toEqual(created));
-      expect(invalidate).toHaveBeenCalledWith({ queryKey: salesKeys.list('b1') });
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: salesKeys.lists('b1') });
       expect(invalidate).toHaveBeenCalledWith({ queryKey: catalogKeys.products('b1') });
     });
 
@@ -193,7 +205,7 @@ describe('useSalesApi', () => {
       });
 
       expect(salesService.recordPayment).toHaveBeenCalledWith('b1', 'sale_inv_2042', payment);
-      expect(invalidate).toHaveBeenCalledWith({ queryKey: salesKeys.list('b1') });
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: salesKeys.lists('b1') });
       expect(invalidate).toHaveBeenCalledWith({
         queryKey: salesKeys.detail('b1', 'sale_inv_2042'),
       });
