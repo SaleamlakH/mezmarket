@@ -20,6 +20,7 @@ const productUnitSelect = {
   createdAt: true,
   updatedAt: true,
   sellCapable: true,
+  price: true,
   standardUnit: { select: standardUnitSelect },
 };
 

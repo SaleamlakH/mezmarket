@@ -143,6 +143,7 @@ describe('batches.repository', () => {
                 dependsOn: true,
                 conversionRate: true,
                 purchaseCapable: true,
+                price: true,
                 standardUnit: { select: { id: true, name: true, symbol: true } },
               }),
             },

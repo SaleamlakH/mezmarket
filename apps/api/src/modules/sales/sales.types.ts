@@ -33,21 +33,12 @@ export type {
   SaleSummaryResult,
 } from '@mez/types';
 
-/**
- * A sellable unit: the shared unit context plus the price it sells at. The
- * price is what only a sale snapshot reads, which is why it lives here rather
- * than on the shared type.
- */
-export type ProductUnitSellContext = ProductUnitContext & {
-  price: StoredDecimal | null;
-};
-
 export type ProductSellContext = {
   id: string;
   businessId: string;
   name: string;
   currentSealedStock: StoredDecimal;
-  productUnits: ProductUnitSellContext[];
+  productUnits: ProductUnitContext[];
 };
 
 /**

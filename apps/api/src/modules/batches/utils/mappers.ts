@@ -1,3 +1,4 @@
+import { conversionUnitsOf } from '../../../shared/utils/snapshot.js';
 import { remainingCostOf, remainingPurchaseQuantityOf } from './totals.js';
 import type {
   ProductInventoryBatch,
@@ -62,6 +63,8 @@ export function toProductBatches(
       batches.set(stockBatch.id, batch);
     }
 
+    const units = conversionUnitsOf(productUnits, line.productUnitId);
+
     batch.lines.push({
       id: line.id,
       purchaseQuantity: line.purchaseQuantity.toNumber(),
@@ -71,8 +74,8 @@ export function toProductBatches(
       standardUnit: line.standardUnit,
       quantityRemaining: line.quantityRemaining.toNumber(),
       baseUnit: baseUnitLabel,
-      remainingPurchaseQuantity: remainingPurchaseQuantityOf(line, productUnits),
-      remainingCost: remainingCostOf(line, productUnits),
+      remainingPurchaseQuantity: remainingPurchaseQuantityOf(line, units),
+      remainingCost: remainingCostOf(line, units),
       expiryDate: line.expiryDate,
     });
   }

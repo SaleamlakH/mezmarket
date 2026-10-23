@@ -4,7 +4,6 @@ import type {
   CreateSaleCommand,
   CreateSaleInput,
   ProductSellContext,
-  ProductUnitSellContext,
   RecordPaymentCommand,
   SalePaymentContext,
   SaleRecordWithDetail,
@@ -13,6 +12,7 @@ import type {
 } from '../sales.types.js';
 import type { Prisma } from '../../../../generated/prisma/client.js';
 import { ERROR_CODES } from '../../../shared/errors/app-error.js';
+import type { ProductUnitContext } from '../../../shared/types/unit.types.js';
 
 function mockRepository(): SaleRepository {
   return {
@@ -34,7 +34,7 @@ function decimal(value: number): Prisma.Decimal {
   return { toNumber: () => value } as unknown as Prisma.Decimal;
 }
 
-function unit(overrides: Partial<ProductUnitSellContext> = {}): ProductUnitSellContext {
+function unit(overrides: Partial<ProductUnitContext> = {}): ProductUnitContext {
   return {
     id: 'pu-bottle',
     productId: 'p-tequila',
