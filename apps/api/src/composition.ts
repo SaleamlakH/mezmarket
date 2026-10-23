@@ -58,7 +58,10 @@ import { createMembersRepository } from './modules/members/members.repository.js
 import { createMembersService } from './modules/members/members.service.js';
 import { createMembersController } from './modules/members/members.controller.js';
 import { createMembersRouter } from './modules/members/members.routes.js';
-import { validateMemberListFilters } from './modules/members/members.middleware.js';
+import {
+  validateMemberListFilters,
+  validateMemberPerformanceQuery,
+} from './modules/members/members.middleware.js';
 import { createUnitsRepository } from './modules/units/units.repository.js';
 import { createUnitsService } from './modules/units/units.service.js';
 import { createUnitsController } from './modules/units/units.controller.js';
@@ -222,6 +225,7 @@ export const membersRoutes = createMembersRouter(
   membersController,
   authorizeBusiness,
   validateMemberListFilters,
+  validateMemberPerformanceQuery,
 );
 
 // --- Units ---
