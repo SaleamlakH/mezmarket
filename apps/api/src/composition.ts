@@ -49,6 +49,11 @@ import {
   validateSaleCreateInput,
   validateSalePaymentInput,
 } from './modules/sales/sales.middleware.js';
+import { createPaymentsRepository } from './modules/payments/payments.repository.js';
+import { createPaymentsService } from './modules/payments/payments.service.js';
+import { createPaymentsController } from './modules/payments/payments.controller.js';
+import { createPaymentsRouter } from './modules/payments/payments.routes.js';
+import { validatePaymentSummaryQuery } from './modules/payments/payments.middleware.js';
 import { createCustomersRepository } from './modules/customers/customers.repository.js';
 import { createCustomersService } from './modules/customers/customers.service.js';
 import { createCustomersController } from './modules/customers/customers.controller.js';
@@ -202,6 +207,17 @@ export const salesRoutes = createSalesRouter(
   requireBusinessRole(['OWNER', 'MANAGER', 'CASHIER']),
   validateSaleCreateInput,
   validateSalePaymentInput,
+);
+
+// --- Payments ---
+
+const paymentsRepository = createPaymentsRepository(prisma);
+const paymentsService = createPaymentsService(paymentsRepository);
+const paymentsController = createPaymentsController(paymentsService);
+export const paymentsRoutes = createPaymentsRouter(
+  paymentsController,
+  authorizeBusiness,
+  validatePaymentSummaryQuery,
 );
 
 // --- Customers ---
