@@ -1,4 +1,4 @@
-import type { BusinessMember } from '@mez/types';
+import type { BusinessMember, BusinessMemberRole } from '@mez/types';
 
 /**
  * The scope the authorize middleware resolved onto the request by the time a
@@ -8,6 +8,7 @@ export type Actor = {
   businessId: string;
   branchId: string;
   memberId: string;
+  role?: BusinessMemberRole;
 };
 
 /** The business/branch a request operates within. */
