@@ -160,6 +160,9 @@ describe('toSaleSummary', () => {
       id: 'sale-1',
       invoiceNumber: '1',
       total: 2185,
+      taxAmount: 285,
+      amountPaid: 0,
+      balanceDue: 2185,
       paymentStatus: 'PENDING',
       voidStatus: 'NONE',
       itemCount: 1,
@@ -168,6 +171,20 @@ describe('toSaleSummary', () => {
     });
     expect(row).not.toHaveProperty('lines');
     expect(row).not.toHaveProperty('payments');
+  });
+
+  it('always populates the row amounts as numbers', () => {
+    const row = toSaleSummary(
+      saleSummary({
+        taxAmount: decimal(150),
+        amountPaid: decimal(500),
+        balanceDue: decimal(1535),
+      }),
+    );
+
+    expect(row.taxAmount).toBe(150);
+    expect(row.amountPaid).toBe(500);
+    expect(row.balanceDue).toBe(1535);
   });
 
   it('counts every line but names each product once', () => {

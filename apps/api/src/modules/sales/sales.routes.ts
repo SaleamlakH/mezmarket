@@ -9,10 +9,16 @@ export function createSalesRouter(
   requireSaleWriteRole: (req: Request, res: Response, next: NextFunction) => void,
   validateSaleInput: (req: Request, res: Response, next: NextFunction) => void,
   validatePaymentInput: (req: Request, res: Response, next: NextFunction) => void,
+  validateSaleListQuery: (req: Request, res: Response, next: NextFunction) => void,
 ): Router {
   const router = Router();
 
-  router.get('/businesses/:businessId/sales', authorizeBusiness, controller.listSales);
+  router.get(
+    '/businesses/:businessId/sales',
+    authorizeBusiness,
+    validateSaleListQuery,
+    controller.listSales,
+  );
   router.get('/businesses/:businessId/sales/:saleId', authorizeBusiness, controller.getSale);
   router.post(
     '/businesses/:businessId/sales',

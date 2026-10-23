@@ -1,10 +1,14 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { NextFunction, Request, Response } from 'express';
-import { validateSaleCreateInput, validateSalePaymentInput } from '../sales.middleware.js';
+import {
+  validateSaleCreateInput,
+  validateSaleListQuery,
+  validateSalePaymentInput,
+} from '../sales.middleware.js';
 import { ERROR_CODES } from '../../../shared/errors/app-error.js';
 
-function call(body: unknown) {
-  const req = { body, validBody: undefined } as unknown as Request;
+function call(body: unknown, query: unknown = {}) {
+  const req = { body, query, validBody: undefined, validQuery: undefined } as unknown as Request;
   const res = { locals: {} } as unknown as Response;
   const next = vi.fn() as NextFunction;
   return {
@@ -12,6 +16,7 @@ function call(body: unknown) {
     next,
     runCreate: () => validateSaleCreateInput(req, res, next),
     runPayment: () => validateSalePaymentInput(req, res, next),
+    runList: () => validateSaleListQuery(req, res, next),
   };
 }
 
@@ -79,6 +84,72 @@ describe('sales.middleware', () => {
       );
       expect(next).not.toHaveBeenCalled();
       expect(req.validBody).toBeUndefined();
+    });
+  });
+
+  describe('validateSaleListQuery', () => {
+    it('stores the parsed filters on the request and calls next', () => {
+      const { runList, req, next } = call(
+        {},
+        {
+          status: 'PENDING',
+          from: '2026-02-01T00:00:00.000Z',
+          to: '2026-02-28T23:59:59.999Z',
+          productId: 'p-tequila',
+          unpaid: 'true',
+        },
+      );
+
+      runList();
+
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(req.validQuery).toEqual({
+        status: 'PENDING',
+        from: '2026-02-01T00:00:00.000Z',
+        to: '2026-02-28T23:59:59.999Z',
+        productId: 'p-tequila',
+        unpaid: true,
+      });
+    });
+
+    it('coerces overdue into the unpaid filter', () => {
+      const { runList, req, next } = call({}, { overdue: 'true' });
+
+      runList();
+
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(req.validQuery).toEqual({ overdue: true, unpaid: true });
+    });
+
+    it('turns an invalid query into a 400 and stops the chain', () => {
+      const { runList, req, next } = call({}, { from: 'not-an-instant' });
+
+      expect(runList).toThrow(
+        expect.objectContaining({
+          code: ERROR_CODES.BAD_REQUEST,
+          statusCode: 400,
+          message: expect.any(String),
+          details: expect.objectContaining({ from: expect.any(String) }),
+        }),
+      );
+      expect(next).not.toHaveBeenCalled();
+      expect(req.validQuery).toBeUndefined();
+    });
+
+    it('refuses a start date after the end date', () => {
+      const { runList, next } = call(
+        {},
+        { from: '2026-03-01T00:00:00.000Z', to: '2026-02-01T00:00:00.000Z' },
+      );
+
+      expect(runList).toThrow(
+        expect.objectContaining({
+          code: ERROR_CODES.BAD_REQUEST,
+          statusCode: 400,
+          details: expect.objectContaining({ from: expect.any(String) }),
+        }),
+      );
+      expect(next).not.toHaveBeenCalled();
     });
   });
 });

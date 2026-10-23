@@ -1,4 +1,4 @@
-import type { RecordPaymentInput } from '@mez/types';
+import type { RecordPaymentInput, SaleListFilters } from '@mez/types';
 import type {
   CreateSaleInput,
   SaleDetailResult,
@@ -12,6 +12,7 @@ import { snapshotSaleLines } from './utils/snapshot.js';
 import { allocateStock, sumBaseByProduct, sumDrawsByLot } from './utils/stock.js';
 import { computeSaleTotals } from './utils/totals.js';
 import { toSaleDetail, toSaleSummary } from './utils/mappers.js';
+import { toSaleListQuery } from './utils/filters.js';
 
 export function createSaleService(repository: SaleRepository): SaleService {
   return {
@@ -132,8 +133,12 @@ export function createSaleService(repository: SaleRepository): SaleService {
       return toSaleDetail(record);
     },
 
-    async listSales({ businessId, branchId }: Scope) {
-      const records = await repository.listSales(businessId, branchId);
+    async listSales({ businessId, branchId }: Scope, filters: SaleListFilters) {
+      const records = await repository.listSales(
+        businessId,
+        branchId,
+        toSaleListQuery(filters, new Date()),
+      );
       return records.map(toSaleSummary);
     },
   };

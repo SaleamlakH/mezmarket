@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
-import { validateCreateSale, validatePayment } from '@mez/validation';
+import { validateCreateSale, validatePayment, validateSaleListFilters } from '@mez/validation';
 import { AppError, ERROR_CODES } from '../../shared/errors/app-error.js';
 
 export function validateSaleCreateInput(req: Request, _res: Response, next: NextFunction) {
@@ -21,5 +21,16 @@ export function validateSalePaymentInput(req: Request, _res: Response, next: Nex
   }
 
   req.validBody = result.data;
+  next();
+}
+
+export function validateSaleListQuery(req: Request, _res: Response, next: NextFunction) {
+  const result = validateSaleListFilters(req.query);
+
+  if (result.errors) {
+    throw new AppError(ERROR_CODES.BAD_REQUEST, 'Invalid request', 400, result.errors);
+  }
+
+  req.validQuery = result.data;
   next();
 }

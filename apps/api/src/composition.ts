@@ -47,6 +47,7 @@ import { createSaleController } from './modules/sales/sales.controller.js';
 import { createSalesRouter } from './modules/sales/sales.routes.js';
 import {
   validateSaleCreateInput,
+  validateSaleListQuery,
   validateSalePaymentInput,
 } from './modules/sales/sales.middleware.js';
 import { createPaymentsRepository } from './modules/payments/payments.repository.js';
@@ -207,6 +208,7 @@ export const salesRoutes = createSalesRouter(
   requireBusinessRole(['OWNER', 'MANAGER', 'CASHIER']),
   validateSaleCreateInput,
   validateSalePaymentInput,
+  validateSaleListQuery,
 );
 
 // --- Payments ---

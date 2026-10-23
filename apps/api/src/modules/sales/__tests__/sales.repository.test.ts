@@ -752,15 +752,20 @@ describe('sales.repository', () => {
   });
 
   describe('listSales', () => {
-    it('reads the branch sales status-first, newest first within a status', async () => {
+    /** The `where` the last list read handed to Prisma. */
+    function listedWhere(sale: { findMany: ReturnType<typeof vi.fn> }) {
+      return vi.mocked(sale.findMany).mock.calls.at(-1)?.[0]?.where;
+    }
+
+    it('reads the branch non-voided sales status-first, newest first within a status', async () => {
       const { prisma, sale } = createPrismaStub();
       const repo = createSaleRepository(prisma);
       sale.findMany.mockResolvedValue([]);
 
-      await repo.listSales('b-1', 'br-1');
+      await repo.listSales('b-1', 'br-1', {});
 
       expect(sale.findMany).toHaveBeenCalledWith({
-        where: { businessId: 'b-1', branchId: 'br-1' },
+        where: { businessId: 'b-1', branchId: 'br-1', voidStatus: { not: 'VOIDED' } },
         include: {
           lines: true,
           processedByMember: true,
@@ -771,13 +776,111 @@ describe('sales.repository', () => {
       });
     });
 
+    it('narrows to the payment status named', async () => {
+      const { prisma, sale } = createPrismaStub();
+      const repo = createSaleRepository(prisma);
+      sale.findMany.mockResolvedValue([]);
+
+      await repo.listSales('b-1', 'br-1', { status: 'PARTIALLY_PAID' });
+
+      expect(listedWhere(sale)).toEqual({
+        businessId: 'b-1',
+        branchId: 'br-1',
+        voidStatus: { not: 'VOIDED' },
+        paymentStatus: 'PARTIALLY_PAID',
+      });
+    });
+
+    it('bounds the sale datetime inclusively on both ends', async () => {
+      const { prisma, sale } = createPrismaStub();
+      const repo = createSaleRepository(prisma);
+      sale.findMany.mockResolvedValue([]);
+      const from = new Date('2026-02-01T00:00:00.000Z');
+      const to = new Date('2026-02-28T23:59:59.999Z');
+
+      await repo.listSales('b-1', 'br-1', { from, to });
+
+      expect(listedWhere(sale)).toEqual({
+        businessId: 'b-1',
+        branchId: 'br-1',
+        voidStatus: { not: 'VOIDED' },
+        saleDatetime: { gte: from, lte: to },
+      });
+    });
+
+    it('applies only the date bound that was given', async () => {
+      const { prisma, sale } = createPrismaStub();
+      const repo = createSaleRepository(prisma);
+      sale.findMany.mockResolvedValue([]);
+      const from = new Date('2026-02-01T00:00:00.000Z');
+
+      await repo.listSales('b-1', 'br-1', { from });
+
+      expect(listedWhere(sale)).toEqual({
+        businessId: 'b-1',
+        branchId: 'br-1',
+        voidStatus: { not: 'VOIDED' },
+        saleDatetime: { gte: from },
+      });
+    });
+
+    it('narrows to sales holding a line for the product named', async () => {
+      const { prisma, sale } = createPrismaStub();
+      const repo = createSaleRepository(prisma);
+      sale.findMany.mockResolvedValue([]);
+
+      await repo.listSales('b-1', 'br-1', { productId: 'p-tequila' });
+
+      expect(listedWhere(sale)).toEqual({
+        businessId: 'b-1',
+        branchId: 'br-1',
+        voidStatus: { not: 'VOIDED' },
+        lines: { some: { productId: 'p-tequila' } },
+      });
+    });
+
+    it('narrows unpaid sales to non-voided rows that owe and are not paid', async () => {
+      const { prisma, sale } = createPrismaStub();
+      const repo = createSaleRepository(prisma);
+      sale.findMany.mockResolvedValue([]);
+
+      await repo.listSales('b-1', 'br-1', { unpaid: true });
+
+      expect(listedWhere(sale)).toEqual({
+        businessId: 'b-1',
+        branchId: 'br-1',
+        voidStatus: { not: 'VOIDED' },
+        balanceDue: { gt: 0 },
+        paymentStatus: { not: 'PAID' },
+      });
+    });
+
+    it('combines the unpaid terms with the date range', async () => {
+      const { prisma, sale } = createPrismaStub();
+      const repo = createSaleRepository(prisma);
+      sale.findMany.mockResolvedValue([]);
+      const from = new Date('2026-01-01T00:00:00.000Z');
+      const to = new Date('2026-02-03T11:59:59.999Z');
+
+      await repo.listSales('b-1', 'br-1', { from, to, unpaid: true });
+
+      expect(listedWhere(sale)).toEqual({
+        businessId: 'b-1',
+        branchId: 'br-1',
+        saleDatetime: { gte: from, lte: to },
+        voidStatus: { not: 'VOIDED' },
+        balanceDue: { gt: 0 },
+        paymentStatus: { not: 'PAID' },
+      });
+    });
+
     it('returns the sale rows the query answered with', async () => {
       const { prisma, sale } = createPrismaStub();
       const repo = createSaleRepository(prisma);
       const rows = [listedSale({ id: 'sale-1' }), listedSale({ id: 'sale-2' })];
       sale.findMany.mockResolvedValue(rows);
 
-      const result = await repo.listSales('b-1', 'br-1');
+      const result = await repo.listSales('b-1', 'br-1', {});
 
       expect(result).toEqual(rows);
       for (const row of result) {

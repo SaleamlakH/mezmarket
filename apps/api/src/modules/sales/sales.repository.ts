@@ -157,9 +157,25 @@ export function createSaleRepository(prisma: PrismaClient): SaleRepository {
       return prisma.$transaction((tx) => writePayment(tx, command));
     },
 
-    async listSales(businessId, branchId) {
+    async listSales(businessId, branchId, query) {
       return prisma.sale.findMany({
-        where: { businessId, branchId },
+        where: {
+          businessId,
+          branchId,
+          voidStatus: { not: 'VOIDED' },
+          ...(query.status && { paymentStatus: query.status }),
+          ...(query.unpaid && {
+            balanceDue: { gt: 0 },
+            paymentStatus: { not: 'PAID' },
+          }),
+          ...((query.from || query.to) && {
+            saleDatetime: {
+              ...(query.from && { gte: query.from }),
+              ...(query.to && { lte: query.to }),
+            },
+          }),
+          ...(query.productId && { lines: { some: { productId: query.productId } } }),
+        },
         include: {
           lines: true,
           processedByMember: true,

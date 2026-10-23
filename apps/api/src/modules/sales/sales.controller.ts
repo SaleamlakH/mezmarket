@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import type { SaleListFilters } from '@mez/types';
 import type { CreateSaleInput, RecordPaymentInput, SaleService } from './sales.types.js';
 import type { Actor, Scope } from '../../shared/types/session.types.js';
 
@@ -45,7 +46,7 @@ export function createSaleController(service: SaleService): SaleController {
     },
 
     async listSales(req, res) {
-      const sales = await service.listSales(scopeOf(req));
+      const sales = await service.listSales(scopeOf(req), req.validQuery as SaleListFilters);
       res.status(200).json(sales);
     },
   };

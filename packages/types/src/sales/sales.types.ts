@@ -274,7 +274,7 @@ export interface SaleListFilters {
   /** ISO 8601 instant upper bound, inclusive for this endpoint. */
   to?: string;
   productId?: string;
-  /** Restricts to sales that still owe a balance. */
+  /** Restricts to sales that still owe a balance and are not stamped paid. */
   unpaid?: boolean;
   /**
    * Restricts to unpaid sales whose balance has aged past the overdue cutoff.

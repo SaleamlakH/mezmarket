@@ -6,6 +6,7 @@ import type {
   ProductSellContext,
   RecordPaymentCommand,
   SalePaymentContext,
+  SaleRecordSummary,
   SaleRecordWithDetail,
   SaleRepository,
   SaleService,
@@ -510,12 +511,44 @@ describe('sales.service', () => {
   });
 
   describe('listSales', () => {
-    it('reads the sales of the resolved business and branch', async () => {
+    it('resolves the filters before reading the branch sales', async () => {
       vi.mocked(mockRepo.listSales).mockResolvedValue([]);
+      const from = '2026-02-01T00:00:00.000Z';
+      const to = '2026-02-28T23:59:59.999Z';
 
-      await service.listSales({ businessId: 'b-1', branchId: 'br-1' });
+      await service.listSales(
+        { businessId: 'b-1', branchId: 'br-1' },
+        {
+          status: 'PARTIALLY_PAID',
+          from,
+          to,
+          productId: 'p-tequila',
+          unpaid: true,
+        },
+      );
 
-      expect(mockRepo.listSales).toHaveBeenCalledWith('b-1', 'br-1');
+      expect(mockRepo.listSales).toHaveBeenCalledWith('b-1', 'br-1', {
+        status: 'PARTIALLY_PAID',
+        from: new Date(from),
+        to: new Date(to),
+        productId: 'p-tequila',
+        unpaid: true,
+      });
+    });
+
+    it('maps each stored sale to a history row', async () => {
+      const summary: SaleRecordSummary = { ...saleRecord(), lines: [] };
+      vi.mocked(mockRepo.listSales).mockResolvedValue([summary]);
+
+      const [row] = await service.listSales({ businessId: 'b-1', branchId: 'br-1' }, {});
+
+      expect(row).toMatchObject({
+        id: 'sale-1',
+        itemCount: 0,
+        taxAmount: 285,
+        amountPaid: 0,
+        balanceDue: 2185,
+      });
     });
   });
 });
