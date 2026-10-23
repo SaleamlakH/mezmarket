@@ -1,24 +1,12 @@
 import { useCallback, useMemo, useState } from 'react';
-import type { ReportingPeriod } from '@mez/types';
 import {
   dashboardCustomRangeDefaults,
   dashboardPeriodRange,
   type DashboardCustomRange,
   type DashboardPeriodKey,
 } from '../lib/period';
+import type { DashboardPeriodFilter } from './types';
 
-export interface DashboardPeriodFilter {
-  period: DashboardPeriodKey;
-  range: ReportingPeriod;
-  customRange: DashboardCustomRange;
-  selectPeriod: (period: DashboardPeriodKey) => void;
-  setCustomRange: (range: DashboardCustomRange) => void;
-}
-
-/**
- * Holds the selected period. `now` is fixed for the life of the hook so the
- * range cannot change halfway through a render or a retry.
- */
 export function usePeriodFilter(now?: Date): DashboardPeriodFilter {
   const [referenceNow] = useState(() => now ?? new Date());
   const [period, setPeriod] = useState<DashboardPeriodKey>('today');

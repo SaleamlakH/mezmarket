@@ -6,12 +6,12 @@ import { PerformanceSection } from '../components/PerformanceSection';
 import { PeriodFilter } from '../components/PeriodFilter';
 import { SummarySection } from '../components/SummarySection';
 import { useDashboardPreview } from '../fixtures/useDashboardPreview';
-import { usePeriodFilter } from '../hooks/usePeriodFilter';
+import { useDashboardPeriodContext } from '../context/useDashboardPeriodContext';
 import { dashboardTrendBucket } from '../lib/period';
 
 export function DashboardPage() {
   const navigationState = useForwardNavigationState();
-  const { period, range, customRange, selectPeriod, setCustomRange } = usePeriodFilter();
+  const { period, range, customRange, selectPeriod, setCustomRange } = useDashboardPeriodContext();
   const bucket = dashboardTrendBucket(period);
   const preview = useDashboardPreview();
 

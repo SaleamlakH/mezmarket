@@ -20,6 +20,7 @@ import { ErrorPage } from './pages/ErrorPage';
 import { DesignSystem } from './DesignSystem';
 import { AppLayout } from './layouts/AppLayout';
 import { DashboardPage } from './features/dashboard/pages/DashboardPage';
+import { DashboardPeriodProvider } from './features/dashboard/context/DashboardPeriodProvider';
 import { ProductsPage } from './features/products/pages/ProductsPage';
 import { ProductDetailPage } from './features/products/pages/ProductDetailPage';
 import { SaleDock } from './features/sales/components/SaleDock';
@@ -61,7 +62,9 @@ const router = createBrowserRouter([
           {
             element: (
               <SaleDraftProvider>
-                <AppLayout />
+                <DashboardPeriodProvider>
+                  <AppLayout />
+                </DashboardPeriodProvider>
               </SaleDraftProvider>
             ),
             children: [
