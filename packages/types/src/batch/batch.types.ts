@@ -118,17 +118,25 @@ export type ProductInventoryStock = ProductSummary & {
 };
 
 /**
- * The stock still on hand that expires before the caller's cutoff. `quantity`
- * is in the product's Base Unit.
+ * The stock still on hand in one expiry group. `quantity` is in the product's
+ * Base Unit.
  */
-export type ProductInventoryExpiry = {
+export type ProductInventoryExpiryGroup = {
   lotCount: number;
   quantity: number;
-  /**
-   * ISO 8601 instant of the earliest expiry among the counted lots. Present on
-   * the expiring drill-down list.
-   */
-  earliestExpiryDate?: string | null;
+  /** ISO 8601 instant of the earliest expiry in the group, or null when empty. */
+  earliestExpiryDate: string | null;
+};
+
+/**
+ * The stock still on hand split by how close it is to expiry: lots already past
+ * their date (`expired`) and lots expiring by the display cutoff (`soon`). The
+ * display window is the next 7 days from the request unless the detail caller
+ * overrides it. `quantity` is in the product's Base Unit.
+ */
+export type ProductInventoryExpiry = {
+  expired: ProductInventoryExpiryGroup;
+  soon: ProductInventoryExpiryGroup;
 };
 
 /**
@@ -143,19 +151,21 @@ export type ProductInventorySummary = ProductInventoryStock & {
  */
 export type ProductInventorySummaryResponse = ProductInventorySummary;
 
-/** Filters the inventory list applies when it totals expiry. */
+/** Filters the inventory list applies when it selects rows. */
 export type ProductInventoryListFilters = {
+  /** Upper bound of the `soon` group; defaults to 30 days from the request. */
   expiryBefore?: Date | undefined;
   /** Defaults to `active`. */
   status?: ProductListStatus;
-  /** Mutually exclusive with `expiryStatus`. */
+  /** Applied together with `expiryStatus` as an AND filter. */
   stockStatus?: StockStatus[];
-  /** Mutually exclusive with `stockStatus`. */
+  /** Applied together with `stockStatus` as an AND filter. */
   expiryStatus?: InventoryExpiryStatus[];
 };
 
 /** Filters the inventory detail applies when it totals expiry. */
 export type ProductInventoryDetailFilters = {
+  /** Display cutoff; defaults to 7 days from the request. */
   expiryBefore?: Date | undefined;
 };
 
