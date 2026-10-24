@@ -12,8 +12,10 @@ export interface NavTab {
 
 export const SIDEBAR_WIDTH_STYLE = { width: '16rem' };
 
+export const DASHBOARD_PATH = '/dashboard';
 export const SETTINGS_PATH = '/settings';
 export const PROFILE_PATH = '/settings/profile';
+export const SETTINGS_BUSINESS_PATH = '/settings/business';
 export const INVENTORY_PATH = '/inventory';
 export const BATCHES_PATH = '/inventory/batches';
 export const PRODUCTS_PATH = '/products';
@@ -25,7 +27,7 @@ export const SALES_ALL_PATH = '/sales/all';
 export const productInventoryPath = (productId: string) => `/inventory/products/${productId}`;
 
 export const NAV_TABS: NavTab[] = [
-  { key: 'dashboard', label: 'Dashboard', path: '/dashboard', icon: <LayoutGrid aria-hidden /> },
+  { key: 'dashboard', label: 'Dashboard', path: DASHBOARD_PATH, icon: <LayoutGrid aria-hidden /> },
   { key: 'sales', label: 'Sales', path: SALES_PATH, icon: <ShoppingCart aria-hidden /> },
   { key: 'inventory', label: 'Inventory', path: '/inventory', icon: <Warehouse aria-hidden /> },
   { key: 'products', label: 'Products', path: '/products', icon: <Package aria-hidden /> },
