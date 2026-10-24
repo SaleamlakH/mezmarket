@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { createBrowserRouter, Navigate } from 'react-router';
+import { RouterProvider } from 'react-router/dom';
+import { router } from './router';
 import { AuthProvider } from './providers/auth-provider/AuthProvider';
 import { BusinessProvider } from './providers/business/BusinessProvider';
 import { CatalogProvider } from './providers/catalog/CatalogProvider';
@@ -7,41 +8,12 @@ import { CustomersProvider } from './providers/customers/CustomersProvider';
 import { MembersProvider } from './providers/members/MembersProvider';
 import { ThemeProvider } from './providers/theme/ThemeProvider';
 import { useAuthContext } from './providers/auth-provider/useAuthContext';
-import { RouterProvider } from 'react-router/dom';
-import { ProtectedRoute } from './layouts/ProtectedRoute';
-import { BusinessGate } from './layouts/BusinessGate';
-import { RegistrationLayout } from './layouts/RegistrationLayout';
-import { LoginPage } from './features/auth/pages/LoginPage';
-import { SignupPage } from './features/auth/pages/SignupPage';
 import { createSupabaseAuthService } from './features/auth/api/supabaseAuthService';
 import { supabaseClient } from './lib/supabase';
-import { NotFoundPage } from './pages/NotFoundPage';
-import { ErrorPage } from './pages/ErrorPage';
-import { DesignSystem } from './DesignSystem';
-import { AppLayout } from './layouts/AppLayout';
-import { DashboardPage } from './features/dashboard/pages/DashboardPage';
-import { DashboardPeriodProvider } from './features/dashboard/context/DashboardPeriodProvider';
-import { ProductsPage } from './features/products/pages/ProductsPage';
-import { ProductDetailPage } from './features/products/pages/ProductDetailPage';
-import { SaleDock } from './features/sales/components/SaleDock';
-import { SalesPage } from './features/sales/pages/SalesPage';
-import { AllSalesPage } from './features/sales/pages/AllSalesPage';
-import { SaleDetailPage } from './features/sales/pages/SaleDetailPage';
-import { SaleDraftProvider } from './features/sales/state/SaleDraftProvider';
-import { InventoryPage } from './features/inventory/pages/InventoryPage';
-import { InventoryFilterProvider } from './features/inventory/context/InventoryFilterProvider';
-import { BatchesPage } from './features/inventory/pages/BatchesPage';
-import { BatchDetailPage } from './features/inventory/pages/BatchDetailPage';
-import { ProductInventoryDetailPage } from './features/inventory/pages/ProductInventoryDetailPage';
-import { SettingsPage } from './features/settings/pages/SettingsPage';
-import { BusinessProfilePage } from './features/business/pages/BusinessProfilePage';
 import { businessService } from './features/business/api/businessService';
 import { productsService } from './features/products/api/productsService';
 import { customersService } from './features/customers/api/customersService';
 import { membersService } from './features/members/api/membersService';
-import { CreateBusinessPage } from './features/business/pages/CreateBusinessPage';
-import { OwnerProfilePage } from './features/owner-profile/pages/OwnerProfilePage';
-import { ownerApi } from './features/owner-profile/api/ownerApi';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -50,113 +22,6 @@ const queryClient = new QueryClient({
     },
   },
 });
-
-const router = createBrowserRouter([
-  {
-    path: '/',
-    element: <ProtectedRoute />,
-    errorElement: <ErrorPage />,
-    children: [
-      {
-        element: <BusinessGate />,
-        children: [
-          {
-            element: (
-              <SaleDraftProvider>
-                <DashboardPeriodProvider>
-                  <InventoryFilterProvider>
-                    <AppLayout />
-                  </InventoryFilterProvider>
-                </DashboardPeriodProvider>
-              </SaleDraftProvider>
-            ),
-            children: [
-              { index: true, element: <Navigate to="dashboard" replace /> },
-              { path: 'dashboard', element: <DashboardPage /> },
-              { path: 'products', element: <ProductsPage /> },
-              {
-                path: 'products/:productId',
-                element: <ProductDetailPage />,
-                handle: { subPage: true },
-              },
-              {
-                path: 'sales',
-                element: <SalesPage />,
-                handle: { aside: SaleDock },
-              },
-              {
-                path: 'sales/all',
-                element: <AllSalesPage />,
-                handle: { subPage: true },
-              },
-              {
-                path: 'sales/:saleId',
-                element: <SaleDetailPage />,
-                handle: { subPage: true },
-              },
-              { path: 'inventory', element: <InventoryPage /> },
-              {
-                path: 'inventory/batches',
-                element: <BatchesPage />,
-                handle: { subPage: true },
-              },
-              {
-                path: 'inventory/batches/:batchId',
-                element: <BatchDetailPage />,
-                handle: { subPage: true },
-              },
-              {
-                path: 'inventory/products/:productId',
-                element: <ProductInventoryDetailPage />,
-                handle: { subPage: true },
-              },
-              { path: 'settings', element: <SettingsPage />, handle: { subPage: true } },
-              {
-                path: 'settings/profile',
-                element: <OwnerProfilePage ownerApi={ownerApi} />,
-                handle: { subPage: true },
-              },
-              {
-                path: 'settings/business',
-                element: <BusinessProfilePage />,
-                handle: { subPage: true },
-              },
-            ],
-          },
-        ],
-      },
-      {
-        path: 'businesses/new',
-        element: <RegistrationLayout />,
-        children: [
-          {
-            index: true,
-            element: <CreateBusinessPage />,
-          },
-        ],
-      },
-    ],
-  },
-  {
-    element: <RegistrationLayout />,
-    errorElement: <ErrorPage />,
-    children: [
-      {
-        path: 'login',
-        element: <LoginPage />,
-      },
-      {
-        path: 'signup',
-        element: <SignupPage />,
-      },
-    ],
-  },
-  ...(import.meta.env.DEV ? [{ path: '/design-system', element: <DesignSystem /> }] : []),
-  {
-    path: '*',
-    element: <NotFoundPage />,
-  },
-]);
 
 const supabaseAuthService = createSupabaseAuthService(supabaseClient);
 

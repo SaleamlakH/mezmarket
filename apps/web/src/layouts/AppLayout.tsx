@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import type { ComponentType } from 'react';
 import { Link, Outlet, useMatches } from 'react-router';
 import { Settings, Store } from 'lucide-react';
@@ -80,7 +81,9 @@ export function AppLayout() {
 
       {Aside && (
         <aside aria-label="Current sale" className="hidden shrink-0 md:block">
-          <Aside />
+          <Suspense fallback={null}>
+            <Aside />
+          </Suspense>
         </aside>
       )}
 

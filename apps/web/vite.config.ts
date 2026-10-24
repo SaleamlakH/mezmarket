@@ -31,6 +31,55 @@ export default defineConfig(({ mode }) => {
         '@': path.resolve(__dirname, './src'),
       },
     },
+    build: {
+      sourcemap: false,
+      target: 'es2022',
+      reportCompressedSize: true,
+      chunkSizeWarningLimit: 600,
+      rolldownOptions: {
+        output: {
+          codeSplitting: {
+            groups: [
+              {
+                name: 'vendor-react',
+                test: /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/,
+                priority: 100,
+              },
+              {
+                name: 'vendor-router',
+                test: /[\\/]node_modules[\\/](react-router|react-router-dom)[\\/]/,
+                priority: 90,
+              },
+              {
+                name: 'vendor-query',
+                test: /[\\/]node_modules[\\/]@tanstack[\\/]react-query[\\/]/,
+                priority: 80,
+              },
+              {
+                name: 'vendor-supabase',
+                test: /[\\/]node_modules[\\/]@supabase[\\/]/,
+                priority: 70,
+              },
+              {
+                name: 'vendor-validation',
+                test: /[\\/]node_modules[\\/](zod|@mez[\\/]validation)[\\/]/,
+                priority: 60,
+              },
+              {
+                name: 'vendor-forms',
+                test: /[\\/]node_modules[\\/](react-hook-form|@hookform[\\/]resolvers)[\\/]/,
+                priority: 50,
+              },
+              {
+                name: 'vendor-icons',
+                test: /[\\/]node_modules[\\/]lucide-react[\\/]/,
+                priority: 40,
+              },
+            ],
+          },
+        },
+      },
+    },
     server: {
       host: true,
       ...(apiProxy && {

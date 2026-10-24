@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { SaleDetailResponse } from '@mez/types';
-import { Button, StatusToggle } from '@/components';
+import { Button } from '@/components/Button';
+import { StatusToggle } from '@/components/StatusToggle';
 import type { PaymentMode } from '../hooks/usePaymentForm';
 import { RecordPaymentForm } from './RecordPaymentForm';
 

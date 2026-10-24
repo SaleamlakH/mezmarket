@@ -23,39 +23,38 @@ import {
   Sun,
   Moon,
 } from 'lucide-react';
+import { Badge } from './components/Badge';
+import { Banner } from './components/Banner';
+import { BottomNav } from './components/BottomNav';
+import { Brand } from './components/Brand';
+import { Button } from './components/Button';
+import { Chip } from './components/Chip';
+import { EmptyState } from './components/EmptyState';
+import { ErrorState } from './components/ErrorState';
+import { Field } from './components/Field';
+import { Input } from './components/Input';
+import { ListCard } from './components/ListCard';
+import { LoadingState } from './components/LoadingState';
+import { PasswordInput } from './components/PasswordInput';
+import { RailCard } from './components/RailCard';
+import { SearchInput } from './components/SearchInput';
+import { SectionHeader } from './components/SectionHeader';
+import { SegmentedControl } from './components/SegmentedControl';
+import { Select } from './components/Select';
+import { InvoiceSheet } from './components/Sheet';
+import { StateSwitcher, type SectionState } from './components/StateSwitcher';
+import { StatusToggle } from './components/StatusToggle';
+import { Stepper } from './components/Stepper';
+import { SuccessState } from './components/SuccessState';
 import {
-  Button,
-  Chip,
-  Brand,
-  SegmentedControl,
-  SearchInput,
-  Stepper,
-  StatusToggle,
-  Badge,
-  Banner,
-  Field,
-  Input,
-  PasswordInput,
-  Select,
-  ListCard,
-  RailCard,
-  SectionHeader,
-  BottomNav,
-  InvoiceSheet,
-  ThemeToggle,
-  LoadingState,
-  ErrorState,
-  EmptyState,
-  SuccessState,
-  StateSwitcher,
-  type SectionState,
   Table,
-  TableHead,
   TableBody,
-  TableRow,
-  TableHeadCell,
   TableCell,
-} from './components';
+  TableHead,
+  TableHeadCell,
+  TableRow,
+} from './components/Table';
+import { ThemeToggle } from './components/ThemeToggle';
 
 /* ---------- small demo helpers ---------- */
 
