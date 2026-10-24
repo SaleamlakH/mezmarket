@@ -154,7 +154,7 @@ export function createDashboardRepository(prisma: PrismaClient): DashboardReposi
     async cashAggregate(businessId, branchId, from, to) {
       const row = await prisma.payment.aggregate({
         where: {
-          paidAt: { gte: from, lt: to },
+          paidAt: { gte: from, lte: to },
           sale: { businessId, branchId, voidStatus: NOT_VOIDED },
         },
         _sum: { amount: true },

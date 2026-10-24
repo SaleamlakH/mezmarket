@@ -252,7 +252,7 @@ describe('dashboard.repository', () => {
       });
       expect(payment.aggregate).toHaveBeenCalledWith({
         where: {
-          paidAt: { gte: FROM, lt: TO },
+          paidAt: { gte: FROM, lte: TO },
           sale: { businessId: 'b-1', branchId: 'br-1', voidStatus: { not: 'VOIDED' } },
         },
         _sum: { amount: true },
