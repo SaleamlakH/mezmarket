@@ -69,5 +69,6 @@ export function useBusinessEditForm(
     ...form,
     isDirty,
     isSaving: form.status === 'submitting',
+    reset: () => form.reset(saved),
   };
 }

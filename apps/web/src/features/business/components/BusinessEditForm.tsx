@@ -1,10 +1,9 @@
-import { Button } from '@/components/Button';
 import { Field } from '@/components/Field';
 import { Input } from '@/components/Input';
-import { SectionHeader } from '@/components/SectionHeader';
+import { SectionCard } from '@/components/SectionCard';
+import { SectionFooter } from '@/components/SectionFooter';
 import { Select } from '@/components/Select';
 import { Switch } from '@/components/Switch';
-import { Toast } from '@/components/Toast';
 import type { BusinessResponse } from '@mez/types';
 import { useBusinessEditForm } from '../hooks/useBusinessEditForm';
 
@@ -15,39 +14,52 @@ const TAX_MODE_OPTIONS = [
 
 export interface BusinessEditFormProps {
   business: BusinessResponse;
+  /** Defaults to true so the form can be rendered on its own. */
+  editing?: boolean;
+  onEdit?: () => void;
   onCancel: () => void;
   onSaved: (updated: BusinessResponse) => void;
 }
 
-export function BusinessEditForm({ business, onCancel, onSaved }: BusinessEditFormProps) {
+/**
+ * The business's identity, tax and stock defaults. The card owns the form, so
+ * the page only decides when it is being edited.
+ */
+export function BusinessEditForm({
+  business,
+  editing = true,
+  onEdit,
+  onCancel,
+  onSaved,
+}: BusinessEditFormProps) {
   const {
     values,
     errors,
     formError,
-    setFormError,
     handleChange,
     handleBlur,
     handleSubmit,
+    reset,
     isDirty,
     isSaving,
   } = useBusinessEditForm(business, { onSaved });
 
-  return (
-    <>
-      {formError && (
-        <Toast
-          message={formError}
-          variant="error"
-          duration={5000}
-          position="top-right"
-          onDismiss={() => setFormError(null)}
-        />
-      )}
+  const handleCancel = () => {
+    reset();
+    onCancel();
+  };
 
+  return (
+    <SectionCard
+      title="Business profile"
+      subtitle="Your shop's identity, tax and stock defaults."
+      editing={editing}
+      onEdit={onEdit ?? (() => {})}
+      showEdit={Boolean(onEdit)}
+    >
       <form onSubmit={handleSubmit} className="flex flex-col">
-        <SectionHeader title="Business" />
-        <div className="overflow-hidden rounded-2xl border border-(--border) bg-(--surface-primary) divide-y divide-(--border)">
-          <div className="flex flex-col gap-5 p-5">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3.5">
             <Field id="name" label="Name" error={errors?.name}>
               <Input
                 id="name"
@@ -55,8 +67,10 @@ export function BusinessEditForm({ business, onCancel, onSaved }: BusinessEditFo
                 value={values.name}
                 onChange={(e) => handleChange('name', e.target.value)}
                 onBlur={() => handleBlur('name')}
+                disabled={!editing}
               />
             </Field>
+
             <Field
               id="currencyCode"
               label="Currency"
@@ -72,14 +86,14 @@ export function BusinessEditForm({ business, onCancel, onSaved }: BusinessEditFo
                 value={values.currencyCode}
                 onChange={(e) => handleChange('currencyCode', e.target.value)}
                 onBlur={() => handleBlur('currencyCode')}
+                disabled={!editing}
               />
             </Field>
           </div>
-        </div>
 
-        <SectionHeader title="Taxes & selling" />
-        <div className="overflow-hidden rounded-2xl border border-(--border) bg-(--surface-primary) divide-y divide-(--border)">
-          <div className="flex flex-col gap-5 p-5">
+          <div className="flex flex-col gap-3.5 border-t border-(--border) pt-4">
+            <h3 className="m-0 text-[13px] font-bold text-(--text)">Taxes & selling</h3>
+
             <Field
               id="defaultTaxRate"
               label="Default tax rate"
@@ -98,6 +112,7 @@ export function BusinessEditForm({ business, onCancel, onSaved }: BusinessEditFo
                 value={values.defaultTaxRate}
                 onChange={(e) => handleChange('defaultTaxRate', e.target.value)}
                 onBlur={() => handleBlur('defaultTaxRate')}
+                disabled={!editing}
               />
             </Field>
 
@@ -114,6 +129,7 @@ export function BusinessEditForm({ business, onCancel, onSaved }: BusinessEditFo
                 value={values.taxDisplayMode}
                 onChange={(e) => handleChange('taxDisplayMode', e.target.value)}
                 onBlur={() => handleBlur('taxDisplayMode')}
+                disabled={!editing}
               />
             </Field>
 
@@ -130,14 +146,14 @@ export function BusinessEditForm({ business, onCancel, onSaved }: BusinessEditFo
                 checked={values.allowNegativeStock}
                 onChange={(checked) => handleChange('allowNegativeStock', checked)}
                 label="Allow sales beyond stock"
+                disabled={!editing}
               />
             </div>
           </div>
-        </div>
 
-        <SectionHeader title="Stock" />
-        <div className="overflow-hidden rounded-2xl border border-(--border) bg-(--surface-primary) divide-y divide-(--border)">
-          <div className="flex flex-col gap-5 p-5">
+          <div className="flex flex-col gap-3.5 border-t border-(--border) pt-4">
+            <h3 className="m-0 text-[13px] font-bold text-(--text)">Stock</h3>
+
             <Field
               id="lowStockDefaultThreshold"
               label="Low-stock alert"
@@ -155,26 +171,21 @@ export function BusinessEditForm({ business, onCancel, onSaved }: BusinessEditFo
                 value={values.lowStockDefaultThreshold}
                 onChange={(e) => handleChange('lowStockDefaultThreshold', e.target.value)}
                 onBlur={() => handleBlur('lowStockDefaultThreshold')}
+                disabled={!editing}
               />
             </Field>
           </div>
         </div>
 
-        <div className="mt-6 flex gap-3">
-          <Button
-            variant="secondary"
-            type="button"
-            onClick={onCancel}
-            disabled={isSaving}
-            className="flex-1"
-          >
-            Cancel
-          </Button>
-          <Button type="submit" className="flex-1" isLoading={isSaving} disabled={!isDirty}>
-            Save
-          </Button>
-        </div>
+        <SectionFooter
+          editing={editing}
+          isDirty={isDirty}
+          isSaving={isSaving}
+          error={formError}
+          onCancel={handleCancel}
+          submit
+        />
       </form>
-    </>
+    </SectionCard>
   );
 }
