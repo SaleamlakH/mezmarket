@@ -12,6 +12,12 @@
   --positive: #3e6b53;
   --warning: #97681f;
   --danger: #a5342a;
+  --badge-positive-bg: #d9e5dd;
+  --badge-positive-text: #234736;
+  --badge-warning-bg: #f2e0bc;
+  --badge-warning-text: #5c3d0b;
+  --badge-danger-bg: #f2d5d0;
+  --badge-danger-text: #6e1d17;
   --shadow-sm: 0 1px 2px rgba(16, 24, 32, 0.06);
   --shadow-md: 0 4px 12px rgba(16, 24, 32, 0.08);
   --shadow-lg: 0 12px 24px rgba(16, 24, 32, 0.12);
@@ -31,6 +37,12 @@
   --positive: #4f8268;
   --warning: #d4a03c;
   --danger: #c25b4f;
+  --badge-positive-bg: #233a30;
+  --badge-positive-text: #a7d8bd;
+  --badge-warning-bg: #3f3320;
+  --badge-warning-text: #f3c978;
+  --badge-danger-bg: #422625;
+  --badge-danger-text: #f4a79f;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35);
   --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.45);
