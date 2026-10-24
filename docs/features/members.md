@@ -36,6 +36,10 @@ Returns one member's sales, recorded cash, and current unpaid-sale count for a p
 
 Query: `from`, `to` (inclusive). `memberId` is a member id or `me`.
 
+The dashboard passes its selected period `to` unchanged, so a sale or payment
+stamped exactly at `to` is included here while the dashboard's sales, trend, and
+payments summary exclude it.
+
 ```ts
 type MemberPerformanceResponse = {
   member: {
