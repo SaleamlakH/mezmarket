@@ -68,11 +68,6 @@ const expiryStatusSchema = csvEnum(expiryStatusValues, 'Invalid expiry status');
 
 /**
  * Filters the inventory list may carry.
- *
- * Without `expiryBefore` the API measures expiry against the moment of the
- * request. `status` defaults to the active products. `stockStatus` and
- * `expiryStatus` choose which rows to show and are mutually exclusive;
- * `expiryStatus` cannot be combined with `expiryBefore` either.
  */
 export const productInventoryListQuerySchema = z
   .object({
@@ -80,14 +75,6 @@ export const productInventoryListQuerySchema = z
     status: productListStatusSchema,
     stockStatus: stockStatusSchema,
     expiryStatus: expiryStatusSchema,
-  })
-  .refine((value) => value.expiryStatus === undefined || value.expiryBefore === undefined, {
-    error: 'expiryStatus cannot be combined with expiryBefore',
-    path: ['expiryStatus'],
-  })
-  .refine((value) => value.stockStatus === undefined || value.expiryStatus === undefined, {
-    error: 'stockStatus cannot be combined with expiryStatus',
-    path: ['stockStatus'],
   })
   .transform(withoutUnset) satisfies ZodType<ProductInventoryListFilters>;
 

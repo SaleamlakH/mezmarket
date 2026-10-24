@@ -60,22 +60,26 @@ describe('validateProductInventoryListQuery filters', () => {
     });
   });
 
-  it('rejects expiryStatus combined with expiryBefore', () => {
+  it('allows expiryStatus combined with expiryBefore as the soon bound', () => {
     const result = validateProductInventoryListQuery({
       expiryStatus: 'expired',
       expiryBefore: '2026-10-24T00:00:00.000Z',
     });
 
-    expect(result.errors).toEqual({ expiryStatus: expect.any(String) });
+    expect(result.errors).toBeNull();
+    expect(result.data?.expiryStatus).toEqual(['expired']);
+    expect(result.data?.expiryBefore).toEqual(new Date('2026-10-24T00:00:00.000Z'));
   });
 
-  it('rejects stockStatus combined with expiryStatus', () => {
+  it('allows stockStatus combined with expiryStatus', () => {
     const result = validateProductInventoryListQuery({
       stockStatus: 'low_stock',
       expiryStatus: 'soon',
     });
 
-    expect(result.errors).toEqual({ stockStatus: expect.any(String) });
+    expect(result.errors).toBeNull();
+    expect(result.data?.stockStatus).toEqual(['LOW_STOCK']);
+    expect(result.data?.expiryStatus).toEqual(['soon']);
   });
 
   it('still reads the expiry cutoff on its own', () => {
