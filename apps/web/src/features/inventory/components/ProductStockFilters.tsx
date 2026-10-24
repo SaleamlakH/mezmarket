@@ -1,5 +1,8 @@
+import { useState } from 'react';
+import type { ProductInventoryListFilters } from '@mez/types';
 import type { BadgeTone } from '@/components/Badge';
-import { Chip } from '@/components/Chip';
+import { Dialog, DialogHeader } from '@/components/Dialog';
+import { FilterBar, FilterOption, type ActiveFilterChip } from '@/components/FilterBar';
 import { INVENTORY_FILTER_OPTIONS, type InventoryFilterKind } from '../lib/inventoryFilters';
 
 const TONES: Record<InventoryFilterKind, BadgeTone> = {
@@ -10,34 +13,71 @@ const TONES: Record<InventoryFilterKind, BadgeTone> = {
 };
 
 export interface ProductStockFiltersProps {
+  filters: ProductInventoryListFilters;
   activeKind: InventoryFilterKind | null;
   onSelect: (kind: InventoryFilterKind) => void;
+  onRemove: (kind: Exclude<InventoryFilterKind, 'all'>) => void;
 }
 
-export function ProductStockFilters({ activeKind, onSelect }: ProductStockFiltersProps) {
-  return (
-    <div
-      role="group"
-      aria-label="Filter products"
-      className="scrollbar-none flex gap-1.5 overflow-x-auto pb-0.5"
-    >
-      {INVENTORY_FILTER_OPTIONS.map((option) => {
-        const active = activeKind === option.kind;
+export function ProductStockFilters({
+  filters,
+  activeKind,
+  onSelect,
+  onRemove,
+}: ProductStockFiltersProps) {
+  const [open, setOpen] = useState(false);
 
-        return (
-          <button
-            key={option.kind}
-            type="button"
-            aria-pressed={active}
-            onClick={() => onSelect(option.kind)}
-            className="focus-ring shrink-0 cursor-pointer rounded-lg"
-          >
-            <Chip active={active} tone={TONES[option.kind]}>
+  const activeFilters: ActiveFilterChip[] = [];
+
+  if (filters.stockStatus?.some((status) => status === 'LOW_STOCK' || status === 'OUT_OF_STOCK')) {
+    activeFilters.push({
+      key: 'low',
+      label: 'Low & out',
+      tone: TONES.low,
+      onRemove: () => onRemove('low'),
+    });
+  }
+
+  if (filters.expiryStatus?.includes('expired')) {
+    activeFilters.push({
+      key: 'expired',
+      label: 'Expired',
+      tone: TONES.expired,
+      onRemove: () => onRemove('expired'),
+    });
+  }
+
+  if (filters.expiryStatus?.includes('soon')) {
+    activeFilters.push({
+      key: 'expiring',
+      label: 'Expiring (30 days)',
+      tone: TONES.expiring,
+      onRemove: () => onRemove('expiring'),
+    });
+  }
+
+  return (
+    <>
+      <FilterBar activeFilters={activeFilters} onOpen={() => setOpen(true)} />
+
+      <Dialog open={open} onClose={() => setOpen(false)} size="md">
+        <DialogHeader title="Filter products" onClose={() => setOpen(false)} />
+        <div className="flex flex-col gap-2 pb-4">
+          {INVENTORY_FILTER_OPTIONS.map((option) => (
+            <FilterOption
+              key={option.kind}
+              active={activeKind === option.kind}
+              tone={TONES[option.kind]}
+              onClick={() => {
+                onSelect(option.kind);
+                setOpen(false);
+              }}
+            >
               {option.label}
-            </Chip>
-          </button>
-        );
-      })}
-    </div>
+            </FilterOption>
+          ))}
+        </div>
+      </Dialog>
+    </>
   );
 }

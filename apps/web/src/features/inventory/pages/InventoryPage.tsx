@@ -3,6 +3,8 @@ import { ClipboardList, Package, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
+import { PageHeader } from '@/components/PageHeader';
+import { PageShell } from '@/components/PageShell';
 import { SectionHeader } from '@/components/SectionHeader';
 import { Toast } from '@/components/Toast';
 import { BATCHES_PATH } from '@/layouts/navigation';
@@ -20,7 +22,7 @@ import { useInventoryFilterContext } from '../context/useInventoryFilterContext'
 import { useInventoryBatches, useInventoryProducts } from '../hooks/useInventoryApi';
 
 export function InventoryPage() {
-  const { filters, activeKind, selectFilter } = useInventoryFilterContext();
+  const { filters, activeKind, selectFilter, removeFilter } = useInventoryFilterContext();
   const {
     isPending: batchesPending,
     isError: batchesError,
@@ -43,13 +45,15 @@ export function InventoryPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   return (
-    <div className="mx-auto max-w-5xl pb-4">
-      <div className="flex items-center justify-between gap-3 pt-1">
-        <h2 className="m-0 text-lg font-bold text-(--text)">Inventory</h2>
-        <Button type="button" onClick={() => setIsAddingBatch(true)}>
-          <Plus size={14} aria-hidden /> Add batch
-        </Button>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Inventory"
+        actions={
+          <Button type="button" onClick={() => setIsAddingBatch(true)}>
+            <Plus size={14} aria-hidden /> Add batch
+          </Button>
+        }
+      />
 
       <SectionHeader
         icon={<ClipboardList size={14} aria-hidden />}
@@ -92,7 +96,12 @@ export function InventoryPage() {
       <SectionHeader icon={<Package size={14} aria-hidden />} title="Products" />
 
       <div className="mt-2 mb-3">
-        <ProductStockFilters activeKind={activeKind} onSelect={selectFilter} />
+        <ProductStockFilters
+          filters={filters}
+          activeKind={activeKind}
+          onSelect={selectFilter}
+          onRemove={removeFilter}
+        />
       </div>
 
       {productsPending ? (
@@ -144,6 +153,6 @@ export function InventoryPage() {
           onDismiss={() => setSuccessMessage(null)}
         />
       )}
-    </div>
+    </PageShell>
   );
 }
