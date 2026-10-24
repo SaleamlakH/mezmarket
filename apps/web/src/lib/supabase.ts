@@ -1,6 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
+import { assertWebEnv, requireWebEnv } from '../config/env';
+
+assertWebEnv();
 
 export const supabaseClient = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY,
+  requireWebEnv('VITE_SUPABASE_URL'),
+  requireWebEnv('VITE_SUPABASE_ANON_KEY'),
 );

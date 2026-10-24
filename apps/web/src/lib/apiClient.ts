@@ -1,4 +1,5 @@
 import { supabaseClient } from './supabase';
+import { requireWebEnv } from '../config/env';
 
 export interface ApiErrorOptions {
   code: string;
@@ -47,7 +48,7 @@ interface sendRequestArgs {
 async function sendRequest({ path, request = {} }: sendRequestArgs) {
   const token = await getAccessToken();
 
-  return fetch(`${import.meta.env.VITE_API_URL}${path}`, {
+  return fetch(`${requireWebEnv('VITE_API_URL')}${path}`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
