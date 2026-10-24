@@ -23,14 +23,18 @@ export interface SalesApi {
 function salesPath(businessId: string, filters: SaleListFilters): string {
   const params = new URLSearchParams();
 
-  if (filters.status !== undefined) params.set('status', filters.status);
+  if (filters.status !== undefined) {
+    params.set('status', filters.status.join(',').toLowerCase());
+  }
   if (filters.from !== undefined) params.set('from', filters.from);
   if (filters.to !== undefined) params.set('to', filters.to);
+  if (filters.paymentFrom !== undefined) params.set('paymentFrom', filters.paymentFrom);
+  if (filters.paymentTo !== undefined) params.set('paymentTo', filters.paymentTo);
   if (filters.productId !== undefined) params.set('productId', filters.productId);
   if (filters.unpaid !== undefined) params.set('unpaid', String(filters.unpaid));
   if (filters.overdue !== undefined) params.set('overdue', String(filters.overdue));
 
-  const search = params.toString();
+  const search = params.toString().replace(/%2C/gi, ',');
   return `/api/businesses/${businessId}/sales${search ? `?${search}` : ''}`;
 }
 

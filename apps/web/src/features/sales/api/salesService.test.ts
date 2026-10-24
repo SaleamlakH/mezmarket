@@ -48,16 +48,39 @@ describe('createSalesService', () => {
   it('getSales carries a payment status filter', async () => {
     vi.mocked(client.get).mockResolvedValue([]);
 
-    await service.getSales('biz_1', { status: 'PARTIALLY_PAID' });
+    await service.getSales('biz_1', { status: ['PARTIALLY_PAID'] });
 
-    expect(client.get).toHaveBeenCalledWith('/api/businesses/biz_1/sales?status=PARTIALLY_PAID');
+    expect(client.get).toHaveBeenCalledWith('/api/businesses/biz_1/sales?status=partially_paid');
+  });
+
+  it('getSales carries several payment statuses as one comma-separated value', async () => {
+    vi.mocked(client.get).mockResolvedValue([]);
+
+    await service.getSales('biz_1', { status: ['PAID', 'PARTIALLY_PAID'] });
+
+    expect(client.get).toHaveBeenCalledWith(
+      '/api/businesses/biz_1/sales?status=paid,partially_paid',
+    );
+  });
+
+  it('getSales carries the payment bounds', async () => {
+    vi.mocked(client.get).mockResolvedValue([]);
+
+    await service.getSales('biz_1', {
+      paymentFrom: '2026-01-01T00:00:00.000Z',
+      paymentTo: '2026-01-31T23:59:59.999Z',
+    });
+
+    expect(client.get).toHaveBeenCalledWith(
+      '/api/businesses/biz_1/sales?paymentFrom=2026-01-01T00%3A00%3A00.000Z&paymentTo=2026-01-31T23%3A59%3A59.999Z',
+    );
   });
 
   it('getSales carries every filter together', async () => {
     vi.mocked(client.get).mockResolvedValue([]);
 
     await service.getSales('biz_1', {
-      status: 'PAID',
+      status: ['PAID'],
       from: '2026-01-01T00:00:00.000Z',
       to: '2026-01-31T23:59:59.999Z',
       productId: 'prod_1',
@@ -65,7 +88,7 @@ describe('createSalesService', () => {
     });
 
     expect(client.get).toHaveBeenCalledWith(
-      '/api/businesses/biz_1/sales?status=PAID&from=2026-01-01T00%3A00%3A00.000Z&to=2026-01-31T23%3A59%3A59.999Z&productId=prod_1&unpaid=false',
+      '/api/businesses/biz_1/sales?status=paid&from=2026-01-01T00%3A00%3A00.000Z&to=2026-01-31T23%3A59%3A59.999Z&productId=prod_1&unpaid=false',
     );
   });
 
