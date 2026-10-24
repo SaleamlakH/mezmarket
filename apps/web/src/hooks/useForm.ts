@@ -62,6 +62,17 @@ export function useForm<TValues, TData = TValues>({
     [status, values, validate, writeFieldError],
   );
 
+  const reset = useCallback(
+    (nextValues?: TValues) => {
+      setValues(nextValues ?? initialValues);
+      setStatus('idle');
+      setTouched({});
+      setErrors({});
+      setFormError(null);
+    },
+    [initialValues],
+  );
+
   const handleSubmit: React.SubmitEventHandler = useCallback(
     async (e) => {
       e.preventDefault();
@@ -102,5 +113,6 @@ export function useForm<TValues, TData = TValues>({
     handleChange,
     handleBlur,
     handleSubmit,
+    reset,
   };
 }
