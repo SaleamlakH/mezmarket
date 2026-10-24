@@ -42,6 +42,99 @@ function StatusBadge({ product }: { product: ProductInventorySummaryResponse }) 
   return <Badge tone={tone}>{label}</Badge>;
 }
 
+type ExpiryTone = 'danger' | 'warning';
+
+function ExpiryLine({
+  label,
+  group,
+  unitLabel,
+  tone,
+}: {
+  label: string;
+  group: ProductInventorySummaryResponse['expiry']['expired'];
+  unitLabel: string;
+  tone: ExpiryTone;
+}) {
+  const EXPIRY_TONE_CLASS: Record<ExpiryTone, string> = {
+    danger: 'text-(--danger)',
+    warning: 'text-(--warning)',
+  };
+
+  return (
+    <span
+      className={`font-mono tabular-nums ${EXPIRY_TONE_CLASS[tone]}`}
+      title={
+        group.earliestExpiryDate ? `Earliest ${formatDate(group.earliestExpiryDate)}` : undefined
+      }
+    >
+      {label} · {group.lotCount} {pluralize(group.lotCount, 'lot')} ·{' '}
+      {formatQuantity(group.quantity)} {unitLabel}
+    </span>
+  );
+}
+
+function ExpiryCell({ product }: { product: ProductInventorySummaryResponse }) {
+  const { expired, soon } = product.expiry;
+  if (expired.lotCount === 0 && soon.lotCount === 0) {
+    return <span className="text-(--text-muted)">—</span>;
+  }
+
+  return (
+    <span className="flex flex-col gap-1">
+      {expired.lotCount > 0 && (
+        <ExpiryLine
+          label="Expired"
+          group={expired}
+          unitLabel={product.baseUnitLabel}
+          tone="danger"
+        />
+      )}
+      {soon.lotCount > 0 && (
+        <ExpiryLine
+          label="In 7 days"
+          group={soon}
+          unitLabel={product.baseUnitLabel}
+          tone="warning"
+        />
+      )}
+    </span>
+  );
+}
+
+function ExpiryQuantities({
+  product,
+  className = '',
+}: {
+  product: ProductInventorySummaryResponse;
+  className?: string;
+}) {
+  const { expired, soon } = product.expiry;
+  if (expired.lotCount === 0 && soon.lotCount === 0) return null;
+
+  return (
+    <span
+      className={`flex flex-wrap items-baseline gap-x-2 gap-y-0.5 font-mono text-[11px] tabular-nums ${className}`}
+    >
+      {expired.lotCount > 0 && (
+        <span
+          className="text-(--danger)"
+          title={`${expired.lotCount} ${pluralize(expired.lotCount, 'lot')} expired`}
+        >
+          Expired · {formatQuantity(expired.quantity)} {product.baseUnitLabel}
+        </span>
+      )}
+      {soon.lotCount > 0 && (
+        <span
+          className="text-(--warning)"
+          title={`${soon.lotCount} ${pluralize(soon.lotCount, 'lot')} expiring in 7 days`}
+        >
+          In 7 days · {formatQuantity(soon.quantity)} {product.baseUnitLabel}
+        </span>
+      )}
+    </span>
+  );
+}
+
 function StatusCell({ product }: { product: ProductInventorySummaryResponse }) {
   const threshold = product.stockStatus === 'LOW_STOCK' ? product.lowStockThreshold : null;
 
@@ -85,15 +178,15 @@ function ProductStockCard({
         thumb={{ imageUrl: imageUrl ?? null, imageAlt: product.name }}
       >
         <p className="m-0 truncate text-[15px] font-semibold text-(--text)">{product.name}</p>
-        <p className="m-0 truncate font-mono text-[11px] text-(--text-muted)">
-          {product.brand ?? 'No brand'}
-        </p>
-        <p className="m-0 truncate font-mono text-[13px] font-semibold tabular-nums text-(--text)">
-          {formatMoney(product.totalCost, currency)}
-        </p>
-        <p className="m-0 truncate font-mono text-[11px] text-(--text-muted)">
-          <OnHand product={product} />
-        </p>
+        <div className="mt-1 flex min-w-0 flex-col leading-tight">
+          <p className="m-0 truncate font-mono text-[13px] font-semibold tabular-nums text-(--text)">
+            {formatMoney(product.totalCost, currency)}
+          </p>
+          <p className="m-0 truncate font-mono text-[13px] tabular-nums text-(--text-muted)">
+            {formatQuantity(product.currentSealedStock)} {product.baseUnitLabel}
+          </p>
+        </div>
+        <ExpiryQuantities product={product} className="mt-2" />
       </RailCard>
     </Link>
   );
@@ -102,8 +195,6 @@ function ProductStockCard({
 export interface ProductStockListProps extends ProductImageContext {
   products: ProductInventorySummaryResponse[];
   currency: string;
-  /** The last moment a lot may expire and still be listed as expiring. */
-  expiryBefore: Date;
 }
 
 export function ProductStockList({
@@ -111,7 +202,6 @@ export function ProductStockList({
   currency,
   businessId,
   uploadUrls,
-  expiryBefore,
 }: ProductStockListProps) {
   const navigate = useNavigate();
   const forwardState = useForwardNavigationState();
@@ -137,7 +227,7 @@ export function ProductStockList({
               <TableHeadCell>On hand</TableHeadCell>
               <TableHeadCell className="text-right">Value</TableHeadCell>
               <TableHeadCell>Status</TableHeadCell>
-              <TableHeadCell>Expiry by {formatDate(expiryBefore)}</TableHeadCell>
+              <TableHeadCell>Expiry</TableHeadCell>
               <TableHeadCell className="text-right">Batches</TableHeadCell>
             </TableRow>
           </TableHead>
@@ -181,14 +271,7 @@ export function ProductStockList({
                   <StatusCell product={product} />
                 </TableCell>
                 <TableCell className="whitespace-nowrap">
-                  {product.expiry.lotCount > 0 ? (
-                    <span className="font-mono tabular-nums text-(--warning)">
-                      {product.expiry.lotCount} {pluralize(product.expiry.lotCount, 'lot')} ·{' '}
-                      {formatQuantity(product.expiry.quantity)} {product.baseUnitLabel}
-                    </span>
-                  ) : (
-                    <span className="text-(--text-muted)">—</span>
-                  )}
+                  <ExpiryCell product={product} />
                 </TableCell>
                 <TableCell className="text-right font-mono tabular-nums">
                   {product.numberOfBatches}

@@ -29,6 +29,7 @@ import { AllSalesPage } from './features/sales/pages/AllSalesPage';
 import { SaleDetailPage } from './features/sales/pages/SaleDetailPage';
 import { SaleDraftProvider } from './features/sales/state/SaleDraftProvider';
 import { InventoryPage } from './features/inventory/pages/InventoryPage';
+import { InventoryFilterProvider } from './features/inventory/context/InventoryFilterProvider';
 import { BatchesPage } from './features/inventory/pages/BatchesPage';
 import { BatchDetailPage } from './features/inventory/pages/BatchDetailPage';
 import { ProductInventoryDetailPage } from './features/inventory/pages/ProductInventoryDetailPage';
@@ -63,7 +64,9 @@ const router = createBrowserRouter([
             element: (
               <SaleDraftProvider>
                 <DashboardPeriodProvider>
-                  <AppLayout />
+                  <InventoryFilterProvider>
+                    <AppLayout />
+                  </InventoryFilterProvider>
                 </DashboardPeriodProvider>
               </SaleDraftProvider>
             ),

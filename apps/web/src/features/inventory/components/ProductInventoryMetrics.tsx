@@ -49,7 +49,7 @@ function MetricCard({ label, value, secondary, tone }: Metric) {
   );
 }
 
-/** The four numbers worth checking at a glance when opening a product. */
+/** The numbers worth checking at a glance when opening a product. */
 export function ProductInventoryMetrics({
   product,
   currency,
@@ -70,14 +70,16 @@ export function ProductInventoryMetrics({
       value: formatMoney(averageCost, currency) ?? '—',
     },
     {
-      label: `Expiry by ${formatDate(expiryBefore)}`,
+      label: `Expiring by ${formatDate(expiryBefore)}`,
       value:
-        expiry.lotCount > 0 ? `${expiry.lotCount} ${pluralize(expiry.lotCount, 'lot')}` : 'None',
+        expiry.soon.lotCount > 0
+          ? `${expiry.soon.lotCount} ${pluralize(expiry.soon.lotCount, 'lot')}`
+          : 'None',
       secondary:
-        expiry.lotCount > 0
-          ? `${formatQuantity(expiry.quantity)} ${product.baseUnitLabel}`
+        expiry.soon.lotCount > 0
+          ? `${formatQuantity(expiry.soon.quantity)} ${product.baseUnitLabel}`
           : undefined,
-      tone: expiry.lotCount > 0 ? 'warning' : undefined,
+      tone: expiry.soon.lotCount > 0 ? 'warning' : undefined,
     },
   ];
 
