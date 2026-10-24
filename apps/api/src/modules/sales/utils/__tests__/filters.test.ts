@@ -7,24 +7,36 @@ describe('toSaleListQuery', () => {
   it('resolves every filter into the terms the read takes', () => {
     const from = '2026-02-01T00:00:00.000Z';
     const to = '2026-02-28T23:59:59.999Z';
+    const paymentFrom = '2026-02-02T00:00:00.000Z';
+    const paymentTo = '2026-02-03T00:00:00.000Z';
 
     expect(
       toSaleListQuery(
         {
-          status: 'PARTIALLY_PAID',
+          status: ['PAID', 'PARTIALLY_PAID'],
           from,
           to,
           productId: 'p-tequila',
+          paymentFrom,
+          paymentTo,
           unpaid: true,
         },
         now,
       ),
     ).toEqual({
-      status: 'PARTIALLY_PAID',
+      status: ['PAID', 'PARTIALLY_PAID'],
       from: new Date(from),
       to: new Date(to),
       productId: 'p-tequila',
+      paymentFrom: new Date(paymentFrom),
+      paymentTo: new Date(paymentTo),
       unpaid: true,
+    });
+  });
+
+  it('passes the status list through', () => {
+    expect(toSaleListQuery({ status: ['PARTIALLY_PAID'] }, now)).toEqual({
+      status: ['PARTIALLY_PAID'],
     });
   });
 

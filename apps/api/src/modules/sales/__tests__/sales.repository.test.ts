@@ -781,13 +781,45 @@ describe('sales.repository', () => {
       const repo = createSaleRepository(prisma);
       sale.findMany.mockResolvedValue([]);
 
-      await repo.listSales('b-1', 'br-1', { status: 'PARTIALLY_PAID' });
+      await repo.listSales('b-1', 'br-1', { status: ['PARTIALLY_PAID'] });
 
       expect(listedWhere(sale)).toEqual({
         businessId: 'b-1',
         branchId: 'br-1',
         voidStatus: { not: 'VOIDED' },
-        paymentStatus: 'PARTIALLY_PAID',
+        paymentStatus: { in: ['PARTIALLY_PAID'] },
+      });
+    });
+
+    it('narrows to any of several payment statuses', async () => {
+      const { prisma, sale } = createPrismaStub();
+      const repo = createSaleRepository(prisma);
+      sale.findMany.mockResolvedValue([]);
+
+      await repo.listSales('b-1', 'br-1', { status: ['PAID', 'PARTIALLY_PAID'] });
+
+      expect(listedWhere(sale)).toEqual({
+        businessId: 'b-1',
+        branchId: 'br-1',
+        voidStatus: { not: 'VOIDED' },
+        paymentStatus: { in: ['PAID', 'PARTIALLY_PAID'] },
+      });
+    });
+
+    it('narrows to sales with a payment in the payment range', async () => {
+      const { prisma, sale } = createPrismaStub();
+      const repo = createSaleRepository(prisma);
+      sale.findMany.mockResolvedValue([]);
+      const paymentFrom = new Date('2026-02-01T00:00:00.000Z');
+      const paymentTo = new Date('2026-02-28T23:59:59.999Z');
+
+      await repo.listSales('b-1', 'br-1', { paymentFrom, paymentTo });
+
+      expect(listedWhere(sale)).toEqual({
+        businessId: 'b-1',
+        branchId: 'br-1',
+        voidStatus: { not: 'VOIDED' },
+        payments: { some: { paidAt: { gte: paymentFrom, lte: paymentTo } } },
       });
     });
 

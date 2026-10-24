@@ -519,7 +519,7 @@ describe('sales.service', () => {
       await service.listSales(
         { businessId: 'b-1', branchId: 'br-1' },
         {
-          status: 'PARTIALLY_PAID',
+          status: ['PARTIALLY_PAID'],
           from,
           to,
           productId: 'p-tequila',
@@ -528,7 +528,7 @@ describe('sales.service', () => {
       );
 
       expect(mockRepo.listSales).toHaveBeenCalledWith('b-1', 'br-1', {
-        status: 'PARTIALLY_PAID',
+        status: ['PARTIALLY_PAID'],
         from: new Date(from),
         to: new Date(to),
         productId: 'p-tequila',

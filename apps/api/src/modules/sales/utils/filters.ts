@@ -13,10 +13,12 @@ export function toSaleListQuery(filters: SaleListFilters, now: Date): SaleListQu
   const upper = overdue ? new Date(Math.min(cutoff.getTime(), to?.getTime() ?? Infinity)) : to;
 
   return {
-    ...(filters.status && { status: filters.status }),
+    ...(filters.status?.length ? { status: filters.status } : {}),
     ...(filters.from && !overdue && { from: new Date(filters.from) }),
     ...(upper && { to: upper }),
     ...(filters.productId && { productId: filters.productId }),
+    ...(filters.paymentFrom && { paymentFrom: new Date(filters.paymentFrom) }),
+    ...(filters.paymentTo && { paymentTo: new Date(filters.paymentTo) }),
     ...((filters.unpaid === true || overdue) && { unpaid: true }),
   };
 }

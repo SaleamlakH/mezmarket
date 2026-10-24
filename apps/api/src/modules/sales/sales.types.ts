@@ -239,10 +239,13 @@ export type RecordPaymentCommand = {
  * its columns; it never interprets a request filter.
  */
 export type SaleListQuery = {
-  status?: PaymentStatus;
+  status?: PaymentStatus[];
   from?: Date;
   to?: Date;
   productId?: string;
+  /** Only sales with a payment whose paid-at timestamp is in the range. */
+  paymentFrom?: Date;
+  paymentTo?: Date;
   /** Only sales that still owe a balance and are not stamped paid. */
   unpaid?: boolean;
 };

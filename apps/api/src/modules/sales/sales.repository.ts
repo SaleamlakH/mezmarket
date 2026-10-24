@@ -163,7 +163,7 @@ export function createSaleRepository(prisma: PrismaClient): SaleRepository {
           businessId,
           branchId,
           voidStatus: { not: 'VOIDED' },
-          ...(query.status && { paymentStatus: query.status }),
+          ...(query.status?.length ? { paymentStatus: { in: query.status } } : {}),
           ...(query.unpaid && {
             balanceDue: { gt: 0 },
             paymentStatus: { not: 'PAID' },
@@ -172,6 +172,16 @@ export function createSaleRepository(prisma: PrismaClient): SaleRepository {
             saleDatetime: {
               ...(query.from && { gte: query.from }),
               ...(query.to && { lte: query.to }),
+            },
+          }),
+          ...((query.paymentFrom || query.paymentTo) && {
+            payments: {
+              some: {
+                paidAt: {
+                  ...(query.paymentFrom && { gte: query.paymentFrom }),
+                  ...(query.paymentTo && { lte: query.paymentTo }),
+                },
+              },
             },
           }),
           ...(query.productId && { lines: { some: { productId: query.productId } } }),

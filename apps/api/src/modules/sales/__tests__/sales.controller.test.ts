@@ -167,7 +167,7 @@ describe('sales.controller', () => {
 
     it('hands the service the resolved scope and the filters the middleware stored', async () => {
       vi.mocked(service.listSales).mockResolvedValue([]);
-      const filters = { status: 'PENDING' as const, unpaid: true };
+      const filters = { status: ['PENDING'] as const, unpaid: true };
       const { req, res } = call(AUTH, undefined, {}, filters);
 
       await controller.listSales(req, res);

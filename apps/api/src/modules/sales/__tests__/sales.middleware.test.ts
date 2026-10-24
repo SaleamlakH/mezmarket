@@ -92,7 +92,7 @@ describe('sales.middleware', () => {
       const { runList, req, next } = call(
         {},
         {
-          status: 'PENDING',
+          status: 'pending',
           from: '2026-02-01T00:00:00.000Z',
           to: '2026-02-28T23:59:59.999Z',
           productId: 'p-tequila',
@@ -104,11 +104,33 @@ describe('sales.middleware', () => {
 
       expect(next).toHaveBeenCalledTimes(1);
       expect(req.validQuery).toEqual({
-        status: 'PENDING',
+        status: ['PENDING'],
         from: '2026-02-01T00:00:00.000Z',
         to: '2026-02-28T23:59:59.999Z',
         productId: 'p-tequila',
         unpaid: true,
+      });
+    });
+
+    it('accepts comma-separated statuses and payment bounds', () => {
+      const paymentFrom = '2026-02-01T00:00:00.000Z';
+      const paymentTo = '2026-02-28T23:59:59.999Z';
+      const { runList, req, next } = call(
+        {},
+        {
+          status: 'paid,partially_paid',
+          paymentFrom,
+          paymentTo,
+        },
+      );
+
+      runList();
+
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(req.validQuery).toEqual({
+        status: ['PAID', 'PARTIALLY_PAID'],
+        paymentFrom,
+        paymentTo,
       });
     });
 
