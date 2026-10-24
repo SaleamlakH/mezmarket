@@ -1,32 +1,37 @@
 import { useState } from 'react';
-import { Pencil } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { Loader } from '@/components/Loader';
+import { PageHeader } from '@/components/PageHeader';
+import { PageShell } from '@/components/PageShell';
 import { Toast } from '@/components/Toast';
+import { SETTINGS_PATH } from '@/layouts/navigation';
 import type { OwnerApi } from '../api/ownerApi';
-import { ProfileDetails } from '../components/ProfileDetails';
 import { ProfileEditForm } from '../components/ProfileEditForm';
 import { useOwnerProfile } from '../hooks/useOwnerProfile';
 
 export function OwnerProfilePage({ ownerApi }: { ownerApi: OwnerApi }) {
   const { profile, isLoading, error, applyProfile, refetch } = useOwnerProfile(ownerApi);
-  const [mode, setMode] = useState<'view' | 'edit'>('view');
+  const [editing, setEditing] = useState(false);
   const [toast, setToast] = useState<{ message: string; variant: 'success' | 'error' } | null>(
     null,
   );
 
   if (isLoading) {
     return (
-      <div className="mx-auto flex max-w-3xl justify-center py-20">
-        <Loader size={28} />
-      </div>
+      <PageShell>
+        <PageHeader title="Profile" backTo={SETTINGS_PATH} />
+        <div className="flex justify-center py-20">
+          <Loader size={28} />
+        </div>
+      </PageShell>
     );
   }
 
   if (error || !profile) {
     return (
-      <div className="mx-auto max-w-3xl">
+      <PageShell>
+        <PageHeader title="Profile" backTo={SETTINGS_PATH} />
         <EmptyState
           title="Unable to load profile"
           description={error ?? 'Failed to load profile'}
@@ -36,12 +41,12 @@ export function OwnerProfilePage({ ownerApi }: { ownerApi: OwnerApi }) {
             </Button>
           }
         />
-      </div>
+      </PageShell>
     );
   }
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <PageShell>
       {toast && (
         <Toast
           message={toast.message}
@@ -52,34 +57,20 @@ export function OwnerProfilePage({ ownerApi }: { ownerApi: OwnerApi }) {
         />
       )}
 
-      <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-lg font-bold text-(--text)">
-          {mode === 'edit' ? 'Edit Profile' : 'Profile'}
-        </h2>
-        {mode === 'view' && (
-          <Button variant="secondary" onClick={() => setMode('edit')}>
-            <Pencil size={14} />
-            Edit
-          </Button>
-        )}
-      </div>
+      <PageHeader title="Profile" backTo={SETTINGS_PATH} />
 
-      <div className="overflow-hidden rounded-2xl border border-(--border) bg-(--surface-primary)">
-        {mode === 'view' ? (
-          <ProfileDetails profile={profile} />
-        ) : (
-          <ProfileEditForm
-            ownerApi={ownerApi}
-            profile={profile}
-            onCancel={() => setMode('view')}
-            onSaved={(updated) => {
-              applyProfile(updated);
-              setMode('view');
-              setToast({ message: 'Profile updated', variant: 'success' });
-            }}
-          />
-        )}
-      </div>
-    </div>
+      <ProfileEditForm
+        ownerApi={ownerApi}
+        profile={profile}
+        editing={editing}
+        onEdit={() => setEditing(true)}
+        onCancel={() => setEditing(false)}
+        onSaved={(updated) => {
+          applyProfile(updated);
+          setEditing(false);
+          setToast({ message: 'Profile updated', variant: 'success' });
+        }}
+      />
+    </PageShell>
   );
 }
