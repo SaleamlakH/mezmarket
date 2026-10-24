@@ -87,9 +87,68 @@ describe('validateSaleListFilters', () => {
     expect(result.data?.productId).toBeUndefined();
   });
 
+  it('reads a single status from the comma-separated value', () => {
+    const result = validateSaleListFilters({ status: 'paid' });
+
+    expect(result.errors).toBeNull();
+    expect(result.data?.status).toEqual(['PAID']);
+  });
+
+  it('reads several statuses from the comma-separated value', () => {
+    const result = validateSaleListFilters({ status: 'paid,partially_paid' });
+
+    expect(result.errors).toBeNull();
+    expect(result.data?.status).toEqual(['PAID', 'PARTIALLY_PAID']);
+  });
+
+  it('ignores whitespace and case in the status list', () => {
+    const result = validateSaleListFilters({ status: ' PAID , partially_paid ' });
+
+    expect(result.errors).toBeNull();
+    expect(result.data?.status).toEqual(['PAID', 'PARTIALLY_PAID']);
+  });
+
+  it('dedupes repeated statuses', () => {
+    const result = validateSaleListFilters({ status: 'paid,PAID' });
+
+    expect(result.errors).toBeNull();
+    expect(result.data?.status).toEqual(['PAID']);
+  });
+
   it('rejects an unknown payment status', () => {
-    expect(validateSaleListFilters({ status: 'CANCELLED' }).errors).toEqual({
+    expect(validateSaleListFilters({ status: 'cancelled' }).errors).toEqual({
       status: expect.any(String),
+    });
+  });
+
+  it('rejects an unknown status inside the list', () => {
+    expect(validateSaleListFilters({ status: 'paid,cancelled' }).errors).not.toBeNull();
+  });
+
+  it('reads a blank status list as no filter', () => {
+    const result = validateSaleListFilters({ status: '   ' });
+
+    expect(result.errors).toBeNull();
+    expect(result.data?.status).toBeUndefined();
+  });
+
+  it('keeps valid payment instant bounds as strings', () => {
+    const result = validateSaleListFilters({ paymentFrom: FROM, paymentTo: TO });
+
+    expect(result.errors).toBeNull();
+    expect(result.data?.paymentFrom).toBe(FROM);
+    expect(result.data?.paymentTo).toBe(TO);
+  });
+
+  it('rejects a payment start after the payment end', () => {
+    expect(validateSaleListFilters({ paymentFrom: TO, paymentTo: FROM }).errors).toEqual({
+      paymentFrom: expect.any(String),
+    });
+  });
+
+  it('rejects an invalid payment instant', () => {
+    expect(validateSaleListFilters({ paymentFrom: 'not-an-instant' }).errors).toEqual({
+      paymentFrom: expect.any(String),
     });
   });
 });

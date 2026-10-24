@@ -1,6 +1,6 @@
 import type { ZodType } from 'zod';
 import z from 'zod';
-import type { SaleListFilters } from '@mez/types';
+import type { PaymentStatus, SaleListFilters } from '@mez/types';
 import { PAYMENT_STATUSES } from './sales.schema.js';
 import { blankIsUnset, withoutUnset } from './helpers.js';
 
@@ -26,18 +26,47 @@ const booleanFlag = z
   .optional();
 
 /**
+ * The web sends `status` as a comma-separated list such as
+ * `status=paid,partially_paid`. Blank is no filter, whitespace and case are
+ * ignored, and the canonical enum spelling is returned.
+ */
+const paymentStatusList = z
+  .string({ error: 'Select a valid payment status' })
+  .trim()
+  .transform((value) => {
+    if (value === '') return undefined;
+    const statuses = value
+      .split(',')
+      .map((status) => status.trim().toUpperCase())
+      .filter((status) => status.length > 0);
+    return statuses.length === 0 ? undefined : [...new Set(statuses)];
+  })
+  .optional()
+  .refine(
+    (statuses) =>
+      statuses === undefined ||
+      statuses.every((status) => (PAYMENT_STATUSES as readonly string[]).includes(status)),
+    { error: 'Select a valid payment status' },
+  )
+  .transform((statuses) => statuses as PaymentStatus[] | undefined);
+
+/**
  * Filters a sale-history request may carry.
  *
- * `from` and `to` are universal ISO 8601 instants and bound the range
- * inclusively, with `from` on or before `to`. `overdue` implies `unpaid`: an
- * `overdue` request with `unpaid` left unset is coerced to `unpaid: true`.
+ * `from` and `to` bound the sale datetime inclusively, and `paymentFrom` and
+ * `paymentTo` bound a payment's paid-at timestamp inclusively. `status` is the
+ * comma-separated list the web builds, and each member must name a payment
+ * status. `overdue` implies `unpaid`: an `overdue` request with `unpaid` left
+ * unset is coerced to `unpaid: true`.
  */
 export const saleListFiltersSchema = z
   .object({
-    status: z.enum(PAYMENT_STATUSES, { error: 'Select a valid payment status' }).optional(),
+    status: paymentStatusList,
     from: optionalInstantText,
     to: optionalInstantText,
     productId: z.string().trim().transform(blankIsUnset).optional(),
+    paymentFrom: optionalInstantText,
+    paymentTo: optionalInstantText,
     unpaid: booleanFlag,
     overdue: booleanFlag,
   })
@@ -52,6 +81,19 @@ export const saleListFiltersSchema = z
     {
       error: 'The start must be on or before the end',
       path: ['from'],
+    },
+  )
+  .refine(
+    (value) => {
+      if (value.paymentFrom === undefined || value.paymentTo === undefined) return true;
+      const from = new Date(value.paymentFrom).getTime();
+      const to = new Date(value.paymentTo).getTime();
+      if (Number.isNaN(from) || Number.isNaN(to)) return true;
+      return from <= to;
+    },
+    {
+      error: 'The start must be on or before the end',
+      path: ['paymentFrom'],
     },
   )
   .transform((value) =>
