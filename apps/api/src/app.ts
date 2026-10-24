@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import './config/env.js';
 import express, { type Express, type Request, type Response } from 'express';
 import cors from 'cors';
 import { errorHandler } from './shared/errors/error-handler.js';
