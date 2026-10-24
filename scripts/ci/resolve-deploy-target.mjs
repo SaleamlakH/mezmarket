@@ -4,7 +4,7 @@ const ref = process.env.DEPLOY_REF;
 const output = process.env.GITHUB_OUTPUT;
 
 if (!ref || !output) {
-  console.error('GITHUB_REF or GITHUB_OUTPUT is not set');
+  console.error('DEPLOY_REF or GITHUB_OUTPUT is not set');
   process.exit(1);
 }
 
