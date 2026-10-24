@@ -13,13 +13,18 @@ import type {
   CustomerFormValues,
   CreateUploadInput,
   PaymentFormValues,
+  PaymentSummaryQueryFilters,
   RefundSaleFormValues,
   RefundSaleLineFormValues,
+  ReportingPeriodQueryFilters,
   SaleFormValues,
   SaleLineFormValues,
+  SaleListFilters,
   MemberListFilters,
   ProductInventoryDetailFilters,
   ProductInventoryListFilters,
+  StockBatchListFilters,
+  TrendQueryFilters,
   UpdateBatchFormValues,
   UpdateBatchLineFormValues,
   UpdateSaleFormValues,
@@ -36,6 +41,7 @@ import {
 import {
   createBatchLineSchema,
   createBatchSchema,
+  batchListQuerySchema,
   updateBatchLineSchema,
   updateBatchSchema,
 } from './schema/batch.schema.js';
@@ -65,6 +71,13 @@ import {
   productInventoryDetailQuerySchema,
   productInventoryListQuerySchema,
 } from './schema/inventory.schema.js';
+import {
+  memberPerformanceQuerySchema,
+  paymentSummaryQuerySchema,
+  periodQuerySchema,
+  trendQuerySchema,
+} from './schema/reporting.schema.js';
+import { saleListFiltersSchema } from './schema/sales-list.schema.js';
 
 /**
  * Parses `input` against `schema` and flattens any failure into one
@@ -206,4 +219,34 @@ export function validateProductInventoryDetailQuery(values: unknown) {
     productInventoryDetailQuerySchema,
     values,
   ) as ValidationResult<ProductInventoryDetailFilters>;
+}
+
+export function validatePeriodQuery(values: unknown) {
+  return validateInput(periodQuerySchema, values) as ValidationResult<ReportingPeriodQueryFilters>;
+}
+
+export function validateMemberPerformanceQuery(values: unknown) {
+  return validateInput(
+    memberPerformanceQuerySchema,
+    values,
+  ) as ValidationResult<ReportingPeriodQueryFilters>;
+}
+
+export function validateTrendQuery(values: unknown) {
+  return validateInput(trendQuerySchema, values) as ValidationResult<TrendQueryFilters>;
+}
+
+export function validatePaymentSummaryQuery(values: unknown) {
+  return validateInput(
+    paymentSummaryQuerySchema,
+    values,
+  ) as ValidationResult<PaymentSummaryQueryFilters>;
+}
+
+export function validateSaleListFilters(values: unknown) {
+  return validateInput(saleListFiltersSchema, values) as ValidationResult<SaleListFilters>;
+}
+
+export function validateBatchListFilters(values: unknown) {
+  return validateInput(batchListQuerySchema, values) as ValidationResult<StockBatchListFilters>;
 }

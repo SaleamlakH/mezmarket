@@ -1,27 +1,29 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CreateSaleInput, RecordPaymentInput } from '@mez/types';
+import type { CreateSaleInput, RecordPaymentInput, SaleListFilters } from '@mez/types';
 import { catalogKeys } from '@/hooks/useCatalogApi';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
 import { salesService } from '../api/salesService';
 
 export const salesKeys = {
   all: (businessId: string) => ['sales', businessId] as const,
-  list: (businessId: string) => [...salesKeys.all(businessId), 'list'] as const,
+  lists: (businessId: string) => [...salesKeys.all(businessId), 'list'] as const,
+  list: (businessId: string, filters: SaleListFilters) =>
+    [...salesKeys.lists(businessId), filters] as const,
   detail: (businessId: string, saleId: string) =>
     [...salesKeys.all(businessId), 'detail', saleId] as const,
 } as const;
 
-export function useSales() {
+export function useSales(filters: SaleListFilters = {}) {
   const { currentBusiness } = useBusinessContext();
   const businessId = currentBusiness?.id;
 
   return useQuery({
-    queryKey: businessId ? salesKeys.list(businessId) : ['sales', 'list', 'disabled'],
+    queryKey: businessId ? salesKeys.list(businessId, filters) : ['sales', 'list', 'disabled'],
     queryFn: () => {
       if (!businessId) {
         throw new Error('No business selected');
       }
-      return salesService.getSales(businessId);
+      return salesService.getSales(businessId, filters);
     },
     enabled: Boolean(businessId),
   });
@@ -62,7 +64,7 @@ export function useCreateSale() {
     onSuccess: () => {
       if (!businessId) return;
       // The new row belongs at the top of the history, and stock has moved on.
-      void queryClient.invalidateQueries({ queryKey: salesKeys.list(businessId) });
+      void queryClient.invalidateQueries({ queryKey: salesKeys.lists(businessId) });
       void queryClient.invalidateQueries({ queryKey: catalogKeys.products(businessId) });
     },
   });
@@ -86,7 +88,7 @@ export function useRecordPayment(saleId: string | undefined) {
     },
     onSuccess: () => {
       if (!businessId) return;
-      void queryClient.invalidateQueries({ queryKey: salesKeys.list(businessId) });
+      void queryClient.invalidateQueries({ queryKey: salesKeys.lists(businessId) });
       if (saleId) {
         void queryClient.invalidateQueries({ queryKey: salesKeys.detail(businessId, saleId) });
       }

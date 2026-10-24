@@ -1,5 +1,5 @@
 import type { BusinessMemberSummaryResponse } from '../business/business.types.js';
-import type { ProductSummary } from '../products/products.types.js';
+import type { ProductListStatus, ProductSummary } from '../products/products.types.js';
 import type { RequireAllKeys } from '../shared/require-all-keys.js';
 
 /**
@@ -91,6 +91,21 @@ export type StockBatchDetailResponse = StockBatchResponse & {
 export type StockStatus = 'OUT_OF_STOCK' | 'LOW_STOCK' | 'IN_STOCK';
 
 /**
+ * Which side of the expiry cutoff a product's on-hand stock falls: already
+ * past (`expired`) or approaching (`soon`).
+ */
+export type InventoryExpiryStatus = 'expired' | 'soon';
+
+/**
+ * Which recorded batches a list request wants: only drafts, only confirmed,
+ * or all of them.
+ */
+export type StockBatchListStatus = 'draft' | 'confirmed' | 'all';
+
+/** Filters a stock-batch list request may carry. */
+export type StockBatchListFilters = { status: StockBatchListStatus };
+
+/**
  * The stock header a product shares between the inventory list and detail.
  * Quantities are expressed in the product's Base Unit unless stated otherwise.
  */
@@ -103,12 +118,25 @@ export type ProductInventoryStock = ProductSummary & {
 };
 
 /**
- * The stock still on hand that expires before the caller's cutoff. `quantity`
- * is in the product's Base Unit.
+ * The stock still on hand in one expiry group. `quantity` is in the product's
+ * Base Unit.
  */
-export type ProductInventoryExpiry = {
+export type ProductInventoryExpiryGroup = {
   lotCount: number;
   quantity: number;
+  /** ISO 8601 instant of the earliest expiry in the group, or null when empty. */
+  earliestExpiryDate: string | null;
+};
+
+/**
+ * The stock still on hand split by how close it is to expiry: lots already past
+ * their date (`expired`) and lots expiring by the display cutoff (`soon`). The
+ * display window is the next 7 days from the request unless the detail caller
+ * overrides it. `quantity` is in the product's Base Unit.
+ */
+export type ProductInventoryExpiry = {
+  expired: ProductInventoryExpiryGroup;
+  soon: ProductInventoryExpiryGroup;
 };
 
 /**
@@ -123,13 +151,21 @@ export type ProductInventorySummary = ProductInventoryStock & {
  */
 export type ProductInventorySummaryResponse = ProductInventorySummary;
 
-/** Filters the inventory list applies when it totals expiry. */
+/** Filters the inventory list applies when it selects rows. */
 export type ProductInventoryListFilters = {
+  /** Upper bound of the `soon` group; defaults to 30 days from the request. */
   expiryBefore?: Date | undefined;
+  /** Defaults to `active`. */
+  status?: ProductListStatus;
+  /** Applied together with `expiryStatus` as an AND filter. */
+  stockStatus?: StockStatus[];
+  /** Applied together with `stockStatus` as an AND filter. */
+  expiryStatus?: InventoryExpiryStatus[];
 };
 
 /** Filters the inventory detail applies when it totals expiry. */
 export type ProductInventoryDetailFilters = {
+  /** Display cutoff; defaults to 7 days from the request. */
   expiryBefore?: Date | undefined;
 };
 

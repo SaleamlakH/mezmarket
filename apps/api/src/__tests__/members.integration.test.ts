@@ -21,6 +21,10 @@ const { verifyJwt, authRepository, businessRepository, membersRepository } = vi.
   } satisfies BusinessRepository,
   membersRepository: {
     list: vi.fn(),
+    getMember: vi.fn(),
+    memberSalesAggregate: vi.fn(),
+    memberCashAggregate: vi.fn(),
+    memberUnpaidCount: vi.fn(),
   } satisfies MembersRepository,
 }));
 
@@ -38,18 +42,6 @@ vi.mock('../modules/members/members.repository.js', () => ({
 import app from '../app.js';
 import { ERROR_CODES } from '../shared/errors/app-error.js';
 
-const SERVER_RECORD = {
-  id: 'srv-1',
-  businessId: 'b-1',
-  branchId: 'br-1',
-  ownerId: null,
-  name: 'Abebe',
-  role: 'SERVER',
-  active: true,
-  createdAt: new Date('2026-03-01T09:00:00.000Z'),
-  updatedAt: new Date('2026-03-01T09:00:00.000Z'),
-};
-
 async function authenticate(role: 'OWNER' | 'MANAGER' | 'CASHIER' | 'SERVER' = 'OWNER') {
   verifyJwt.mockResolvedValue({ sub: 'user-1', email: 'user@test.com' });
   authRepository.findIdentity.mockResolvedValue({
@@ -65,7 +57,19 @@ async function authenticate(role: 'OWNER' | 'MANAGER' | 'CASHIER' | 'SERVER' = '
 describe('members.integration', () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    membersRepository.list.mockResolvedValue([SERVER_RECORD]);
+    membersRepository.list.mockResolvedValue([
+      {
+        id: 'srv-1',
+        businessId: 'b-1',
+        branchId: 'br-1',
+        ownerId: null,
+        name: 'Abebe',
+        role: 'SERVER',
+        active: true,
+        createdAt: new Date('2026-03-01T09:00:00.000Z'),
+        updatedAt: new Date('2026-03-01T09:00:00.000Z'),
+      },
+    ]);
   });
 
   describe('GET /api/businesses/:businessId/members', () => {
@@ -160,6 +164,117 @@ describe('members.integration', () => {
 
       expect(res.status).toBe(404);
       expect(membersRepository.list).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('GET /api/businesses/:businessId/members/:memberId/performance', () => {
+    const PERIOD_QUERY = {
+      from: '2026-09-01T00:00:00.000Z',
+      to: '2026-09-30T23:59:59.000Z',
+    };
+
+    function resolvePerformanceReads() {
+      membersRepository.getMember.mockResolvedValue({
+        id: 'm-2',
+        businessId: 'b-1',
+        branchId: 'br-1',
+        ownerId: null,
+        name: 'Kebede',
+        role: 'SERVER',
+        active: true,
+        createdAt: new Date('2026-03-01T09:00:00.000Z'),
+        updatedAt: new Date('2026-03-01T09:00:00.000Z'),
+      });
+      membersRepository.memberSalesAggregate.mockResolvedValue({
+        total: { toNumber: () => 120.5 },
+        count: 2,
+      });
+      membersRepository.memberCashAggregate.mockResolvedValue({ toNumber: () => 40 });
+      membersRepository.memberUnpaidCount.mockResolvedValue(1);
+    }
+
+    it.each(['OWNER', 'MANAGER'] as const)(
+      'lets a %s read another member in the session branch',
+      async (role) => {
+        await authenticate(role);
+        resolvePerformanceReads();
+
+        const res = await request(app)
+          .get('/api/businesses/b-1/members/m-2/performance')
+          .query(PERIOD_QUERY)
+          .set('Authorization', 'Bearer token');
+
+        expect(res.status).toBe(200);
+        expect(res.body).toMatchObject({
+          member: { id: 'm-2', name: 'Kebede', role: 'SERVER' },
+          period: PERIOD_QUERY,
+          sales: { total: 120.5, count: 2 },
+          cashCollected: 40,
+          unpaidSalesCount: 1,
+        });
+        expect(membersRepository.getMember).toHaveBeenCalledWith('b-1', 'br-1', 'm-2');
+        expect(membersRepository.memberSalesAggregate).toHaveBeenCalledWith({
+          branchId: 'br-1',
+          memberId: 'm-2',
+          from: new Date('2026-09-01T00:00:00.000Z'),
+          to: new Date('2026-09-30T23:59:59.000Z'),
+        });
+      },
+    );
+
+    it.each(['CASHIER', 'SERVER'] as const)('refuses a %s reading another member', async (role) => {
+      await authenticate(role);
+      resolvePerformanceReads();
+
+      const res = await request(app)
+        .get('/api/businesses/b-1/members/m-2/performance')
+        .query(PERIOD_QUERY)
+        .set('Authorization', 'Bearer token');
+
+      expect(res.status).toBe(403);
+      expect(res.body).toMatchObject({ error: { code: ERROR_CODES.FORBIDDEN } });
+      expect(membersRepository.memberSalesAggregate).not.toHaveBeenCalled();
+      expect(membersRepository.memberCashAggregate).not.toHaveBeenCalled();
+      expect(membersRepository.memberUnpaidCount).not.toHaveBeenCalled();
+    });
+
+    it('lets a staff member read their own performance with "me"', async () => {
+      await authenticate('CASHIER');
+      resolvePerformanceReads();
+      membersRepository.getMember.mockResolvedValue({
+        id: 'm-1',
+        businessId: 'b-1',
+        branchId: 'br-1',
+        ownerId: null,
+        name: 'Abebe',
+        role: 'CASHIER',
+        active: true,
+        createdAt: new Date('2026-03-01T09:00:00.000Z'),
+        updatedAt: new Date('2026-03-01T09:00:00.000Z'),
+      });
+
+      const res = await request(app)
+        .get('/api/businesses/b-1/members/me/performance')
+        .query(PERIOD_QUERY)
+        .set('Authorization', 'Bearer token');
+
+      expect(res.status).toBe(200);
+      expect(res.body.member).toEqual({ id: 'm-1', name: 'Abebe', role: 'CASHIER' });
+      expect(membersRepository.getMember).toHaveBeenCalledWith('b-1', 'br-1', 'm-1');
+    });
+
+    it('answers 404 for a member outside the session scope', async () => {
+      await authenticate('OWNER');
+      membersRepository.getMember.mockResolvedValue(null);
+
+      const res = await request(app)
+        .get('/api/businesses/b-1/members/other/performance')
+        .query(PERIOD_QUERY)
+        .set('Authorization', 'Bearer token');
+
+      expect(res.status).toBe(404);
+      expect(res.body).toMatchObject({ error: { code: ERROR_CODES.NOT_FOUND } });
+      expect(membersRepository.memberSalesAggregate).not.toHaveBeenCalled();
     });
   });
 });

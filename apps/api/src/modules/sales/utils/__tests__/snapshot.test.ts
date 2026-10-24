@@ -1,11 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import type {
-  CreateSaleInput,
-  ProductSellContext,
-  ProductUnitSellContext,
-} from '../../sales.types.js';
+import type { CreateSaleInput, ProductSellContext } from '../../sales.types.js';
 import type { Prisma } from '../../../../../generated/prisma/client.js';
 import { ERROR_CODES } from '../../../../shared/errors/app-error.js';
+import type { ProductUnitContext } from '../../../../shared/types/unit.types.js';
 import { snapshotSaleLines } from '../snapshot.js';
 
 /** Stands in for a `Decimal` column: the code only ever calls toNumber. */
@@ -13,7 +10,7 @@ function decimal(value: number): Prisma.Decimal {
   return { toNumber: () => value } as unknown as Prisma.Decimal;
 }
 
-function unit(overrides: Partial<ProductUnitSellContext> = {}): ProductUnitSellContext {
+function unit(overrides: Partial<ProductUnitContext> = {}): ProductUnitContext {
   return {
     id: 'pu-bottle',
     productId: 'p-tequila',

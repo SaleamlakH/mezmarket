@@ -1,6 +1,7 @@
 import type {
   CreateBatchInput,
   ProductInventoryDetailResponse,
+  ProductInventoryListFilters,
   ProductInventorySummaryResponse,
   StockBatchDetailResponse,
 } from '@mez/types';
@@ -11,12 +12,11 @@ export interface InventoryApi {
   getBatch(businessId: string, batchId: string): Promise<StockBatchDetailResponse>;
   getInventoryProducts(
     businessId: string,
-    expiryBefore?: Date,
+    filters?: ProductInventoryListFilters,
   ): Promise<ProductInventorySummaryResponse[]>;
   getInventoryProduct(
     businessId: string,
     productId: string,
-    expiryBefore?: Date,
   ): Promise<ProductInventoryDetailResponse>;
   createBatch(businessId: string, input: CreateBatchInput): Promise<StockBatchDetailResponse>;
 }
@@ -32,6 +32,13 @@ function withQuery(path: string, params: Record<string, string | undefined>): st
   return `${path}?${new URLSearchParams(entries).toString()}`;
 }
 
+/** The lowercase CSV spelling the API reads for an enum list. */
+function csvParam(values: readonly string[] | undefined): string | undefined {
+  return values && values.length > 0
+    ? values.map((value) => value.toLowerCase()).join(',')
+    : undefined;
+}
+
 export function createInventoryService(client: ApiClient): InventoryApi {
   return {
     getBatches(businessId) {
@@ -44,18 +51,19 @@ export function createInventoryService(client: ApiClient): InventoryApi {
         `/api/businesses/${businessId}/inventory/batches/${batchId}`,
       );
     },
-    getInventoryProducts(businessId, expiryBefore) {
+    getInventoryProducts(businessId, filters) {
       return client.get<ProductInventorySummaryResponse[]>(
         withQuery(`/api/businesses/${businessId}/inventory/products`, {
-          expiryBefore: expiryBefore?.toISOString(),
+          expiryBefore: filters?.expiryBefore?.toISOString(),
+          status: filters?.status,
+          stockStatus: csvParam(filters?.stockStatus),
+          expiryStatus: csvParam(filters?.expiryStatus),
         }),
       );
     },
-    getInventoryProduct(businessId, productId, expiryBefore) {
+    getInventoryProduct(businessId, productId) {
       return client.get<ProductInventoryDetailResponse>(
-        withQuery(`/api/businesses/${businessId}/inventory/products/${productId}`, {
-          expiryBefore: expiryBefore?.toISOString(),
-        }),
+        `/api/businesses/${businessId}/inventory/products/${productId}`,
       );
     },
     createBatch(businessId, input) {

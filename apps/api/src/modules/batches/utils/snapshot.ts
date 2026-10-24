@@ -1,9 +1,11 @@
 import { AppError, ERROR_CODES } from '../../../shared/errors/app-error.js';
 import {
+  conversionUnitsOf,
   convertToStandardQuantity,
   resolveToStandard,
   snapshotLines,
 } from '../../../shared/utils/snapshot.js';
+import type { ConversionUnits, ProductUnitContext } from '../../../shared/types/unit.types.js';
 import type {
   CreateBatchInput,
   CreateBatchLineInput,
@@ -32,14 +34,10 @@ export function snapshotBatchLine(
   product: ProductContext,
   line: CreateBatchLineInput,
 ): ResolvedBatchLine {
-  const unit = requirePurchasableUnit(line, product);
-  const standard = resolveToStandard(line.purchaseQuantity, unit, product.productUnits);
-  const stockIncrement = convertToStandardQuantity(
-    product.productUnits,
-    unit,
-    'BASE',
-    line.purchaseQuantity,
-  );
+  const units = conversionUnitsOf(product.productUnits, line.productUnitId);
+  const unit = requirePurchasableUnit(units);
+  const standard = resolveToStandard(line.purchaseQuantity, units);
+  const stockIncrement = convertToStandardQuantity(units, 'BASE', line.purchaseQuantity);
 
   return {
     productId: product.id,
@@ -55,10 +53,8 @@ export function snapshotBatchLine(
   };
 }
 
-export function requirePurchasableUnit(line: CreateBatchLineInput, product: ProductContext) {
-  const unit = product.productUnits.find((candidate) => candidate.id === line.productUnitId);
-
-  if (!unit) {
+export function requirePurchasableUnit(units: ConversionUnits): ProductUnitContext {
+  if (!units.sourceUnit) {
     throw new AppError(
       ERROR_CODES.BAD_REQUEST,
       'The selected unit does not belong to this product',
@@ -66,9 +62,9 @@ export function requirePurchasableUnit(line: CreateBatchLineInput, product: Prod
     );
   }
 
-  if (!unit.purchaseCapable) {
+  if (!units.sourceUnit.purchaseCapable) {
     throw new AppError(ERROR_CODES.BAD_REQUEST, 'The selected unit cannot be purchased', 400);
   }
 
-  return unit;
+  return units.sourceUnit;
 }

@@ -451,7 +451,7 @@ describe('sales.integration', () => {
         .set('Authorization', 'Bearer token');
 
       expect(res.status).toBe(200);
-      expect(salesRepository.listSales).toHaveBeenCalledWith('b-1', 'br-1');
+      expect(salesRepository.listSales).toHaveBeenCalledWith('b-1', 'br-1', {});
       expect(res.body).toHaveLength(1);
       expect(res.body[0]).toMatchObject({
         id: 'sale-1',

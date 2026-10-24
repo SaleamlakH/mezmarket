@@ -4,15 +4,16 @@ import type {
   CreateSaleCommand,
   CreateSaleInput,
   ProductSellContext,
-  ProductUnitSellContext,
   RecordPaymentCommand,
   SalePaymentContext,
+  SaleRecordSummary,
   SaleRecordWithDetail,
   SaleRepository,
   SaleService,
 } from '../sales.types.js';
 import type { Prisma } from '../../../../generated/prisma/client.js';
 import { ERROR_CODES } from '../../../shared/errors/app-error.js';
+import type { ProductUnitContext } from '../../../shared/types/unit.types.js';
 
 function mockRepository(): SaleRepository {
   return {
@@ -34,7 +35,7 @@ function decimal(value: number): Prisma.Decimal {
   return { toNumber: () => value } as unknown as Prisma.Decimal;
 }
 
-function unit(overrides: Partial<ProductUnitSellContext> = {}): ProductUnitSellContext {
+function unit(overrides: Partial<ProductUnitContext> = {}): ProductUnitContext {
   return {
     id: 'pu-bottle',
     productId: 'p-tequila',
@@ -510,12 +511,44 @@ describe('sales.service', () => {
   });
 
   describe('listSales', () => {
-    it('reads the sales of the resolved business and branch', async () => {
+    it('resolves the filters before reading the branch sales', async () => {
       vi.mocked(mockRepo.listSales).mockResolvedValue([]);
+      const from = '2026-02-01T00:00:00.000Z';
+      const to = '2026-02-28T23:59:59.999Z';
 
-      await service.listSales({ businessId: 'b-1', branchId: 'br-1' });
+      await service.listSales(
+        { businessId: 'b-1', branchId: 'br-1' },
+        {
+          status: ['PARTIALLY_PAID'],
+          from,
+          to,
+          productId: 'p-tequila',
+          unpaid: true,
+        },
+      );
 
-      expect(mockRepo.listSales).toHaveBeenCalledWith('b-1', 'br-1');
+      expect(mockRepo.listSales).toHaveBeenCalledWith('b-1', 'br-1', {
+        status: ['PARTIALLY_PAID'],
+        from: new Date(from),
+        to: new Date(to),
+        productId: 'p-tequila',
+        unpaid: true,
+      });
+    });
+
+    it('maps each stored sale to a history row', async () => {
+      const summary: SaleRecordSummary = { ...saleRecord(), lines: [] };
+      vi.mocked(mockRepo.listSales).mockResolvedValue([summary]);
+
+      const [row] = await service.listSales({ businessId: 'b-1', branchId: 'br-1' }, {});
+
+      expect(row).toMatchObject({
+        id: 'sale-1',
+        itemCount: 0,
+        taxAmount: 285,
+        amountPaid: 0,
+        balanceDue: 2185,
+      });
     });
   });
 });

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import type { AuthRepository } from '../modules/auth/auth.types.js';
 import type { BusinessRepository } from '../modules/business/business.types.js';
@@ -436,6 +436,14 @@ describe('batches.integration', () => {
   });
 
   describe('GET /api/businesses/:businessId/inventory/products', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ now: new Date('2026-02-25T00:00:00.000Z'), toFake: ['Date'] });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
     it('rejects an unauthenticated request', async () => {
       const res = await request(app).get('/api/businesses/b-1/inventory/products');
 
@@ -454,7 +462,9 @@ describe('batches.integration', () => {
         .set('Authorization', 'Bearer token');
 
       expect(res.status).toBe(200);
-      expect(batchRepository.listProductsWithStockLines).toHaveBeenCalledWith('b-1', 'br-1');
+      expect(batchRepository.listProductsWithStockLines).toHaveBeenCalledWith('b-1', 'br-1', {
+        active: true,
+      });
     });
 
     it('answers a bare list of summaries carrying the aggregates', async () => {
@@ -478,12 +488,19 @@ describe('batches.integration', () => {
         baseUnitLabel: 'Bottle',
         totalCost: 9500,
         numberOfBatches: 1,
-        expiry: { lotCount: 1, quantity: 10 },
+        expiry: {
+          expired: { lotCount: 0, quantity: 0, earliestExpiryDate: null },
+          soon: {
+            lotCount: 1,
+            quantity: 10,
+            earliestExpiryDate: '2026-03-01T00:00:00.000Z',
+          },
+        },
         stockStatus: 'IN_STOCK',
       });
     });
 
-    it('honours the expiry cutoff query parameter', async () => {
+    it('reports the fixed 7-day display window regardless of the expiry bound', async () => {
       await authenticate();
       batchRepository.listProductsWithStockLines.mockResolvedValue([
         INVENTORY_PRODUCT_RECORD as never,
@@ -495,7 +512,116 @@ describe('batches.integration', () => {
         .set('Authorization', 'Bearer token');
 
       expect(res.status).toBe(200);
-      expect(res.body[0].expiry).toEqual({ lotCount: 0, quantity: 0 });
+      expect(res.body[0].expiry).toEqual({
+        expired: { lotCount: 0, quantity: 0, earliestExpiryDate: null },
+        soon: {
+          lotCount: 1,
+          quantity: 10,
+          earliestExpiryDate: '2026-03-01T00:00:00.000Z',
+        },
+      });
+    });
+
+    it('passes the expiry range to the repository', async () => {
+      await authenticate();
+      batchRepository.listProductsWithStockLines.mockResolvedValue([]);
+
+      const soon = await request(app)
+        .get('/api/businesses/b-1/inventory/products')
+        .query({ expiryStatus: 'soon', expiryBefore: '2026-03-15T00:00:00.000Z' })
+        .set('Authorization', 'Bearer token');
+
+      expect(soon.status).toBe(200);
+      expect(batchRepository.listProductsWithStockLines).toHaveBeenLastCalledWith('b-1', 'br-1', {
+        active: true,
+        from: new Date('2026-02-25T00:00:00.000Z'),
+        to: new Date('2026-03-15T00:00:00.000Z'),
+      });
+
+      const outsideBound = await request(app)
+        .get('/api/businesses/b-1/inventory/products')
+        .query({ expiryStatus: 'soon', expiryBefore: '2026-02-26T00:00:00.000Z' })
+        .set('Authorization', 'Bearer token');
+
+      expect(outsideBound.status).toBe(200);
+      expect(batchRepository.listProductsWithStockLines).toHaveBeenLastCalledWith('b-1', 'br-1', {
+        active: true,
+        from: new Date('2026-02-25T00:00:00.000Z'),
+        to: new Date('2026-02-26T00:00:00.000Z'),
+      });
+    });
+
+    it('filters by stock status', async () => {
+      await authenticate();
+      batchRepository.listProductsWithStockLines.mockResolvedValue([
+        INVENTORY_PRODUCT_RECORD as never,
+      ]);
+
+      const inStock = await request(app)
+        .get('/api/businesses/b-1/inventory/products')
+        .query({ stockStatus: 'in_stock' })
+        .set('Authorization', 'Bearer token');
+
+      expect(inStock.status).toBe(200);
+      expect(inStock.body).toHaveLength(1);
+
+      const attention = await request(app)
+        .get('/api/businesses/b-1/inventory/products')
+        .query({ stockStatus: 'low_stock,out_of_stock' })
+        .set('Authorization', 'Bearer token');
+
+      expect(attention.status).toBe(200);
+      expect(attention.body).toEqual([]);
+    });
+
+    it('combines stock status with expiry status', async () => {
+      await authenticate();
+      batchRepository.listProductsWithStockLines.mockResolvedValue([
+        INVENTORY_PRODUCT_RECORD as never,
+      ]);
+
+      const matching = await request(app)
+        .get('/api/businesses/b-1/inventory/products')
+        .query({
+          stockStatus: 'in_stock',
+          expiryStatus: 'soon',
+          expiryBefore: '2026-03-15T00:00:00.000Z',
+        })
+        .set('Authorization', 'Bearer token');
+
+      expect(matching.status).toBe(200);
+      expect(matching.body).toHaveLength(1);
+      expect(batchRepository.listProductsWithStockLines).toHaveBeenLastCalledWith('b-1', 'br-1', {
+        active: true,
+        from: new Date('2026-02-25T00:00:00.000Z'),
+        to: new Date('2026-03-15T00:00:00.000Z'),
+      });
+
+      const mismatched = await request(app)
+        .get('/api/businesses/b-1/inventory/products')
+        .query({
+          stockStatus: 'out_of_stock',
+          expiryStatus: 'soon',
+          expiryBefore: '2026-03-15T00:00:00.000Z',
+        })
+        .set('Authorization', 'Bearer token');
+
+      expect(mismatched.status).toBe(200);
+      expect(mismatched.body).toEqual([]);
+    });
+
+    it('passes an explicit product status through to the repository', async () => {
+      await authenticate();
+
+      const res = await request(app)
+        .get('/api/businesses/b-1/inventory/products')
+        .query({ status: 'inactive' })
+        .set('Authorization', 'Bearer token');
+
+      expect(res.status).toBe(200);
+      expect(batchRepository.listProductsWithStockLines).toHaveBeenCalledWith('b-1', 'br-1', {
+        active: false,
+      });
     });
 
     it('rejects a malformed expiry cutoff before the catalog is read', async () => {
@@ -576,6 +702,14 @@ describe('batches.integration', () => {
   });
 
   describe('GET /api/businesses/:businessId/inventory/products/:productId', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ now: new Date('2026-02-25T00:00:00.000Z'), toFake: ['Date'] });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
     it('rejects an unauthenticated request', async () => {
       const res = await request(app).get('/api/businesses/b-1/inventory/products/p-tequila');
 
@@ -642,7 +776,10 @@ describe('batches.integration', () => {
         .set('Authorization', 'Bearer token');
 
       expect(before.status).toBe(200);
-      expect(before.body.expiry).toEqual({ lotCount: 0, quantity: 0 });
+      expect(before.body.expiry).toEqual({
+        expired: { lotCount: 0, quantity: 0, earliestExpiryDate: null },
+        soon: { lotCount: 0, quantity: 0, earliestExpiryDate: null },
+      });
 
       const byExpiry = await request(app)
         .get('/api/businesses/b-1/inventory/products/p-tequila')
@@ -650,7 +787,14 @@ describe('batches.integration', () => {
         .set('Authorization', 'Bearer token');
 
       expect(byExpiry.status).toBe(200);
-      expect(byExpiry.body.expiry).toEqual({ lotCount: 1, quantity: 10 });
+      expect(byExpiry.body.expiry).toEqual({
+        expired: { lotCount: 0, quantity: 0, earliestExpiryDate: null },
+        soon: {
+          lotCount: 1,
+          quantity: 10,
+          earliestExpiryDate: '2026-03-01T00:00:00.000Z',
+        },
+      });
     });
 
     it('rejects a malformed expiry cutoff before the product is read', async () => {

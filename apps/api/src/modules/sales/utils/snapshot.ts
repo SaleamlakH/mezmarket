@@ -1,15 +1,12 @@
 import { AppError, ERROR_CODES } from '../../../shared/errors/app-error.js';
 import {
+  conversionUnitsOf,
   snapshotLines,
   resolveToStandard,
   convertToStandardQuantity,
 } from '../../../shared/utils/snapshot.js';
-import type {
-  CreateSaleInput,
-  ProductSellContext,
-  ProductUnitSellContext,
-  ResolvedSaleLine,
-} from '../sales.types.js';
+import type { ConversionUnits, ProductUnitContext } from '../../../shared/types/unit.types.js';
+import type { CreateSaleInput, ProductSellContext, ResolvedSaleLine } from '../sales.types.js';
 import { roundQuantity } from '../../../shared/utils/rounding.js';
 
 /**
@@ -29,15 +26,11 @@ export function snapshotSaleLine(
   product: ProductSellContext,
   line: CreateSaleInput['lines'][number],
 ): ResolvedSaleLine {
-  const unit = requireSellableUnit(line, product);
+  const units = conversionUnitsOf(product.productUnits, line.productUnitId);
+  const unit = requireSellableUnit(units);
   const unitPrice = requireSellingPrice(unit);
-  const standard = resolveToStandard(line.quantity, unit, product.productUnits);
-  const quantityInBaseUnit = convertToStandardQuantity(
-    product.productUnits,
-    unit,
-    'BASE',
-    line.quantity,
-  );
+  const standard = resolveToStandard(line.quantity, units);
+  const quantityInBaseUnit = convertToStandardQuantity(units, 'BASE', line.quantity);
 
   return {
     productId: product.id,
@@ -56,13 +49,8 @@ export function snapshotSaleLine(
   };
 }
 
-export function requireSellableUnit(
-  line: CreateSaleInput['lines'][number],
-  product: ProductSellContext,
-): ProductUnitSellContext {
-  const unit = product.productUnits.find((candidate) => candidate.id === line.productUnitId);
-
-  if (!unit) {
+export function requireSellableUnit(units: ConversionUnits): ProductUnitContext {
+  if (!units.sourceUnit) {
     throw new AppError(
       ERROR_CODES.BAD_REQUEST,
       'The selected unit does not belong to this product',
@@ -71,17 +59,17 @@ export function requireSellableUnit(
     );
   }
 
-  if (!unit.sellCapable) {
+  if (!units.sourceUnit.sellCapable) {
     throw new AppError(ERROR_CODES.BAD_REQUEST, 'The selected unit cannot be sold', 400, {
       productUnitId: 'This unit cannot be sold',
     });
   }
 
-  return unit;
+  return units.sourceUnit;
 }
 
 /** The price a unit sells at, snapshotted onto the line. A unit without one cannot be sold. */
-export function requireSellingPrice(unit: ProductUnitSellContext): number {
+export function requireSellingPrice(unit: ProductUnitContext): number {
   const unitPrice = unit.price?.toNumber();
 
   if (unitPrice == null) {

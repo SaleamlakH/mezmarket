@@ -8,7 +8,7 @@ import { ERROR_CODES } from '../../../../shared/errors/app-error.js';
 import {
   baseUnitOf,
   buildProductInventoryStock,
-  expiryTotalsOf,
+  expiryBreakdownOf,
   stockStatusOf,
   toProductInventorySummary,
 } from '../inventory.js';
@@ -30,6 +30,7 @@ function unit(overrides: Partial<ProductUnitContext> = {}): ProductUnitContext {
     conversionRate: null,
     purchaseCapable: true,
     sellCapable: false,
+    price: null,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
     ...overrides,
@@ -92,48 +93,96 @@ describe('baseUnitOf', () => {
   });
 });
 
-describe('expiryTotalsOf', () => {
-  const EXPIRY_BEFORE = new Date('2026-06-01T00:00:00.000Z');
-  const SOON = new Date('2026-05-01T00:00:00.000Z');
-  const LATER = new Date('2026-09-01T00:00:00.000Z');
+describe('expiryBreakdownOf', () => {
+  const AS_OF = new Date('2026-06-01T00:00:00.000Z');
+  const CUTOFF = new Date('2026-06-08T00:00:00.000Z');
 
-  it('counts only the lots that expire before the cutoff and totals their remaining stock', () => {
-    const totals = expiryTotalsOf(
+  it('splits expired lots from lots expiring by the display cutoff', () => {
+    const expiry = expiryBreakdownOf(
       [
-        line({ id: 'sbl-1', expiryDate: SOON, quantityRemaining: decimal(6) }),
-        line({ id: 'sbl-2', expiryDate: LATER }),
+        line({
+          id: 'sbl-expired',
+          expiryDate: new Date('2026-05-01T00:00:00.000Z'),
+          quantityRemaining: decimal(4),
+        }),
+        line({
+          id: 'sbl-soon',
+          expiryDate: new Date('2026-06-05T00:00:00.000Z'),
+          quantityRemaining: decimal(6),
+        }),
+        line({
+          id: 'sbl-later',
+          expiryDate: new Date('2026-06-20T00:00:00.000Z'),
+          quantityRemaining: decimal(9),
+        }),
       ],
-      EXPIRY_BEFORE,
+      AS_OF,
+      CUTOFF,
     );
 
-    expect(totals).toEqual({ lotCount: 1, quantity: 6 });
+    expect(expiry).toEqual({
+      expired: {
+        lotCount: 1,
+        quantity: 4,
+        earliestExpiryDate: '2026-05-01T00:00:00.000Z',
+      },
+      soon: {
+        lotCount: 1,
+        quantity: 6,
+        earliestExpiryDate: '2026-06-05T00:00:00.000Z',
+      },
+    });
   });
 
-  it('includes expired lots in the cutoff totals', () => {
-    const EXPIRED = new Date('2026-01-01T00:00:00.000Z');
-
-    const totals = expiryTotalsOf(
-      [
-        line({ id: 'sbl-1', expiryDate: EXPIRED, quantityRemaining: decimal(4) }),
-        line({ id: 'sbl-2', expiryDate: SOON, quantityRemaining: decimal(6) }),
-      ],
-      EXPIRY_BEFORE,
+  it('treats a lot expiring at the request instant as soon, not expired', () => {
+    const expiry = expiryBreakdownOf(
+      [line({ expiryDate: AS_OF, quantityRemaining: decimal(3) })],
+      AS_OF,
+      CUTOFF,
     );
 
-    expect(totals).toEqual({ lotCount: 2, quantity: 10 });
+    expect(expiry.expired.lotCount).toBe(0);
+    expect(expiry.soon).toEqual({
+      lotCount: 1,
+      quantity: 3,
+      earliestExpiryDate: AS_OF.toISOString(),
+    });
   });
 
-  it('skips lines with no expiry or nothing left', () => {
-    const totals = expiryTotalsOf(
-      [
-        line({ id: 'sbl-1', expiryDate: null }),
-        line({ id: 'sbl-2', expiryDate: SOON, quantityRemaining: decimal(0) }),
-        line({ id: 'sbl-3', expiryDate: SOON, quantityRemaining: decimal(5) }),
-      ],
-      EXPIRY_BEFORE,
+  it('includes a lot exactly at the display cutoff in soon', () => {
+    const expiry = expiryBreakdownOf(
+      [line({ expiryDate: CUTOFF, quantityRemaining: decimal(2) })],
+      AS_OF,
+      CUTOFF,
     );
 
-    expect(totals).toEqual({ lotCount: 1, quantity: 5 });
+    expect(expiry.expired.lotCount).toBe(0);
+    expect(expiry.soon.lotCount).toBe(1);
+  });
+
+  it('skips lines with no expiry', () => {
+    const expiry = expiryBreakdownOf([line({ id: 'sbl-none', expiryDate: null })], AS_OF, CUTOFF);
+
+    expect(expiry).toEqual({
+      expired: { lotCount: 0, quantity: 0, earliestExpiryDate: null },
+      soon: { lotCount: 0, quantity: 0, earliestExpiryDate: null },
+    });
+  });
+
+  it('tracks the earliest expiry inside each group', () => {
+    const expiry = expiryBreakdownOf(
+      [
+        line({ id: 'sbl-expired-a', expiryDate: new Date('2026-05-20T00:00:00.000Z') }),
+        line({ id: 'sbl-expired-b', expiryDate: new Date('2026-05-10T00:00:00.000Z') }),
+        line({ id: 'sbl-soon-a', expiryDate: new Date('2026-06-06T00:00:00.000Z') }),
+        line({ id: 'sbl-soon-b', expiryDate: new Date('2026-06-03T00:00:00.000Z') }),
+      ],
+      AS_OF,
+      CUTOFF,
+    );
+
+    expect(expiry.expired.earliestExpiryDate).toBe('2026-05-10T00:00:00.000Z');
+    expect(expiry.soon.earliestExpiryDate).toBe('2026-06-03T00:00:00.000Z');
   });
 });
 
@@ -157,14 +206,14 @@ describe('stockStatusOf', () => {
       expected: 'OUT_OF_STOCK',
     },
     {
-      name: 'is low when the stock has fallen under the product threshold',
-      stock: 4,
+      name: 'is low when the stock is at the product threshold',
+      stock: 5,
       threshold: 5,
       expected: 'LOW_STOCK',
     },
     {
-      name: 'is in stock once the stock reaches the threshold exactly',
-      stock: 5,
+      name: 'is in stock once the stock is above the product threshold',
+      stock: 6,
       threshold: 5,
       expected: 'IN_STOCK',
     },
@@ -208,6 +257,9 @@ describe('buildProductInventoryStock', () => {
 });
 
 describe('toProductInventorySummary', () => {
+  const AS_OF = new Date('2026-06-01T00:00:00.000Z');
+  const CUTOFF = new Date('2026-06-08T00:00:00.000Z');
+
   it('adds the expiry figures of the lines still holding stock', () => {
     const summary = toProductInventorySummary(
       productRecord({
@@ -216,18 +268,43 @@ describe('toProductInventorySummary', () => {
         ],
       }),
       new Map(),
-      new Date('2026-06-01T00:00:00.000Z'),
+      AS_OF,
+      CUTOFF,
     );
 
-    expect(summary.expiry).toEqual({ lotCount: 1, quantity: 6 });
+    expect(summary.expiry).toEqual({
+      expired: {
+        lotCount: 1,
+        quantity: 6,
+        earliestExpiryDate: '2026-05-01T00:00:00.000Z',
+      },
+      soon: { lotCount: 0, quantity: 0, earliestExpiryDate: null },
+    });
     expect(summary.totalCost).toBe(5700);
+  });
+
+  it('reads the earliest expiry across the lots still holding stock', () => {
+    const summary = toProductInventorySummary(
+      productRecord({
+        stockBatchLines: [
+          line({ id: 'sbl-a', expiryDate: new Date('2026-05-20T00:00:00.000Z') }),
+          line({ id: 'sbl-b', expiryDate: new Date('2026-05-10T00:00:00.000Z') }),
+        ],
+      }),
+      new Map(),
+      AS_OF,
+      CUTOFF,
+    );
+
+    expect(summary.expiry.expired.earliestExpiryDate).toBe('2026-05-10T00:00:00.000Z');
   });
 
   it('maps the live uploadId of the product into the summary', () => {
     const summary = toProductInventorySummary(
       productRecord(),
       new Map([['p-tequila', 'u-1']]),
-      new Date('2026-06-01T00:00:00.000Z'),
+      AS_OF,
+      CUTOFF,
     );
 
     expect(summary.uploadId).toBe('u-1');

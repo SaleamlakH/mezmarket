@@ -42,17 +42,22 @@ recorded.
   in one batch are added up into a single increment and applied once, in the
   product's base unit, to `currentSealedStock`.
 
-- The product view summarises each active product: on-hand stock, a low/out/in
-  status against its threshold, the remaining cost of the stock still held, how
-  many lots expire by the caller's cutoff and how much they hold, how many
-  batches still hold stock of it, and its photo. A **lot** is one batch line that
-  still has quantity remaining.
+- The product view summarises each selected product: on-hand stock, a low/out/in
+  status against its own threshold, the remaining cost of the stock still held,
+  how many lots expire by the display cutoff and how much they hold, how many
+  batches still hold stock of it, and its photo. The list uses a 7-day display
+  cutoff; the detail uses 7 days unless `expiryBefore` overrides it. A **lot** is
+  one batch line that still has quantity remaining.
 
 ## Frontend UI flow
 
 - Browse recent batches and open the full batch list.
 - Browse every product's stock position, value, status, and lots expiring within
   seven days.
+- The product list offers four chips: All, Low & out, Expiring (30 days), and
+  Expired. Low & out sends `status=active&stockStatus=low_stock,out_of_stock`;
+  Expiring sends `status=all&expiryStatus=expired,soon`; Expired sends
+  `status=all&expiryStatus=expired`.
 - Open a product for its stock by purchase unit, expiry warning, and purchase
   history grouped by batch.
 - Follow a batch from a product's history to the batch record.
@@ -65,20 +70,26 @@ recorded.
 
 ### GET /api/businesses/:businessId/inventory/batches
 
-Lists a business' recorded batches, newest batch date first.
+Lists a business' batches, newest batch date first. The route accepts no
+validation and no role gate beyond business access: it returns every batch in the
+session's business and branch.
 
 ```
 Client -> Authorization: Bearer <jwt>
    -> auth middleware resolves the owner
    -> business middleware checks the caller belongs to :businessId
       and resolves the business's default branch
-   -> repository returns that scope's batches,
-      newest batch date first, each with its lines and receiver
+   -> repository returns that scope's batches, newest batch date first,
+      each with its lines and receiver
    -> service flattens each product's name and brand onto its line
    -> 200 StockBatchDetailResponse[]
 ```
 
-An empty history is a `200` with an empty list, not a `404`.
+An empty history is a `200` with an empty list, not a `404`. The `status` query
+parameter (`draft|confirmed|all`) exists in the shared types and validation but
+is not wired into this route; sending it has no effect. `confirmedAt` is typed as
+a required string because a recorded batch is always confirmed. Drafts are not
+produced yet, so there is no reachable draft row to return.
 
 ### GET /api/businesses/:businessId/inventory/batches/:batchId
 
@@ -129,31 +140,57 @@ or a half-applied increment behind.
 
 ### GET /api/businesses/:businessId/inventory/products
 
-Summarises the stock position of every active product.
+Summarises the stock position of products. The default set is the active products, matching the inventory page.
 
 ```
 Client -> Authorization: Bearer <jwt>
    -> auth middleware resolves the owner
    -> business middleware resolves the scope
-   -> validation middleware reads the optional expiry cutoff
-   -> repository returns the active products of that scope and branch,
+   -> validation middleware reads the optional status, stock, and expiry filters
+   -> repository returns the products of that scope and branch,
       each with its base unit and the lines still holding stock
    -> service attaches the live image of each product and computes, per product:
          - stock status against the low-stock threshold
          - the remaining cost of the stock still held
-         - the lots expiring by the cutoff, and their quantity in base units
+         - the lots expiring by the cutoff, their quantity in base units,
+           and their earliest expiry
          - how many batches still hold stock of it
    -> 200 ProductInventorySummaryResponse[]
 ```
 
-`GET .../inventory/products?expiryBefore=<ISO instant>` sets the cutoff. Without
-it the API uses the moment of the request, so already-expired lots still count.
-Only lines with quantity remaining are lots; a line with no expiry is never
-counted.
+Filters:
 
-Status reads the threshold the product was configured with: zero or less is out
-of stock, below the threshold is low, anything else is in stock. A product with
-no threshold has no level to be low against and is never reported low.
+- `status=active|inactive|all` selects the product set; it defaults to `active`.
+- `stockStatus=low_stock,out_of_stock,in_stock` selects products by stock level.
+  Values are comma-separated, case-insensitive, and low and out are exclusive.
+  The filter is applied after the summary is shaped, so it composes with the
+  expiry filter. The dashboard's low/out drill-down sends `low_stock` and
+  `out_of_stock` with `status=active`.
+- `expiryStatus=expired,soon` selects products with at least one lot in the
+  matching group. `expired` means `expiryDate < asOf`; `soon` means
+  `asOf <= expiryDate < cutoff`. The cutoff defaults to `asOf + 30 days`. The
+  dashboard's expiring drill-down sends both with `status=all`, so inactive
+  products with physical stock are included.
+- `expiryBefore=<ISO instant>` changes the `soon` filter cutoff when
+  `expiryStatus` includes `soon`. It is allowed with any `expiryStatus`; there is
+  no `400`. With `expired` only, or with no `expiryStatus`, it has no effect on
+  which products are selected.
+- On this list, `expiryBefore` never changes the summary groups. The returned
+  `expiry` groups always use a 7-day display cutoff from the request instant,
+  regardless of the filter.
+- The response is nested: `expiry.expired` and `expiry.soon`, each with
+  `lotCount`, `quantity`, and `earliestExpiryDate`. `quantity` is in the
+  product's base unit.
+
+Only lines with quantity remaining are lots; a line with no expiry is never
+counted. The groups are disjoint: a lot expiring exactly at `asOf` is `soon`, not
+`expired`.
+
+Stock status reads each product's own `lowStockThreshold` only. Zero or less is
+out of stock; positive stock at or below the threshold is low; anything else is
+in stock. A product with no threshold has no level to be low against and is never
+reported low. The business's `lowStockDefaultThreshold` is not applied as a
+fallback here.
 
 ### GET /api/businesses/:businessId/inventory/products/:productId
 
@@ -174,8 +211,9 @@ Client -> Authorization: Bearer <jwt>
 ```
 
 `GET .../inventory/products/:productId?expiryBefore=<ISO instant>` sets the
-expiry cutoff. The cutoff follows the list: without it the API uses the moment
-of the request, and already-expired lots still count.
+detail's `soon` cutoff. Without it the cutoff is 7 days from the request, so
+already-expired lots still count in `expiry.expired`. The list does not use this
+custom cutoff for its summary groups.
 
 Batches are returned newest first; lines keep the order they were recorded in.
 Each line also carries `baseUnit`, `remainingPurchaseQuantity` (how much of the
@@ -262,7 +300,21 @@ guessing a conversion.
   audit log.
 
 - **There is no draft state.** `confirmedAt` is always set on creation, so the
-  freely-editable draft the schema allows for is never produced.
+  freely-editable draft the schema allows for is never produced. The batch
+  response types `confirmedAt` as a required string, not nullable.
+
+- **The batch list ignores `status`.** `draft|confirmed|all` exists in the shared
+  types and validation, but the route has no filter middleware and the repository
+  returns every batch in the branch. There is also no role gate on this read.
+
+- **The business low-stock default is not applied.** Inventory and dashboard
+  status use each product's own `lowStockThreshold`; the business's
+  `lowStockDefaultThreshold` is stored but is not used as a fallback.
+
+- **The expiring filter and the display summary use different windows.** The
+  filter looks up to 30 days ahead by default, while the returned `expiry` groups
+  always use 7 days. Summing `expiry.lotCount` across products does not reproduce
+  the dashboard's 30-day attention count.
 
 - **Stock draws are whole-unit only.** A line is written with its remaining
   quantity set to the stock it added, in the product's base unit, and draw and
@@ -284,9 +336,10 @@ guessing a conversion.
   with no pagination or limit, so the reads scale with the size of the catalog
   and its history.
 
-- **Inactive products disappear.** The product view returns only active
-  products, so a deactivated product's stock, however much is on hand, is not
-  shown anywhere in this feature.
+- **Inactive products are hidden by default.** The product view returns only
+  active products unless `status=all` is sent. The expiry drill-down uses that
+  option so a deactivated product's stock, however much is on hand, still
+  appears there; other surfaces continue to hide it.
 
 - **Purchases are not restricted by dimension.** Any purchase-capable unit may
   be bought, content-based and owner-defined ones included, even though intake

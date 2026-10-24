@@ -27,7 +27,8 @@ Recording what the business sells. A sale is built from one or more lines (produ
 - Checkout attaches an optional customer (picker with inline create) and an optional server (role `SERVER`).
 - The payment control offers status chips `PAID` / `PENDING` / `PARTIALLY_PAID`, an amount for partial, and a method with optional detail.
 - Confirming swaps the panel to a success state showing the invoice number, total and payment status.
-- `/sales` lists recent sales as a rail with See more; `/sales/all` shows the full list. Both are one server-ordered list, pending first, newest first within a status.
+- `/sales` lists recent sales as a rail with See more; `/sales/all` shows the full list. Both are one server-ordered list, pending first, then partially paid, then paid, newest first within a status.
+- `/sales/all` offers status chips: All, Outstanding, Overdue (7+ days), Paid & partial, `PAID`, `PENDING`, and `PARTIALLY_PAID`. Outstanding sets `unpaid=true`; Overdue sets `overdue=true`, which implies unpaid; Paid & partial sets `status=paid,partially_paid`. Dashboard deep links prefill the sale or payment date range and the matching status or unpaid filter.
 - `/sales/:id` shows the summary, purchase lines, totals and customer, and offers one action: record a payment, hidden once the sale is settled or voided.
 
 ## API Endpoints
@@ -47,7 +48,7 @@ The request and response shapes below are the shared contract in `@mez/types` (`
 | POST   | `/api/businesses/:businessId/sales/:saleId/refund`   | `RefundSaleInput`         | `200 RefundSaleResponse`    |
 | GET    | `/api/businesses/:businessId/sales/:saleId/invoice`  | —                         | `200 SaleInvoiceResponse`   |
 
-Update, void, refund, invoice and the list filters are the target contract: their validation and types exist, but the API does not expose them yet.
+Update, void, refund and invoice are the target contract: their validation and types exist, but the API does not expose them yet. The list filters are implemented.
 
 `CreateSaleResponse`, `UpdateSaleResponse`, `VoidSaleResponse` and `RefundSaleResponse` are aliases of `SaleDetailResponse`, so a sale reads back identically no matter which write produced it.
 
@@ -118,13 +119,21 @@ Client -> Authorization: Bearer <jwt>
    -> repository returns the scope's sales, status-first,
       newest first within each status, narrowed to the summary
       fields, filtered by:
-         - status: paymentStatus
+         - status: comma-separated paymentStatus values, case-insensitive,
+           deduplicated
          - from / to: saleDatetime range, inclusive
+         - paymentFrom / paymentTo: paidAt range on any payment, inclusive
          - productId: sales that have a line for that product
+         - unpaid: non-voided sales with balanceDue > 0 and
+           paymentStatus != PAID
+         - overdue: implies unpaid, ignores from, and uses an upper bound of
+           min(now - 7 days - 1 ms, to)
    -> 200 [ SaleSummaryResponse, ... ]
 ```
 
-An empty history is a `200` with an empty list, not a `404`. `SaleListFilters.from` and `.to` are ISO 8601 instants, the form they take in the query string. The filters are the target contract; the API does not apply them yet.
+The list always excludes `VOIDED` sales, whether or not `status` is given. An empty history is a `200` with an empty list, not a `404`. `SaleListFilters.from` and `.to` are ISO 8601 instants, the form they take in the query string. The server sorts by `paymentStatus` ascending, then `saleDatetime` descending, so pending leads, then partially paid, then paid, newest first within each status.
+
+`unpaid=true` and `overdue=true` are the dashboard's attention filters. `overdue=true` implies unpaid and uses the server's seven-day cutoff; it also drops any `from` bound, because the cutoff supplies the lower bound. The list summary carries `taxAmount`, `amountPaid`, and `balanceDue` alongside the existing header fields, so the unpaid row does not need a detail read.
 
 ### GET /api/businesses/:businessId/sales/:saleId
 
@@ -273,7 +282,7 @@ Client -> Authorization: Bearer <jwt>
 
 - **Update, void, refund and the invoice are documented but not implemented.** The API exposes list, get, create and record-payment only; their validation rules exist but no service, repository or route uses them.
 - **No audit-log writes.** The sale actions and entity type exist in the schema, but no sale write records one.
-- **List filters are ignored.** The status, date-range and product filters are part of the contract, but the API returns the whole list.
+- **The list is unpaginated.** The status, date-range, payment-range, product, unpaid, and overdue filters are applied, but the endpoint returns every matching row.
 - **Stock is business-scoped while sales are branch-scoped.** A sale is scoped to one branch but draws from the business's lots, so stock can move across branches.
 - **The payment status is caller-asserted.** A sale can read `PAID` and still carry a balance, and an overpayment is kept while the balance floors at zero.
 
@@ -308,6 +317,7 @@ Every failure is delivered as a structured error envelope by the global error ha
 - [members.md](members.md) — the server attribution and member roles.
 - [products.md](products.md) — the products and units a sale line is built from.
 - [inventory.md](inventory.md) — where the stock a sale draws comes from.
+- [dashboard.md](dashboard.md) — the payment summary by method and other reporting reads.
 - [error-handling.md](error-handling.md) — the structured error envelope.
 - [../schema.md](../schema.md) — the `Sale`, `SaleLine`, `SaleLineCost` and `Payment` entities.
 - [../unit-system-architecture.md](../unit-system-architecture.md) — how a sale line's snapshotted standard-unit figure is computed.

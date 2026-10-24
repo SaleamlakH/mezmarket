@@ -1,18 +1,35 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CreateBatchInput } from '@mez/types';
+import type { CreateBatchInput, ProductInventoryListFilters } from '@mez/types';
 import { catalogKeys } from '@/hooks/useCatalogApi';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
 import { inventoryService } from '../api/inventoryService';
+
+/**
+ * The filters flattened into a stable key suffix. A Date hashes fine, but the
+ * explicit string keeps the same filter set from producing a new cache entry.
+ */
+function filtersKey(filters?: ProductInventoryListFilters): string {
+  if (!filters) return 'default';
+
+  return [
+    filters.status ?? 'active',
+    filters.stockStatus?.join(',') ?? '',
+    filters.expiryStatus?.join(',') ?? '',
+    filters.expiryBefore?.toISOString() ?? '',
+  ].join('|');
+}
 
 export const inventoryKeys = {
   all: (businessId: string) => ['inventory', businessId] as const,
   batches: (businessId: string) => [...inventoryKeys.all(businessId), 'batches'] as const,
   batch: (businessId: string, batchId: string) =>
     [...inventoryKeys.batches(businessId), 'detail', batchId] as const,
-  inventoryProducts: (businessId: string, expiryBefore?: string) =>
-    [...inventoryKeys.all(businessId), 'inventory-products', expiryBefore] as const,
-  inventoryProduct: (businessId: string, productId: string, expiryBefore?: string) =>
-    [...inventoryKeys.inventoryProducts(businessId), 'detail', productId, expiryBefore] as const,
+  inventoryProductsRoot: (businessId: string) =>
+    [...inventoryKeys.all(businessId), 'inventory-products'] as const,
+  inventoryProducts: (businessId: string, filters?: ProductInventoryListFilters) =>
+    [...inventoryKeys.inventoryProductsRoot(businessId), filtersKey(filters)] as const,
+  inventoryProduct: (businessId: string, productId: string) =>
+    [...inventoryKeys.inventoryProductsRoot(businessId), 'detail', productId] as const,
 } as const;
 
 export function useInventoryBatches() {
@@ -53,34 +70,32 @@ export function useBatchDetail(batchId: string | undefined) {
   });
 }
 
-export function useInventoryProducts(expiryBefore?: Date) {
+export function useInventoryProducts(filters?: ProductInventoryListFilters) {
   const { currentBusiness } = useBusinessContext();
   const businessId = currentBusiness?.id;
-  const expiryBeforeIso = expiryBefore?.toISOString();
 
   return useQuery({
     queryKey: businessId
-      ? inventoryKeys.inventoryProducts(businessId, expiryBeforeIso)
+      ? inventoryKeys.inventoryProducts(businessId, filters)
       : ['inventory', 'products', 'disabled'],
     queryFn: () => {
       if (!businessId) {
         throw new Error('No business selected');
       }
-      return inventoryService.getInventoryProducts(businessId, expiryBefore);
+      return inventoryService.getInventoryProducts(businessId, filters);
     },
     enabled: Boolean(businessId),
   });
 }
 
-export function useProductInventoryDetail(productId: string | undefined, expiryBefore?: Date) {
+export function useProductInventoryDetail(productId: string | undefined) {
   const { currentBusiness } = useBusinessContext();
   const businessId = currentBusiness?.id;
-  const expiryBeforeIso = expiryBefore?.toISOString();
 
   return useQuery({
     queryKey:
       businessId && productId
-        ? inventoryKeys.inventoryProduct(businessId, productId, expiryBeforeIso)
+        ? inventoryKeys.inventoryProduct(businessId, productId)
         : ['inventory', 'product', 'disabled'],
     queryFn: () => {
       if (!businessId) {
@@ -89,7 +104,7 @@ export function useProductInventoryDetail(productId: string | undefined, expiryB
       if (!productId) {
         throw new Error('No product selected');
       }
-      return inventoryService.getInventoryProduct(businessId, productId, expiryBefore);
+      return inventoryService.getInventoryProduct(businessId, productId);
     },
     enabled: Boolean(businessId && productId),
   });
@@ -111,7 +126,7 @@ export function useCreateBatch() {
       if (!businessId) return;
       void queryClient.invalidateQueries({ queryKey: inventoryKeys.batches(businessId) });
       void queryClient.invalidateQueries({
-        queryKey: inventoryKeys.inventoryProducts(businessId),
+        queryKey: inventoryKeys.inventoryProductsRoot(businessId),
       });
       void queryClient.invalidateQueries({ queryKey: catalogKeys.products(businessId) });
     },

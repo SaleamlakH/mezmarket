@@ -20,6 +20,7 @@ const productUnitSelect = {
   createdAt: true,
   updatedAt: true,
   sellCapable: true,
+  price: true,
   standardUnit: { select: standardUnitSelect },
 };
 
@@ -120,10 +121,25 @@ export function createBatchRepository(prisma: PrismaClient): BatchRepository {
       });
     },
 
-    /** Active products, with their units and the lines still holding stock. */
-    async listProductsWithStockLines(businessId, branchId) {
+    /** The products matching the resolved predicate, with their stock lines. */
+    async listProductsWithStockLines(businessId, branchId, filters) {
       return prisma.product.findMany({
-        where: { businessId, branchId, active: true },
+        where: {
+          businessId,
+          branchId,
+          ...(filters.active !== undefined && { active: filters.active }),
+          ...((filters.from || filters.to) && {
+            stockBatchLines: {
+              some: {
+                quantityRemaining: { gt: 0 },
+                expiryDate: {
+                  ...(filters.from && { gte: filters.from }),
+                  ...(filters.to && { lt: filters.to }),
+                },
+              },
+            },
+          }),
+        },
         include: {
           productUnits: { include: { standardUnit: { select: standardUnitSelect } } },
           stockBatchLines: { where: { quantityRemaining: { gt: 0 } } },

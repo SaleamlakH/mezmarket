@@ -42,8 +42,9 @@ describe('sales.controller', () => {
     auth: Partial<Request['auth']> | undefined,
     validBody?: unknown,
     params: Request['params'] = {},
+    validQuery?: unknown,
   ) {
-    const req = { auth, validBody, params } as unknown as Request;
+    const req = { auth, validBody, params, validQuery } as unknown as Request;
     const res = {
       locals: {},
       status: vi.fn().mockReturnThis(),
@@ -164,13 +165,17 @@ describe('sales.controller', () => {
       expect(res.json).toHaveBeenCalledWith([]);
     });
 
-    it('lists the resolved business and branch', async () => {
+    it('hands the service the resolved scope and the filters the middleware stored', async () => {
       vi.mocked(service.listSales).mockResolvedValue([]);
-      const { req, res } = call(AUTH);
+      const filters = { status: ['PENDING'] as const, unpaid: true };
+      const { req, res } = call(AUTH, undefined, {}, filters);
 
       await controller.listSales(req, res);
 
-      expect(service.listSales).toHaveBeenCalledWith({ businessId: 'b-1', branchId: 'br-1' });
+      expect(service.listSales).toHaveBeenCalledWith(
+        { businessId: 'b-1', branchId: 'br-1' },
+        filters,
+      );
     });
 
     it('lets a rejected service call propagate to the error handler', async () => {

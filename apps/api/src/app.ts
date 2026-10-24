@@ -10,8 +10,10 @@ import {
   unitsRoutes,
   batchRoutes,
   salesRoutes,
+  paymentsRoutes,
   customersRoutes,
   membersRoutes,
+  dashboardRoutes,
 } from './composition.js';
 
 const app: Express = express();
@@ -40,8 +42,10 @@ app.use('/api', ownerRoutes);
 app.use('/api', productsRoutes);
 app.use('/api', batchRoutes);
 app.use('/api', salesRoutes);
+app.use('/api', paymentsRoutes);
 app.use('/api', customersRoutes);
 app.use('/api', membersRoutes);
+app.use('/api', dashboardRoutes);
 
 app.use(errorHandler);
 

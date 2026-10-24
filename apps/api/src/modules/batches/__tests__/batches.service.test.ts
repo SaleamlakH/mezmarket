@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createBatchService } from '../batches.service.js';
 import type {
   BatchRepository,
@@ -42,6 +42,7 @@ function unit(overrides: Partial<ProductUnitContext> = {}): ProductUnitContext {
     conversionRate: null,
     purchaseCapable: true,
     sellCapable: false,
+    price: null,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
     ...overrides,
@@ -411,7 +412,10 @@ describe('batches.service', () => {
     it('returns every batch with its lines, product labels and receiver', async () => {
       vi.mocked(mockRepo.listBatches).mockResolvedValue([batchRecord()]);
 
-      const [batch, ...rest] = await service.listBatches({ businessId: 'b-1', branchId: 'br-1' });
+      const [batch, ...rest] = await service.listBatches({
+        businessId: 'b-1',
+        branchId: 'br-1',
+      });
 
       expect(rest).toEqual([]);
       expect(batch).toMatchObject({
@@ -514,15 +518,22 @@ describe('batch service listProductInventorySummaries', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers({ now: new Date('2026-06-01T00:00:00.000Z') });
     mockRepo = mockRepository();
     service = createBatchService(mockRepo);
     vi.mocked(mockRepo.listProductAttachments).mockResolvedValue([]);
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('returns a list of summaries in the correct shape', async () => {
     vi.mocked(mockRepo.listProductsWithStockLines).mockResolvedValue([inventoryRecord()]);
     const result = await service.listProductInventorySummaries(SCOPE, {});
-    expect(mockRepo.listProductsWithStockLines).toHaveBeenCalledWith('b-1', 'br-1');
+    expect(mockRepo.listProductsWithStockLines).toHaveBeenCalledWith('b-1', 'br-1', {
+      active: true,
+    });
     expect(mockRepo.listProductAttachments).toHaveBeenCalledWith(['p-tequila']);
     expect(result).toEqual([
       {
@@ -535,11 +546,39 @@ describe('batch service listProductInventorySummaries', () => {
         baseUnitLabel: 'Bottle',
         uploadId: null,
         totalCost: 9500,
-        expiry: { lotCount: 0, quantity: 0 },
+        expiry: {
+          expired: { lotCount: 0, quantity: 0, earliestExpiryDate: null },
+          soon: { lotCount: 0, quantity: 0, earliestExpiryDate: null },
+        },
         numberOfBatches: 1,
         stockStatus: 'IN_STOCK',
       },
     ]);
+  });
+
+  it.each([
+    ['active', { active: true }],
+    ['inactive', { active: false }],
+    ['all', {}],
+  ] as const)('maps the %s product status to the repository filter', async (status, expected) => {
+    vi.mocked(mockRepo.listProductsWithStockLines).mockResolvedValue([]);
+
+    await service.listProductInventorySummaries(SCOPE, { status });
+
+    expect(mockRepo.listProductsWithStockLines).toHaveBeenCalledWith('b-1', 'br-1', expected);
+  });
+
+  it('keeps inactive products with physical stock when status is all', async () => {
+    vi.mocked(mockRepo.listProductsWithStockLines).mockResolvedValue([
+      inventoryRecord({ id: 'p-inactive', name: 'Retired', active: false }),
+    ]);
+
+    const summaries = await service.listProductInventorySummaries(SCOPE, { status: 'all' });
+
+    expect(mockRepo.listProductsWithStockLines).toHaveBeenCalledWith('b-1', 'br-1', {});
+    expect(summaries.map((summary) => summary.id)).toEqual(['p-inactive']);
+    expect(summaries[0]?.active).toBe(false);
+    expect(summaries[0]?.currentSealedStock).toBe(10);
   });
 
   it('totals the remaining cost and the expiring stock of each product', async () => {
@@ -569,7 +608,202 @@ describe('batch service listProductInventorySummaries', () => {
 
     // 10x950x(4/10) + 10x950x(6/10) = 9500; only the second line expires in time.
     expect(summary?.totalCost).toBe(9500);
-    expect(summary?.expiry).toEqual({ lotCount: 1, quantity: 6 });
+    expect(summary?.expiry).toEqual({
+      expired: {
+        lotCount: 1,
+        quantity: 6,
+        earliestExpiryDate: '2026-05-01T00:00:00.000Z',
+      },
+      soon: { lotCount: 0, quantity: 0, earliestExpiryDate: null },
+    });
+  });
+
+  it('reports the earliest expiry of the lots inside each display group', async () => {
+    vi.mocked(mockRepo.listProductsWithStockLines).mockResolvedValue([
+      inventoryRecord({
+        stockBatchLines: [
+          line({
+            id: 'sbl-expired',
+            expiryDate: new Date('2026-05-01T00:00:00.000Z'),
+            quantityRemaining: decimal(2),
+          }),
+          line({
+            id: 'sbl-soon',
+            expiryDate: new Date('2026-06-05T00:00:00.000Z'),
+            quantityRemaining: decimal(3),
+          }),
+          line({
+            id: 'sbl-outside',
+            expiryDate: new Date('2026-08-01T00:00:00.000Z'),
+            quantityRemaining: decimal(4),
+          }),
+        ],
+      }),
+    ]);
+
+    const [summary] = await service.listProductInventorySummaries(SCOPE, {
+      expiryBefore: new Date('2026-06-01T00:00:00.000Z'),
+    });
+
+    expect(summary?.expiry).toEqual({
+      expired: {
+        lotCount: 1,
+        quantity: 2,
+        earliestExpiryDate: '2026-05-01T00:00:00.000Z',
+      },
+      soon: {
+        lotCount: 1,
+        quantity: 3,
+        earliestExpiryDate: '2026-06-05T00:00:00.000Z',
+      },
+    });
+  });
+
+  it('reports empty groups when no lot is expiring', async () => {
+    vi.mocked(mockRepo.listProductsWithStockLines).mockResolvedValue([inventoryRecord()]);
+
+    const [summary] = await service.listProductInventorySummaries(SCOPE, {});
+
+    expect(summary?.expiry).toEqual({
+      expired: { lotCount: 0, quantity: 0, earliestExpiryDate: null },
+      soon: { lotCount: 0, quantity: 0, earliestExpiryDate: null },
+    });
+  });
+
+  it.each(['LOW_STOCK', 'OUT_OF_STOCK'] as const)(
+    'selects products whose computed stock status is %s',
+    async (stockStatus) => {
+      vi.mocked(mockRepo.listProductsWithStockLines).mockResolvedValue([
+        inventoryRecord({ id: 'p-low', name: 'Low', currentSealedStock: decimal(4) }),
+        inventoryRecord({ id: 'p-out', name: 'Out', currentSealedStock: decimal(0) }),
+        inventoryRecord({ id: 'p-in', name: 'In', currentSealedStock: decimal(10) }),
+      ]);
+
+      const summaries = await service.listProductInventorySummaries(SCOPE, {
+        stockStatus: [stockStatus],
+      });
+
+      expect(summaries.map((summary) => summary.id)).toEqual([
+        stockStatus === 'LOW_STOCK' ? 'p-low' : 'p-out',
+      ]);
+      expect(summaries[0]?.stockStatus).toBe(stockStatus);
+    },
+  );
+
+  it('selects products whose computed stock status is in stock', async () => {
+    vi.mocked(mockRepo.listProductsWithStockLines).mockResolvedValue([
+      inventoryRecord({ id: 'p-low', name: 'Low', currentSealedStock: decimal(4) }),
+      inventoryRecord({ id: 'p-in', name: 'In', currentSealedStock: decimal(10) }),
+    ]);
+
+    const summaries = await service.listProductInventorySummaries(SCOPE, {
+      stockStatus: ['IN_STOCK'],
+    });
+
+    expect(summaries.map((summary) => summary.id)).toEqual(['p-in']);
+  });
+
+  it('treats stock at the threshold as low, matching the dashboard', async () => {
+    vi.mocked(mockRepo.listProductsWithStockLines).mockResolvedValue([
+      inventoryRecord({ id: 'p-at', name: 'At', currentSealedStock: decimal(5) }),
+      inventoryRecord({ id: 'p-above', name: 'Above', currentSealedStock: decimal(6) }),
+    ]);
+
+    const summaries = await service.listProductInventorySummaries(SCOPE, {
+      stockStatus: ['LOW_STOCK'],
+    });
+
+    expect(summaries.map((summary) => summary.id)).toEqual(['p-at']);
+    expect(summaries[0]?.stockStatus).toBe('LOW_STOCK');
+  });
+
+  it('passes expired dates to the repository', async () => {
+    vi.mocked(mockRepo.listProductsWithStockLines).mockResolvedValue([]);
+
+    await service.listProductInventorySummaries(SCOPE, { expiryStatus: ['expired'] });
+
+    expect(mockRepo.listProductsWithStockLines).toHaveBeenCalledWith('b-1', 'br-1', {
+      active: true,
+      to: new Date('2026-06-01T00:00:00.000Z'),
+    });
+  });
+
+  it('passes soon dates to the repository', async () => {
+    vi.mocked(mockRepo.listProductsWithStockLines).mockResolvedValue([]);
+    const expiryBefore = new Date('2026-06-15T00:00:00.000Z');
+
+    await service.listProductInventorySummaries(SCOPE, {
+      expiryBefore,
+      expiryStatus: ['soon'],
+    });
+
+    expect(mockRepo.listProductsWithStockLines).toHaveBeenCalledWith('b-1', 'br-1', {
+      active: true,
+      from: new Date('2026-06-01T00:00:00.000Z'),
+      to: expiryBefore,
+    });
+  });
+
+  it('passes one upper bound when expired and soon are combined', async () => {
+    vi.mocked(mockRepo.listProductsWithStockLines).mockResolvedValue([]);
+    const expiryBefore = new Date('2026-06-15T00:00:00.000Z');
+
+    await service.listProductInventorySummaries(SCOPE, {
+      expiryBefore,
+      expiryStatus: ['expired', 'soon'],
+    });
+
+    expect(mockRepo.listProductsWithStockLines).toHaveBeenCalledWith('b-1', 'br-1', {
+      active: true,
+      to: expiryBefore,
+    });
+  });
+
+  it('defaults the soon bound to a 30-day window', async () => {
+    vi.mocked(mockRepo.listProductsWithStockLines).mockResolvedValue([]);
+
+    await service.listProductInventorySummaries(SCOPE, { expiryStatus: ['soon'] });
+
+    expect(mockRepo.listProductsWithStockLines).toHaveBeenCalledWith('b-1', 'br-1', {
+      active: true,
+      from: new Date('2026-06-01T00:00:00.000Z'),
+      to: new Date('2026-07-01T00:00:00.000Z'),
+    });
+  });
+
+  it('keeps every remaining lot in the summary', async () => {
+    vi.mocked(mockRepo.listProductsWithStockLines).mockResolvedValue([
+      inventoryRecord({
+        id: 'p-soon',
+        name: 'Soon',
+        stockBatchLines: [
+          line({
+            id: 'sbl-expired',
+            expiryDate: new Date('2026-05-15T00:00:00.000Z'),
+            quantityRemaining: decimal(2),
+          }),
+          line({
+            id: 'sbl-soon',
+            expiryDate: new Date('2026-06-10T00:00:00.000Z'),
+            quantityRemaining: decimal(3),
+          }),
+        ],
+      }),
+    ]);
+
+    const [summary] = await service.listProductInventorySummaries(SCOPE, {
+      expiryBefore: new Date('2026-07-01T00:00:00.000Z'),
+      expiryStatus: ['soon'],
+    });
+
+    expect(summary?.expiry).toEqual({
+      expired: {
+        lotCount: 1,
+        quantity: 2,
+        earliestExpiryDate: '2026-05-15T00:00:00.000Z',
+      },
+      soon: { lotCount: 0, quantity: 0, earliestExpiryDate: null },
+    });
   });
 
   it('maps the live attachment uploadId of each product into its summary', async () => {
@@ -668,9 +902,14 @@ describe('batch service getProductInventoryDetail', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers({ now: new Date('2026-06-01T00:00:00.000Z') });
     mockRepo = mockRepository();
     service = createBatchService(mockRepo);
     vi.mocked(mockRepo.listProductAttachments).mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('reads the product of the resolved business, branch and id', async () => {
@@ -704,7 +943,10 @@ describe('batch service getProductInventoryDetail', () => {
       baseUnitLabel: 'Bottle',
       uploadId: null,
       totalCost: 9500,
-      expiry: { lotCount: 0, quantity: 0 },
+      expiry: {
+        expired: { lotCount: 0, quantity: 0, earliestExpiryDate: null },
+        soon: { lotCount: 0, quantity: 0, earliestExpiryDate: null },
+      },
       numberOfBatches: 1,
       stockStatus: 'IN_STOCK',
     });
@@ -741,19 +983,19 @@ describe('batch service getProductInventoryDetail', () => {
     });
   });
 
-  it('totals the expiry of the stock still on hand against the cutoff', async () => {
-    const expiryBefore = new Date('2026-10-24T00:00:00.000Z');
+  it('splits the expiry of the stock still on hand against the cutoff', async () => {
+    const expiryBefore = new Date('2026-06-15T00:00:00.000Z');
     vi.mocked(mockRepo.getProductWithBatchHistory).mockResolvedValue(
       historyRecord({
         stockBatchLines: [
           historyLine({
             id: 'sbl-expired',
-            expiryDate: new Date('2026-10-01T00:00:00.000Z'),
+            expiryDate: new Date('2026-05-01T00:00:00.000Z'),
             quantityRemaining: decimal(8),
           }),
           historyLine({
             id: 'sbl-soon',
-            expiryDate: new Date('2026-10-24T00:00:00.000Z'),
+            expiryDate: new Date('2026-06-05T00:00:00.000Z'),
             quantityRemaining: decimal(50),
           }),
           historyLine({
@@ -763,7 +1005,7 @@ describe('batch service getProductInventoryDetail', () => {
           }),
           historyLine({
             id: 'sbl-empty',
-            expiryDate: new Date('2026-09-01T00:00:00.000Z'),
+            expiryDate: new Date('2026-05-01T00:00:00.000Z'),
             quantityRemaining: decimal(0),
           }),
           historyLine({
@@ -779,10 +1021,21 @@ describe('batch service getProductInventoryDetail', () => {
       expiryBefore,
     });
 
-    expect(result.expiry).toEqual({ lotCount: 2, quantity: 58 });
+    expect(result.expiry).toEqual({
+      expired: {
+        lotCount: 1,
+        quantity: 8,
+        earliestExpiryDate: '2026-05-01T00:00:00.000Z',
+      },
+      soon: {
+        lotCount: 1,
+        quantity: 50,
+        earliestExpiryDate: '2026-06-05T00:00:00.000Z',
+      },
+    });
   });
 
-  it('defaults the expiry cutoff to now', async () => {
+  it('defaults the expiry cutoff to the next 7 days', async () => {
     vi.mocked(mockRepo.getProductWithBatchHistory).mockResolvedValue(
       historyRecord({
         stockBatchLines: [
@@ -802,7 +1055,55 @@ describe('batch service getProductInventoryDetail', () => {
 
     const result = await service.getProductInventoryDetail(SCOPE, 'p-tequila', {});
 
-    expect(result.expiry).toEqual({ lotCount: 1, quantity: 6 });
+    expect(result.expiry).toEqual({
+      expired: {
+        lotCount: 1,
+        quantity: 6,
+        earliestExpiryDate: '2000-01-01T00:00:00.000Z',
+      },
+      soon: { lotCount: 0, quantity: 0, earliestExpiryDate: null },
+    });
+  });
+
+  it('reports only the default display window unless the caller overrides it', async () => {
+    vi.mocked(mockRepo.getProductWithBatchHistory).mockResolvedValue(
+      historyRecord({
+        stockBatchLines: [
+          historyLine({
+            id: 'sbl-inside',
+            expiryDate: new Date('2026-06-05T00:00:00.000Z'),
+            quantityRemaining: decimal(2),
+          }),
+          historyLine({
+            id: 'sbl-outside',
+            expiryDate: new Date('2026-06-15T00:00:00.000Z'),
+            quantityRemaining: decimal(3),
+          }),
+        ],
+      }),
+    );
+
+    const byDefault = await service.getProductInventoryDetail(SCOPE, 'p-tequila', {});
+    const overridden = await service.getProductInventoryDetail(SCOPE, 'p-tequila', {
+      expiryBefore: new Date('2026-06-30T00:00:00.000Z'),
+    });
+
+    expect(byDefault.expiry).toEqual({
+      expired: { lotCount: 0, quantity: 0, earliestExpiryDate: null },
+      soon: {
+        lotCount: 1,
+        quantity: 2,
+        earliestExpiryDate: '2026-06-05T00:00:00.000Z',
+      },
+    });
+    expect(overridden.expiry).toEqual({
+      expired: { lotCount: 0, quantity: 0, earliestExpiryDate: null },
+      soon: {
+        lotCount: 2,
+        quantity: 5,
+        earliestExpiryDate: '2026-06-05T00:00:00.000Z',
+      },
+    });
   });
 
   it('groups the lines under the batch that carried them, newest batch first', async () => {
@@ -866,7 +1167,10 @@ describe('batch service getProductInventoryDetail', () => {
     // The header figures still read only the lines holding stock.
     expect(result.numberOfBatches).toBe(0);
     expect(result.totalCost).toBe(0);
-    expect(result.expiry).toEqual({ lotCount: 0, quantity: 0 });
+    expect(result.expiry).toEqual({
+      expired: { lotCount: 0, quantity: 0, earliestExpiryDate: null },
+      soon: { lotCount: 0, quantity: 0, earliestExpiryDate: null },
+    });
   });
 
   it('returns an empty history for a product with no batches', async () => {

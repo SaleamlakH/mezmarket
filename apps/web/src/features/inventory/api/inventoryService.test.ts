@@ -52,13 +52,30 @@ describe('createInventoryService', () => {
     expect(result).toEqual([product]);
   });
 
-  it('getInventoryProducts passes the expiry cutoff when one is set', async () => {
+  it('getInventoryProducts serializes the expiry filters and their bound', async () => {
     vi.mocked(client.get).mockResolvedValue([]);
 
-    await service.getInventoryProducts('biz_1', new Date('2026-10-24T00:00:00.000Z'));
+    await service.getInventoryProducts('biz_1', {
+      status: 'all',
+      expiryStatus: ['expired', 'soon'],
+      expiryBefore: new Date('2026-10-24T00:00:00.000Z'),
+    });
 
     expect(client.get).toHaveBeenCalledWith(
-      '/api/businesses/biz_1/inventory/products?expiryBefore=2026-10-24T00%3A00%3A00.000Z',
+      '/api/businesses/biz_1/inventory/products?expiryBefore=2026-10-24T00%3A00%3A00.000Z&status=all&expiryStatus=expired%2Csoon',
+    );
+  });
+
+  it('getInventoryProducts serializes stock statuses as a lowercase CSV', async () => {
+    vi.mocked(client.get).mockResolvedValue([]);
+
+    await service.getInventoryProducts('biz_1', {
+      status: 'active',
+      stockStatus: ['LOW_STOCK', 'OUT_OF_STOCK'],
+    });
+
+    expect(client.get).toHaveBeenCalledWith(
+      '/api/businesses/biz_1/inventory/products?status=active&stockStatus=low_stock%2Cout_of_stock',
     );
   });
 
@@ -70,16 +87,6 @@ describe('createInventoryService', () => {
 
     expect(client.get).toHaveBeenCalledWith('/api/businesses/biz_1/inventory/products/prod_1');
     expect(result).toBe(product);
-  });
-
-  it('getInventoryProduct passes the expiry cutoff when one is set', async () => {
-    vi.mocked(client.get).mockResolvedValue({} as ProductInventoryDetailResponse);
-
-    await service.getInventoryProduct('biz_1', 'prod_1', new Date('2026-10-24T00:00:00.000Z'));
-
-    expect(client.get).toHaveBeenCalledWith(
-      '/api/businesses/biz_1/inventory/products/prod_1?expiryBefore=2026-10-24T00%3A00%3A00.000Z',
-    );
   });
 
   it('createBatch posts to /api/businesses/:businessId/inventory/batches and returns response', async () => {

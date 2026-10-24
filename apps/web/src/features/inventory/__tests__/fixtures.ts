@@ -21,7 +21,10 @@ export const products: ProductInventorySummaryResponse[] = [
     lowStockThreshold: 12,
     active: true,
     totalCost: 1240000,
-    expiry: { lotCount: 0, quantity: 0 },
+    expiry: {
+      expired: { lotCount: 0, quantity: 0, earliestExpiryDate: null },
+      soon: { lotCount: 0, quantity: 0, earliestExpiryDate: null },
+    },
     numberOfBatches: 3,
     stockStatus: 'IN_STOCK',
   }),
@@ -35,7 +38,10 @@ export const products: ProductInventorySummaryResponse[] = [
     lowStockThreshold: 10,
     active: true,
     totalCost: 178560,
-    expiry: { lotCount: 3, quantity: 48 },
+    expiry: {
+      expired: { lotCount: 1, quantity: 12, earliestExpiryDate: '2026-10-09T00:00:00.000Z' },
+      soon: { lotCount: 2, quantity: 36, earliestExpiryDate: '2026-10-24T00:00:00.000Z' },
+    },
     numberOfBatches: 2,
     stockStatus: 'IN_STOCK',
   }),
@@ -56,7 +62,10 @@ export const productInventoryDetail: ProductInventoryDetailResponse = {
   lowStockThreshold: 10,
   active: true,
   totalCost: 134.2,
-  expiry: { lotCount: 2, quantity: 58 },
+  expiry: {
+    expired: { lotCount: 1, quantity: 8, earliestExpiryDate: '2026-10-09T00:00:00.000Z' },
+    soon: { lotCount: 1, quantity: 50, earliestExpiryDate: '2026-10-24T00:00:00.000Z' },
+  },
   numberOfBatches: 3,
   stockStatus: 'IN_STOCK',
   batches: [

@@ -47,8 +47,14 @@ import { createSaleController } from './modules/sales/sales.controller.js';
 import { createSalesRouter } from './modules/sales/sales.routes.js';
 import {
   validateSaleCreateInput,
+  validateSaleListQuery,
   validateSalePaymentInput,
 } from './modules/sales/sales.middleware.js';
+import { createPaymentsRepository } from './modules/payments/payments.repository.js';
+import { createPaymentsService } from './modules/payments/payments.service.js';
+import { createPaymentsController } from './modules/payments/payments.controller.js';
+import { createPaymentsRouter } from './modules/payments/payments.routes.js';
+import { validatePaymentSummaryQuery } from './modules/payments/payments.middleware.js';
 import { createCustomersRepository } from './modules/customers/customers.repository.js';
 import { createCustomersService } from './modules/customers/customers.service.js';
 import { createCustomersController } from './modules/customers/customers.controller.js';
@@ -58,11 +64,22 @@ import { createMembersRepository } from './modules/members/members.repository.js
 import { createMembersService } from './modules/members/members.service.js';
 import { createMembersController } from './modules/members/members.controller.js';
 import { createMembersRouter } from './modules/members/members.routes.js';
-import { validateMemberListFilters } from './modules/members/members.middleware.js';
+import {
+  validateMemberListFilters,
+  validateMemberPerformanceQuery,
+} from './modules/members/members.middleware.js';
 import { createUnitsRepository } from './modules/units/units.repository.js';
 import { createUnitsService } from './modules/units/units.service.js';
 import { createUnitsController } from './modules/units/units.controller.js';
 import { createUnitsRouter } from './modules/units/units.routes.js';
+import { createDashboardRepository } from './modules/dashboard/dashboard.repository.js';
+import { createDashboardService } from './modules/dashboard/dashboard.service.js';
+import { createDashboardController } from './modules/dashboard/dashboard.controller.js';
+import { createDashboardRouter } from './modules/dashboard/dashboard.routes.js';
+import {
+  validateDashboardSummaryQuery,
+  validateDashboardTrendQuery,
+} from './modules/dashboard/dashboard.middleware.js';
 import {
   createSupabaseClient,
   createSupabaseStorage,
@@ -191,6 +208,18 @@ export const salesRoutes = createSalesRouter(
   requireBusinessRole(['OWNER', 'MANAGER', 'CASHIER']),
   validateSaleCreateInput,
   validateSalePaymentInput,
+  validateSaleListQuery,
+);
+
+// --- Payments ---
+
+const paymentsRepository = createPaymentsRepository(prisma);
+const paymentsService = createPaymentsService(paymentsRepository);
+const paymentsController = createPaymentsController(paymentsService);
+export const paymentsRoutes = createPaymentsRouter(
+  paymentsController,
+  authorizeBusiness,
+  validatePaymentSummaryQuery,
 );
 
 // --- Customers ---
@@ -214,6 +243,7 @@ export const membersRoutes = createMembersRouter(
   membersController,
   authorizeBusiness,
   validateMemberListFilters,
+  validateMemberPerformanceQuery,
 );
 
 // --- Units ---
@@ -222,3 +252,16 @@ const unitsRepository = createUnitsRepository(prisma);
 const unitsService = createUnitsService(unitsRepository);
 const unitsController = createUnitsController(unitsService);
 export const unitsRoutes = createUnitsRouter(unitsController);
+
+// --- Dashboard ---
+
+const dashboardRepository = createDashboardRepository(prisma);
+const dashboardService = createDashboardService(dashboardRepository);
+const dashboardController = createDashboardController(dashboardService);
+export const dashboardRoutes = createDashboardRouter(
+  dashboardController,
+  authorizeBusiness,
+  requireBusinessRole(['OWNER', 'MANAGER']),
+  validateDashboardSummaryQuery,
+  validateDashboardTrendQuery,
+);

@@ -20,6 +20,7 @@ import { ErrorPage } from './pages/ErrorPage';
 import { DesignSystem } from './DesignSystem';
 import { AppLayout } from './layouts/AppLayout';
 import { DashboardPage } from './features/dashboard/pages/DashboardPage';
+import { DashboardPeriodProvider } from './features/dashboard/context/DashboardPeriodProvider';
 import { ProductsPage } from './features/products/pages/ProductsPage';
 import { ProductDetailPage } from './features/products/pages/ProductDetailPage';
 import { SaleDock } from './features/sales/components/SaleDock';
@@ -28,6 +29,7 @@ import { AllSalesPage } from './features/sales/pages/AllSalesPage';
 import { SaleDetailPage } from './features/sales/pages/SaleDetailPage';
 import { SaleDraftProvider } from './features/sales/state/SaleDraftProvider';
 import { InventoryPage } from './features/inventory/pages/InventoryPage';
+import { InventoryFilterProvider } from './features/inventory/context/InventoryFilterProvider';
 import { BatchesPage } from './features/inventory/pages/BatchesPage';
 import { BatchDetailPage } from './features/inventory/pages/BatchDetailPage';
 import { ProductInventoryDetailPage } from './features/inventory/pages/ProductInventoryDetailPage';
@@ -61,7 +63,11 @@ const router = createBrowserRouter([
           {
             element: (
               <SaleDraftProvider>
-                <AppLayout />
+                <DashboardPeriodProvider>
+                  <InventoryFilterProvider>
+                    <AppLayout />
+                  </InventoryFilterProvider>
+                </DashboardPeriodProvider>
               </SaleDraftProvider>
             ),
             children: [

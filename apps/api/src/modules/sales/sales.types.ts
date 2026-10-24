@@ -4,6 +4,7 @@ import type {
   PaymentStatus,
   RecordPaymentInput,
   SaleDetailResult,
+  SaleListFilters,
   SaleSummaryResult,
   VoidStatus,
 } from '@mez/types';
@@ -33,21 +34,12 @@ export type {
   SaleSummaryResult,
 } from '@mez/types';
 
-/**
- * A sellable unit: the shared unit context plus the price it sells at. The
- * price is what only a sale snapshot reads, which is why it lives here rather
- * than on the shared type.
- */
-export type ProductUnitSellContext = ProductUnitContext & {
-  price: StoredDecimal | null;
-};
-
 export type ProductSellContext = {
   id: string;
   businessId: string;
   name: string;
   currentSealedStock: StoredDecimal;
-  productUnits: ProductUnitSellContext[];
+  productUnits: ProductUnitContext[];
 };
 
 /**
@@ -241,6 +233,23 @@ export type RecordPaymentCommand = {
   payment: ResolvedPayment | null;
 };
 
+/**
+ * The terms a sale-history read is narrowed by, already resolved from the
+ * request filters by the service. The repository maps each term straight onto
+ * its columns; it never interprets a request filter.
+ */
+export type SaleListQuery = {
+  status?: PaymentStatus[];
+  from?: Date;
+  to?: Date;
+  productId?: string;
+  /** Only sales with a payment whose paid-at timestamp is in the range. */
+  paymentFrom?: Date;
+  paymentTo?: Date;
+  /** Only sales that still owe a balance and are not stamped paid. */
+  unpaid?: boolean;
+};
+
 export type SaleRepository = {
   getBusinessSaleConfig(businessId: string): Promise<BusinessSaleConfig | null>;
   getProductSellContext(businessId: string, productIds: string[]): Promise<ProductSellContext[]>;
@@ -251,12 +260,16 @@ export type SaleRepository = {
   getSale(businessId: string, saleId: string): Promise<SaleRecordWithDetail | null>;
   createSale(command: CreateSaleCommand): Promise<SaleRecordWithDetail>;
   recordPayment(command: RecordPaymentCommand): Promise<SaleRecordWithDetail>;
-  listSales(businessId: string, branchId: string): Promise<SaleRecordSummary[]>;
+  listSales(
+    businessId: string,
+    branchId: string,
+    query: SaleListQuery,
+  ): Promise<SaleRecordSummary[]>;
 };
 
 export type SaleService = {
   getSale(actor: Actor, saleId: string): Promise<SaleDetailResult>;
   createSale(actor: Actor, input: CreateSaleInput): Promise<SaleDetailResult>;
   recordPayment(actor: Actor, saleId: string, input: RecordPaymentInput): Promise<SaleDetailResult>;
-  listSales(scope: Scope): Promise<SaleSummaryResult[]>;
+  listSales(scope: Scope, filters: SaleListFilters): Promise<SaleSummaryResult[]>;
 };

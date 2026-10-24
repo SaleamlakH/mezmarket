@@ -3,6 +3,7 @@ import { roundQuantity } from '../../../shared/utils/rounding.js';
 import { sumInventoryTotals } from './totals.js';
 import type {
   ProductInventoryExpiry,
+  ProductInventoryExpiryGroup,
   ProductInventoryStock,
   ProductInventorySummary,
   ProductUnitContext,
@@ -16,12 +17,14 @@ import type { StockBatchLine as StockBatchLineRecord } from '../../../../generat
 export function toProductInventorySummary(
   record: ProductWithStockLinesRecord,
   uploadIds: Map<string, string>,
+  asOf: Date,
   expiryBefore: Date,
 ): ProductInventorySummary {
   return buildProductInventorySummary(
     record,
     record.stockBatchLines,
     uploadIds.get(record.id) ?? null,
+    asOf,
     expiryBefore,
   );
 }
@@ -71,42 +74,72 @@ export function buildProductInventoryStock(
 }
 
 /**
- * The stock header plus the expiry figures the list shows. Both read the lines
- * still holding stock, so the list and the detail describe the same stock.
+ * The stock header plus the expiry groups the list and detail show. Both read
+ * the lines still holding stock, so the two surfaces describe the same stock.
  */
 export function buildProductInventorySummary(
   record: ProductWithStockLinesRecord,
   lines: StockBatchLineRecord[],
   uploadId: string | null,
+  asOf: Date,
   expiryBefore: Date,
 ): ProductInventorySummary {
   return {
     ...buildProductInventoryStock(record, lines, uploadId),
-    expiry: expiryTotalsOf(lines, expiryBefore),
+    expiry: expiryBreakdownOf(lines, asOf, expiryBefore),
+  };
+}
+
+type ExpiryGroupAccumulator = {
+  lotCount: number;
+  quantity: number;
+  earliest: Date | null;
+};
+
+function addExpiryToGroup(group: ExpiryGroupAccumulator, line: StockBatchLineRecord): void {
+  group.lotCount += 1;
+  group.quantity += line.quantityRemaining.toNumber();
+
+  if (line.expiryDate !== null) {
+    if (group.earliest === null || line.expiryDate < group.earliest) {
+      group.earliest = line.expiryDate;
+    }
+  }
+}
+
+function expiryGroupOf(group: ExpiryGroupAccumulator): ProductInventoryExpiryGroup {
+  return {
+    lotCount: group.lotCount,
+    quantity: roundQuantity(group.quantity),
+    earliestExpiryDate: group.earliest?.toISOString() ?? null,
   };
 }
 
 /**
- * The lots still holding stock that expire before the cutoff, and how much is
- * on them in base units. The cutoff is the caller's, so a caller can ask for
- * what is already expired or what will expire by a chosen date.
+ * Splits the remaining stock into lots already past their expiry and lots
+ * expiring by the display cutoff. The groups are disjoint: a lot expiring at
+ * the request instant is `soon`, not `expired`. Lines are expected to hold
+ * remaining stock only.
  */
-export function expiryTotalsOf(
+export function expiryBreakdownOf(
   lines: StockBatchLineRecord[] | StockBatchLineWithBatchRecord[],
+  asOf: Date,
   expiryBefore: Date,
 ): ProductInventoryExpiry {
-  let lotCount = 0;
-  let quantity = 0;
+  const expired: ExpiryGroupAccumulator = { lotCount: 0, quantity: 0, earliest: null };
+  const soon: ExpiryGroupAccumulator = { lotCount: 0, quantity: 0, earliest: null };
 
   for (const line of lines) {
-    if (line.quantityRemaining.toNumber() <= 0) continue;
-    if (line.expiryDate === null || line.expiryDate > expiryBefore) continue;
+    if (line.expiryDate === null) continue;
 
-    lotCount += 1;
-    quantity += line.quantityRemaining.toNumber();
+    if (line.expiryDate < asOf) {
+      addExpiryToGroup(expired, line);
+    } else if (line.expiryDate <= expiryBefore) {
+      addExpiryToGroup(soon, line);
+    }
   }
 
-  return { lotCount, quantity: roundQuantity(quantity) };
+  return { expired: expiryGroupOf(expired), soon: expiryGroupOf(soon) };
 }
 
 /** A product with no threshold set has no level to be low against. */
@@ -115,6 +148,6 @@ export function stockStatusOf(
   lowStockThreshold: number | null,
 ): StockStatus {
   if (currentSealedStock <= 0) return 'OUT_OF_STOCK';
-  if (lowStockThreshold !== null && currentSealedStock < lowStockThreshold) return 'LOW_STOCK';
+  if (lowStockThreshold !== null && currentSealedStock <= lowStockThreshold) return 'LOW_STOCK';
   return 'IN_STOCK';
 }

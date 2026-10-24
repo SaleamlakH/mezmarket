@@ -143,6 +143,7 @@ describe('batches.repository', () => {
                 dependsOn: true,
                 conversionRate: true,
                 purchaseCapable: true,
+                price: true,
                 standardUnit: { select: { id: true, name: true, symbol: true } },
               }),
             },
@@ -451,12 +452,90 @@ describe('batches.repository', () => {
       const repo = createBatchRepository(prisma);
       product.findMany.mockResolvedValue([]);
 
-      await repo.listProductsWithStockLines('b-1', 'br-1');
+      await repo.listProductsWithStockLines('b-1', 'br-1', { active: true });
 
       // The exact call also pins that no `select` is passed, so the summary is
       // worked out from whole rows.
       expect(product.findMany).toHaveBeenCalledWith({
         where: { businessId: 'b-1', branchId: 'br-1', active: true },
+        include: INVENTORY_INCLUDE,
+        orderBy: { name: 'asc' },
+      });
+    });
+
+    it('reads only the inactive products when inactive is asked for', async () => {
+      const { prisma, product } = createPrismaStub();
+      const repo = createBatchRepository(prisma);
+      product.findMany.mockResolvedValue([]);
+
+      await repo.listProductsWithStockLines('b-1', 'br-1', { active: false });
+
+      expect(product.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { businessId: 'b-1', branchId: 'br-1', active: false },
+        }),
+      );
+    });
+
+    it('drops the active predicate when every product is asked for', async () => {
+      const { prisma, product } = createPrismaStub();
+      const repo = createBatchRepository(prisma);
+      product.findMany.mockResolvedValue([]);
+
+      await repo.listProductsWithStockLines('b-1', 'br-1', {});
+
+      expect(product.findMany).toHaveBeenCalledWith({
+        where: { businessId: 'b-1', branchId: 'br-1' },
+        include: INVENTORY_INCLUDE,
+        orderBy: { name: 'asc' },
+      });
+    });
+
+    it('filters stock lines by an exclusive upper expiry bound', async () => {
+      const { prisma, product } = createPrismaStub();
+      const repo = createBatchRepository(prisma);
+      const to = new Date('2026-06-01T00:00:00.000Z');
+      product.findMany.mockResolvedValue([]);
+
+      await repo.listProductsWithStockLines('b-1', 'br-1', { active: true, to });
+
+      expect(product.findMany).toHaveBeenCalledWith({
+        where: {
+          businessId: 'b-1',
+          branchId: 'br-1',
+          active: true,
+          stockBatchLines: {
+            some: {
+              quantityRemaining: { gt: 0 },
+              expiryDate: { lt: to },
+            },
+          },
+        },
+        include: INVENTORY_INCLUDE,
+        orderBy: { name: 'asc' },
+      });
+    });
+
+    it('filters stock lines by inclusive lower and exclusive upper bounds', async () => {
+      const { prisma, product } = createPrismaStub();
+      const repo = createBatchRepository(prisma);
+      const from = new Date('2026-06-01T00:00:00.000Z');
+      const to = new Date('2026-07-01T00:00:00.000Z');
+      product.findMany.mockResolvedValue([]);
+
+      await repo.listProductsWithStockLines('b-1', 'br-1', { from, to });
+
+      expect(product.findMany).toHaveBeenCalledWith({
+        where: {
+          businessId: 'b-1',
+          branchId: 'br-1',
+          stockBatchLines: {
+            some: {
+              quantityRemaining: { gt: 0 },
+              expiryDate: { gte: from, lt: to },
+            },
+          },
+        },
         include: INVENTORY_INCLUDE,
         orderBy: { name: 'asc' },
       });
@@ -471,7 +550,7 @@ describe('batches.repository', () => {
       ];
       product.findMany.mockResolvedValue(rows as never);
 
-      const result = await repo.listProductsWithStockLines('b-1', 'br-1');
+      const result = await repo.listProductsWithStockLines('b-1', 'br-1', { active: true });
 
       expect(result).toEqual(rows);
       expect(attachment.findMany).not.toHaveBeenCalled();

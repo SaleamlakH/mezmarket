@@ -6,6 +6,7 @@ import type {
   BusinessResponse,
   CreateBatchInput,
   ProductInventoryDetailResponse,
+  ProductInventoryListFilters,
   StockBatchDetailResponse,
 } from '@mez/types';
 import type { BusinessContextValue } from '@/providers/business/types';
@@ -163,18 +164,22 @@ describe('useInventoryApi', () => {
       expect(queryClient.getQueryData(inventoryKeys.inventoryProducts('b1'))).toEqual(products);
     });
 
-    it('asks for the summary against the caller cutoff', async () => {
-      const expiryBefore = new Date('2026-10-24T00:00:00.000Z');
+    it('passes the filters to the service and keys them', async () => {
+      const filters: ProductInventoryListFilters = {
+        status: 'all',
+        expiryStatus: ['soon'],
+        expiryBefore: new Date('2026-10-24T00:00:00.000Z'),
+      };
       vi.mocked(inventoryService.getInventoryProducts).mockResolvedValue(products);
 
-      const { result } = renderHook(() => useInventoryProducts(expiryBefore), { wrapper });
+      const { result } = renderHook(() => useInventoryProducts(filters), { wrapper });
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-      expect(inventoryService.getInventoryProducts).toHaveBeenCalledWith('b1', expiryBefore);
-      expect(
-        queryClient.getQueryData(inventoryKeys.inventoryProducts('b1', expiryBefore.toISOString())),
-      ).toEqual(products);
+      expect(inventoryService.getInventoryProducts).toHaveBeenCalledWith('b1', filters);
+      expect(queryClient.getQueryData(inventoryKeys.inventoryProducts('b1', filters))).toEqual(
+        products,
+      );
     });
 
     it('stays idle without a selected business', () => {
@@ -196,34 +201,11 @@ describe('useInventoryApi', () => {
       expect(result.current.isPending).toBe(true);
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-      expect(inventoryService.getInventoryProduct).toHaveBeenCalledWith('b1', 'prod_1', undefined);
+      expect(inventoryService.getInventoryProduct).toHaveBeenCalledWith('b1', 'prod_1');
       expect(result.current.data).toEqual(detail);
       expect(queryClient.getQueryData(inventoryKeys.inventoryProduct('b1', 'prod_1'))).toEqual(
         detail,
       );
-    });
-
-    it('asks for expiry against the caller cutoff', async () => {
-      const detail = productInventoryDetail as ProductInventoryDetailResponse;
-      const expiryBefore = new Date('2026-10-24T00:00:00.000Z');
-      vi.mocked(inventoryService.getInventoryProduct).mockResolvedValue(detail);
-
-      const { result } = renderHook(() => useProductInventoryDetail('prod_1', expiryBefore), {
-        wrapper,
-      });
-
-      await waitFor(() => expect(result.current.isSuccess).toBe(true));
-
-      expect(inventoryService.getInventoryProduct).toHaveBeenCalledWith(
-        'b1',
-        'prod_1',
-        expiryBefore,
-      );
-      expect(
-        queryClient.getQueryData(
-          inventoryKeys.inventoryProduct('b1', 'prod_1', expiryBefore.toISOString()),
-        ),
-      ).toEqual(detail);
     });
 
     it('stays idle without a selected business', () => {
@@ -256,7 +238,9 @@ describe('useInventoryApi', () => {
       expect(inventoryService.createBatch).toHaveBeenCalledWith('b1', createInput);
       await waitFor(() => expect(result.current.data).toEqual(created));
       expect(invalidate).toHaveBeenCalledWith({ queryKey: inventoryKeys.batches('b1') });
-      expect(invalidate).toHaveBeenCalledWith({ queryKey: inventoryKeys.inventoryProducts('b1') });
+      expect(invalidate).toHaveBeenCalledWith({
+        queryKey: inventoryKeys.inventoryProductsRoot('b1'),
+      });
       expect(invalidate).toHaveBeenCalledWith({ queryKey: catalogKeys.products('b1') });
     });
 

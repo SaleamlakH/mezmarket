@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { ClipboardList, Package, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { Button } from '@/components/Button';
@@ -13,13 +13,14 @@ import { useProductUploadUrls } from '@/hooks/useProductUploadUrls';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
 import { AddBatchSheet } from '../components/AddBatchSheet';
 import { BatchSummaryCard } from '../components/BatchSummaryCard';
+import { ProductStockFilters } from '../components/ProductStockFilters';
 import { ProductStockList } from '../components/ProductStockList';
 import { useCurrency } from '@/hooks/useCurrency';
+import { useInventoryFilterContext } from '../context/useInventoryFilterContext';
 import { useInventoryBatches, useInventoryProducts } from '../hooks/useInventoryApi';
-import { expiryCutoff } from '../lib/productExpiry';
 
 export function InventoryPage() {
-  const expiryBefore = useMemo(() => expiryCutoff(new Date()), []);
+  const { filters, activeKind, selectFilter } = useInventoryFilterContext();
   const {
     isPending: batchesPending,
     isError: batchesError,
@@ -31,7 +32,7 @@ export function InventoryPage() {
     isError: productsError,
     refetch: refetchProducts,
     data: products = [],
-  } = useInventoryProducts(expiryBefore);
+  } = useInventoryProducts(filters);
   const currency = useCurrency();
   const navigate = useNavigate();
   const forwardState = useForwardNavigationState();
@@ -90,6 +91,10 @@ export function InventoryPage() {
 
       <SectionHeader icon={<Package size={14} aria-hidden />} title="Products" />
 
+      <div className="mt-2 mb-3">
+        <ProductStockFilters activeKind={activeKind} onSelect={selectFilter} />
+      </div>
+
       {productsPending ? (
         <LoadingState label="Loading products…" />
       ) : productsError ? (
@@ -99,17 +104,28 @@ export function InventoryPage() {
           onRetry={() => void refetchProducts()}
         />
       ) : products.length === 0 ? (
-        <EmptyState
-          title="No products yet"
-          description="Products you add to the catalog will show their stock here."
-        />
+        activeKind === 'all' ? (
+          <EmptyState
+            title="No products yet"
+            description="Products you add to the catalog will show their stock here."
+          />
+        ) : (
+          <EmptyState
+            title="No products match this filter"
+            description="Try another filter to see more of your stock."
+            action={
+              <Button type="button" variant="secondary" onClick={() => selectFilter('all')}>
+                Show all
+              </Button>
+            }
+          />
+        )
       ) : (
         <ProductStockList
           products={products}
           currency={currency}
           businessId={businessId}
           uploadUrls={uploadUrls}
-          expiryBefore={expiryBefore}
         />
       )}
 

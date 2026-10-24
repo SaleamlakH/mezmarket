@@ -23,6 +23,7 @@ function unit(overrides: Partial<ProductUnitContext> = {}): ProductUnitContext {
     conversionRate: null,
     purchaseCapable: true,
     sellCapable: false,
+    price: null,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
     ...overrides,
@@ -30,30 +31,29 @@ function unit(overrides: Partial<ProductUnitContext> = {}): ProductUnitContext {
 }
 
 /** A product selling by the bottle, bought by the liter. */
-const TEQUILA_UNITS: ProductUnitContext[] = [
-  unit({ id: 'pu-bottle', productId: 'p-tequila' }),
-  unit({
-    id: 'pu-ml',
-    productId: 'p-tequila',
-    unitRole: 'MOU',
-    standardUnitId: 'su-ml',
-    standardUnit: { id: 'su-ml', name: 'Milliliter', symbol: 'ml' },
-    name: 'Milliliter',
-    dependsOn: 'BASE',
-    conversionRate: decimal(350),
-    purchaseCapable: false,
-  }),
-  unit({
-    id: 'pu-liter',
-    productId: 'p-tequila',
-    unitRole: 'STANDARD',
-    standardUnitId: 'su-l',
-    standardUnit: { id: 'su-l', name: 'Liter', symbol: 'L' },
-    name: 'Liter',
-    dependsOn: 'MOU',
-    conversionRate: decimal(1000),
-  }),
-];
+const BOTTLE = unit({ id: 'pu-bottle', productId: 'p-tequila' });
+const ML = unit({
+  id: 'pu-ml',
+  productId: 'p-tequila',
+  unitRole: 'MOU',
+  standardUnitId: 'su-ml',
+  standardUnit: { id: 'su-ml', name: 'Milliliter', symbol: 'ml' },
+  name: 'Milliliter',
+  dependsOn: 'BASE',
+  conversionRate: decimal(350),
+  purchaseCapable: false,
+});
+const LITER = unit({
+  id: 'pu-liter',
+  productId: 'p-tequila',
+  unitRole: 'STANDARD',
+  standardUnitId: 'su-l',
+  standardUnit: { id: 'su-l', name: 'Liter', symbol: 'L' },
+  name: 'Liter',
+  dependsOn: 'MOU',
+  conversionRate: decimal(1000),
+});
+const TEQUILA_UNITS: ProductUnitContext[] = [BOTTLE, ML, LITER];
 
 function line(overrides: Partial<StockBatchLineRecord> = {}): StockBatchLineRecord {
   return {
@@ -84,7 +84,7 @@ describe('remainingCostOf', () => {
         purchaseUnitCost: decimal(2000),
         quantityRemaining: decimal(5),
       }),
-      TEQUILA_UNITS,
+      { sourceUnit: LITER, sourceBaseUnit: BOTTLE, mouUnit: ML },
     );
 
     // 7 L bought at 2000 = 14000 spread over 20 bottles (7 x 1000 ml / 350 ml);
@@ -94,11 +94,23 @@ describe('remainingCostOf', () => {
   });
 
   it('returns nothing for a line whose purchased unit is not in the product units', () => {
-    expect(remainingCostOf(line({ productUnitId: 'pu-retired' }), TEQUILA_UNITS)).toBe(0);
+    expect(
+      remainingCostOf(line({ productUnitId: 'pu-retired' }), {
+        sourceUnit: null,
+        sourceBaseUnit: BOTTLE,
+        mouUnit: ML,
+      }),
+    ).toBe(0);
   });
 
   it('returns nothing for a line that bought no base quantity', () => {
-    expect(remainingCostOf(line({ purchaseQuantity: decimal(0) }), TEQUILA_UNITS)).toBe(0);
+    expect(
+      remainingCostOf(line({ purchaseQuantity: decimal(0) }), {
+        sourceUnit: BOTTLE,
+        sourceBaseUnit: BOTTLE,
+        mouUnit: ML,
+      }),
+    ).toBe(0);
   });
 });
 
@@ -111,7 +123,7 @@ describe('remainingPurchaseQuantityOf', () => {
         purchaseUnitCost: decimal(2000),
         quantityRemaining: decimal(5),
       }),
-      TEQUILA_UNITS,
+      { sourceUnit: LITER, sourceBaseUnit: BOTTLE, mouUnit: ML },
     );
 
     // 7 L bought over 20 bottles; the 5 bottles still sellable keep 7 x (5 / 20).
@@ -119,15 +131,23 @@ describe('remainingPurchaseQuantityOf', () => {
   });
 
   it('returns nothing for a line whose purchased unit is not in the product units', () => {
-    expect(remainingPurchaseQuantityOf(line({ productUnitId: 'pu-retired' }), TEQUILA_UNITS)).toBe(
-      0,
-    );
+    expect(
+      remainingPurchaseQuantityOf(line({ productUnitId: 'pu-retired' }), {
+        sourceUnit: null,
+        sourceBaseUnit: BOTTLE,
+        mouUnit: ML,
+      }),
+    ).toBe(0);
   });
 
   it('returns nothing for a line that bought no base quantity', () => {
-    expect(remainingPurchaseQuantityOf(line({ purchaseQuantity: decimal(0) }), TEQUILA_UNITS)).toBe(
-      0,
-    );
+    expect(
+      remainingPurchaseQuantityOf(line({ purchaseQuantity: decimal(0) }), {
+        sourceUnit: BOTTLE,
+        sourceBaseUnit: BOTTLE,
+        mouUnit: ML,
+      }),
+    ).toBe(0);
   });
 });
 

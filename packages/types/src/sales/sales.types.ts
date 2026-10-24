@@ -165,6 +165,14 @@ export type SaleSummaryResponse = Pick<
   servedBy: BusinessMemberSummaryResponse | null;
   /** Inline summary of the attached customer; deliberately not a named type. */
   customer: { id: string; name: string } | null;
+  /**
+   * Optional so the shared base keeps compiling against the existing api
+   * mapper. The API always populates these three for the dashboard
+   * drill-downs.
+   */
+  taxAmount?: number;
+  amountPaid?: number;
+  balanceDue?: number;
 };
 
 /**
@@ -183,6 +191,14 @@ export type SaleSummaryResult = Pick<
   servedBy: BusinessMemberSummaryResponse | null;
   /** Inline summary of the attached customer; deliberately not a named type. */
   customer: { id: string; name: string } | null;
+  /**
+   * Optional so the shared base keeps compiling against the existing api
+   * mapper. The API always populates these three for the dashboard
+   * drill-downs.
+   */
+  taxAmount?: number;
+  amountPaid?: number;
+  balanceDue?: number;
 };
 
 /**
@@ -249,12 +265,30 @@ export type RefundSaleResponse = SaleDetailResponse;
  * Filters a sale-history request may carry.
  */
 export interface SaleListFilters {
-  status?: PaymentStatus;
-  /** ISO 8601 instant lower bound, inclusive. */
+  /** Restricts to sales whose payment status is any of the given statuses. */
+  status?: PaymentStatus[];
+  /**
+   * ISO 8601 instant lower bound on the sale datetime, inclusive for this
+   * endpoint. Also inclusive of the upper bound `to`.
+   */
   from?: string;
-  /** ISO 8601 instant upper bound, inclusive. */
+  /** ISO 8601 instant upper bound on the sale datetime, inclusive. */
   to?: string;
   productId?: string;
+  /**
+   * ISO 8601 instant lower bound on a payment's paid-at timestamp, inclusive.
+   * A sale matches when it has at least one payment in the range.
+   */
+  paymentFrom?: string;
+  /** ISO 8601 instant upper bound on a payment's paid-at timestamp, inclusive. */
+  paymentTo?: string;
+  /** Restricts to sales that still owe a balance and are not stamped paid. */
+  unpaid?: boolean;
+  /**
+   * Restricts to unpaid sales whose balance has aged past the overdue cutoff.
+   * `overdue` implies `unpaid`.
+   */
+  overdue?: boolean;
 }
 
 /**

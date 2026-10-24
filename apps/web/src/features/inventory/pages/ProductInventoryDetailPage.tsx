@@ -1,18 +1,18 @@
 import { useMemo } from 'react';
 import { Link, useParams } from 'react-router';
 import { ChevronLeft } from 'lucide-react';
+import { Banner } from '@/components/Banner';
 import { LoadingState } from '@/components/LoadingState';
 import { ErrorState } from '@/components/ErrorState';
 import { Button } from '@/components';
 import { useCurrency } from '@/hooks/useCurrency';
 import { INVENTORY_PATH } from '@/layouts/navigation';
 import { useBackNavigation } from '@/layouts/useNavigationHistory';
-import { pluralize } from '@/lib/format';
+import { formatQuantity, pluralize } from '@/lib/format';
 import { useProductInventoryDetail } from '../hooks/useInventoryApi';
 import { groupLinesByUnit } from '../lib/groupLinesByUnit';
-import { expiryAlertTotals, expiryCutoff } from '../lib/productExpiry';
+import { expiryCutoff } from '../lib/productExpiry';
 import { ProductInventoryMetrics } from '../components/ProductInventoryMetrics';
-import { ProductInventoryExpiryAlert } from '../components/ProductInventoryExpiryAlert';
 import { ProductInventoryStockByUnit } from '../components/ProductInventoryStockByUnit';
 import { ProductInventoryBatchList } from '../components/ProductInventoryBatchList';
 
@@ -21,12 +21,7 @@ export function ProductInventoryDetailPage() {
   const currency = useCurrency();
   const now = useMemo(() => new Date(), []);
   const expiryBefore = useMemo(() => expiryCutoff(now), [now]);
-  const {
-    data: product,
-    isPending,
-    isError,
-    refetch,
-  } = useProductInventoryDetail(productId, expiryBefore);
+  const { data: product, isPending, isError, refetch } = useProductInventoryDetail(productId);
 
   // Where the product was opened from, so Back returns there; deep links fall
   // back to the inventory list.
@@ -54,7 +49,10 @@ export function ProductInventoryDetailPage() {
 
   const lines = product.batches.flatMap((batch) => batch.lines);
   const unitGroups = groupLinesByUnit(product.batches);
-  const alertTotals = expiryAlertTotals(lines, now);
+  const expired = product.expiry.expired;
+  const expiredSummary = `${formatQuantity(expired.quantity)} ${
+    product.baseUnitLabel
+  } across ${expired.lotCount} ${pluralize(expired.lotCount, 'lot')}`;
 
   return (
     <div className="mx-auto max-w-5xl pt-3 pb-6 md:px-6 md:pt-6">
@@ -84,13 +82,9 @@ export function ProductInventoryDetailPage() {
         />
       </div>
 
-      {(alertTotals.expiredQuantity > 0 || alertTotals.soonQuantity > 0) && (
-        <div className="mt-3">
-          <ProductInventoryExpiryAlert
-            totals={alertTotals}
-            baseUnitLabel={product.baseUnitLabel}
-            expiryBefore={expiryBefore}
-          />
+      {expired.lotCount > 0 && (
+        <div className="mt-2.5 md:mt-3">
+          <Banner tone="danger" title="Expired" description={expiredSummary} />
         </div>
       )}
 
