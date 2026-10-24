@@ -1,7 +1,8 @@
-import { Link, useParams } from 'react-router';
-import { ChevronLeft } from 'lucide-react';
+import { useParams } from 'react-router';
 import { LoadingState } from '@/components/LoadingState';
 import { ErrorState } from '@/components/ErrorState';
+import { PageHeader } from '@/components/PageHeader';
+import { PageShell } from '@/components/PageShell';
 import { useCurrency } from '@/hooks/useCurrency';
 import { SALES_PATH } from '@/layouts/navigation';
 import { useBackNavigation } from '@/layouts/useNavigationHistory';
@@ -9,7 +10,6 @@ import { useSaleDetail } from '../hooks/useSalesApi';
 import { SaleDetailCustomerSection } from '../components/SaleDetailCustomerSection';
 import { SaleDetailPurchaseSection } from '../components/SaleDetailPurchaseSection';
 import { SaleDetailSummaryCard } from '../components/SaleDetailSummaryCard';
-import { Button } from '@/components';
 
 export function SaleDetailPage() {
   const { saleId } = useParams<{ saleId: string }>();
@@ -22,45 +22,36 @@ export function SaleDetailPage() {
 
   if (isPending) {
     return (
-      <div className="mx-auto max-w-6xl px-3 py-4">
+      <PageShell>
+        <PageHeader title="Sale" subtitle="Sales" backTo={back.to} backState={back.state} />
         <LoadingState label="Loading sale…" />
-      </div>
+      </PageShell>
     );
   }
 
   if (isError || !sale) {
     return (
-      <div className="mx-auto max-w-6xl px-3 py-4">
+      <PageShell>
+        <PageHeader title="Sale" subtitle="Sales" backTo={back.to} backState={back.state} />
         <ErrorState
           title="Could not load sale"
           description="Something went wrong while fetching this sale."
           onRetry={() => void refetch()}
         />
-      </div>
+      </PageShell>
     );
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-3 pt-3 pb-6 md:px-6 md:pt-6">
-      <header className="flex items-center gap-2.5">
-        <Link to={back.to} state={back.state} aria-label="Back" title="Back">
-          <Button variant="secondary" size="sm" shape="pill">
-            <ChevronLeft aria-hidden className="h-5 w-5" />
-          </Button>
-        </Link>
-        <nav
-          aria-label="Breadcrumb"
-          className="min-w-0 truncate text-xl font-bold text-(--text) md:text-2xl"
-        >
-          <Link to={SALES_PATH} className="hover:underline">
-            Sales
-          </Link>
-          <span className="mx-1 text-(--text-muted)">/</span>
-          <span>#{sale.invoiceNumber}</span>
-        </nav>
-      </header>
+    <PageShell>
+      <PageHeader
+        title={`#${sale.invoiceNumber}`}
+        subtitle="Sale"
+        backTo={back.to}
+        backState={back.state}
+      />
 
-      <div className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_360px] md:items-start md:gap-6">
+      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_360px] md:items-start md:gap-6">
         <aside className="md:order-2">
           <SaleDetailSummaryCard sale={sale} currency={currency} />
         </aside>
@@ -75,6 +66,6 @@ export function SaleDetailPage() {
           <SaleDetailCustomerSection sale={sale} card />
         </div>
       </div>
-    </div>
+    </PageShell>
   );
 }

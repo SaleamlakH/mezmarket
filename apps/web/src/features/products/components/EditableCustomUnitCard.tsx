@@ -17,8 +17,8 @@ import {
   type CustomUnitsFormOutput,
   type CustomUnitsFormValues,
 } from '../hooks/useCustomUnitsForm';
-import { SectionCard } from './SectionCard';
-import { SectionFooter } from './SectionFooter';
+import { SectionCard } from '@/components/SectionCard';
+import { SectionFooter } from '@/components/SectionFooter';
 import { ROLE_LABELS } from './unitRoleLabels';
 
 interface EditableCustomUnitCardProps {

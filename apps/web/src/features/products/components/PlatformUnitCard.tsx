@@ -6,8 +6,8 @@ import { Button } from '@/components/Button';
 import { Field } from '@/components/Field';
 import { Input } from '@/components/Input';
 import { usePlatformUnitsForm, type PlatformUnitsFormValues } from '../hooks/usePlatformUnitsForm';
-import { SectionCard } from './SectionCard';
-import { SectionFooter } from './SectionFooter';
+import { SectionCard } from '@/components/SectionCard';
+import { SectionFooter } from '@/components/SectionFooter';
 import { ROLE_LABELS } from './unitRoleLabels';
 
 interface PlatformUnitCardProps {

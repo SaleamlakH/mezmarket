@@ -1,8 +1,8 @@
-import { Link, useParams } from 'react-router';
-import { ChevronLeft } from 'lucide-react';
+import { useParams } from 'react-router';
 import { LoadingState } from '@/components/LoadingState';
 import { ErrorState } from '@/components/ErrorState';
-import { Button } from '@/components';
+import { PageHeader } from '@/components/PageHeader';
+import { PageShell } from '@/components/PageShell';
 import { useCurrency } from '@/hooks/useCurrency';
 import { BATCHES_PATH } from '@/layouts/navigation';
 import { useBackNavigation } from '@/layouts/useNavigationHistory';
@@ -22,45 +22,36 @@ export function BatchDetailPage() {
 
   if (isPending) {
     return (
-      <div className="mx-auto max-w-6xl px-3 py-4">
+      <PageShell>
+        <PageHeader title="Batch" subtitle="Inventory" backTo={back.to} backState={back.state} />
         <LoadingState label="Loading batch…" />
-      </div>
+      </PageShell>
     );
   }
 
   if (isError || !batch) {
     return (
-      <div className="mx-auto max-w-6xl px-3 py-4">
+      <PageShell>
+        <PageHeader title="Batch" subtitle="Inventory" backTo={back.to} backState={back.state} />
         <ErrorState
           title="Could not load batch"
           description="Something went wrong while fetching this batch."
           onRetry={() => void refetch()}
         />
-      </div>
+      </PageShell>
     );
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-3 pt-3 pb-6 md:px-6 md:pt-6">
-      <header className="flex items-center gap-2.5">
-        <Link to={back.to} state={back.state} aria-label="Back" title="Back">
-          <Button variant="secondary" size="sm" shape="pill">
-            <ChevronLeft aria-hidden className="h-5 w-5" />
-          </Button>
-        </Link>
-        <nav
-          aria-label="Breadcrumb"
-          className="min-w-0 truncate text-xl font-bold text-(--text) md:text-2xl"
-        >
-          <Link to={BATCHES_PATH} className="hover:underline">
-            Batches
-          </Link>
-          <span className="mx-1 text-(--text-muted)">/</span>
-          <span>{batch.referenceNumber ?? formatDate(batch.batchDate)}</span>
-        </nav>
-      </header>
+    <PageShell>
+      <PageHeader
+        title={batch.referenceNumber ?? formatDate(batch.batchDate)}
+        subtitle="Stock batch"
+        backTo={back.to}
+        backState={back.state}
+      />
 
-      <div className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_360px] md:items-start md:gap-6">
+      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_360px] md:items-start md:gap-6">
         <aside className="md:order-2">
           <BatchDetailSummaryCard batch={batch} currency={currency} />
         </aside>
@@ -71,6 +62,6 @@ export function BatchDetailPage() {
           </div>
         </div>
       </div>
-    </div>
+    </PageShell>
   );
 }

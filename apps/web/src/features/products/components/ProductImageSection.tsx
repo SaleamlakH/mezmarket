@@ -5,8 +5,8 @@ import { UPLOAD_MIME_TYPES } from '@mez/validation';
 import { Button } from '@/components/Button';
 import { useProductImage } from '@/hooks/useProductImage';
 import { useProductImageForm } from '../hooks/useProductImageForm';
-import { SectionCard } from './SectionCard';
-import { SectionFooter } from './SectionFooter';
+import { SectionCard } from '@/components/SectionCard';
+import { SectionFooter } from '@/components/SectionFooter';
 
 interface ProductImageSectionProps {
   businessId: string;
