@@ -5,6 +5,8 @@ import type { CreateProductResponse, ProductSummaryResponse } from '@mez/types';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { Loader } from '@/components/Loader';
+import { PageHeader } from '@/components/PageHeader';
+import { PageShell } from '@/components/PageShell';
 import { Toast } from '@/components/Toast';
 import { useProductUploadUrls } from '@/hooks/useProductUploadUrls';
 import { pluralize } from '@/lib/format';
@@ -58,23 +60,23 @@ export function ProductsPage() {
   const products = data ?? [];
 
   return (
-    <div className="mx-auto w-full max-w-4xl">
-      <div className="mb-4 mt-2 flex items-end justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="m-0 text-2xl font-bold tracking-tight text-(--text)">Products</h1>
-          {data && (
-            <p className="m-0 mt-0.5 text-[12px] text-(--text-muted)">
-              {products.length > 0
-                ? `${products.length} ${pluralize(products.length, 'product')}`
-                : 'Your product catalog'}
-            </p>
-          )}
-        </div>
-        <Button onClick={() => setDialogOpen(true)} className="shrink-0">
-          <Plus size={16} aria-hidden />
-          Add product
-        </Button>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Products"
+        subtitle={
+          data
+            ? products.length > 0
+              ? `${products.length} ${pluralize(products.length, 'product')}`
+              : 'Your product catalog'
+            : undefined
+        }
+        actions={
+          <Button onClick={() => setDialogOpen(true)} className="shrink-0">
+            <Plus size={16} aria-hidden />
+            Add product
+          </Button>
+        }
+      />
 
       {!businessId || isLoading ? (
         <div role="status" aria-live="polite" className="flex flex-col items-center gap-2 py-16">
@@ -134,6 +136,6 @@ export function ProductsPage() {
           onDismiss={() => setSuccessMessage(null)}
         />
       )}
-    </div>
+    </PageShell>
   );
 }

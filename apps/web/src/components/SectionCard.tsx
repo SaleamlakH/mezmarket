@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Pencil } from 'lucide-react';
 import { Button } from '@/components/Button';
 
-interface SectionCardProps {
+export interface SectionCardProps {
   title: string;
   subtitle?: string;
   editing: boolean;
@@ -14,7 +14,7 @@ interface SectionCardProps {
 
 /**
  * A titled panel with an optional Edit affordance and a slot for a primary action,
- * used for every editable block on the product detail page.
+ * used for every editable block on a detail page.
  */
 export function SectionCard({
   title,

@@ -1,3 +1,5 @@
+import { PageHeader } from '@/components/PageHeader';
+import { PageShell } from '@/components/PageShell';
 import { useForwardNavigationState } from '@/layouts/useNavigationHistory';
 import { DevPreviewControls } from '../components/DevPreviewControls';
 import { NeedsAttentionSection } from '../components/NeedsAttentionSection';
@@ -16,16 +18,18 @@ export function DashboardPage() {
   const preview = useDashboardPreview();
 
   return (
-    <div className="mx-auto w-full max-w-6xl pb-4">
-      <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3 md:items-center">
-        <h1 className="m-0 text-2xl font-bold tracking-tight text-(--text)">Dashboard</h1>
-        <PeriodFilter
-          period={period}
-          customRange={customRange}
-          onPeriodChange={selectPeriod}
-          onCustomRangeChange={setCustomRange}
-        />
-      </header>
+    <PageShell>
+      <PageHeader
+        title="Dashboard"
+        actions={
+          <PeriodFilter
+            period={period}
+            customRange={customRange}
+            onPeriodChange={selectPeriod}
+            onCustomRangeChange={setCustomRange}
+          />
+        }
+      />
 
       {import.meta.env.DEV && <DevPreviewControls preview={preview} />}
 
@@ -57,6 +61,6 @@ export function DashboardPage() {
           <PaymentMethodsSection period={range} previewContext={preview} />
         </div>
       </div>
-    </div>
+    </PageShell>
   );
 }

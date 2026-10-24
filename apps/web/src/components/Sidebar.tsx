@@ -1,12 +1,15 @@
-import { NavLink } from 'react-router';
-import { Settings } from 'lucide-react';
+import { Link, NavLink } from 'react-router';
+import { Settings, Store } from 'lucide-react';
 import { Brand } from '@/components/Brand';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { useBusinessContext } from '@/providers/business/useBusinessContext';
 import type { CSSProperties } from 'react';
 import type { NavTab } from '@/layouts/navigation';
 
 interface SidebarProps {
   tabs: NavTab[];
   settingsPath: string;
+  businessPath: string;
   sidebarWidthStyle: CSSProperties;
 }
 
@@ -18,7 +21,9 @@ function tabClass({ isActive }: { isActive: boolean }) {
   }`;
 }
 
-export function Sidebar({ tabs, settingsPath, sidebarWidthStyle }: SidebarProps) {
+export function Sidebar({ tabs, settingsPath, businessPath, sidebarWidthStyle }: SidebarProps) {
+  const { currentBusiness } = useBusinessContext();
+
   return (
     <aside
       aria-label="Primary"
@@ -28,6 +33,24 @@ export function Sidebar({ tabs, settingsPath, sidebarWidthStyle }: SidebarProps)
       <div className="px-2">
         <Brand />
       </div>
+
+      {currentBusiness && (
+        <Link
+          to={businessPath}
+          title={currentBusiness.name}
+          className="focus-ring mt-3 flex items-center gap-2 rounded-lg border border-(--border) bg-(--surface-secondary) px-3 py-2 transition-colors hover:border-(--accent)"
+        >
+          <Store size={15} aria-hidden className="shrink-0 text-(--text-muted)" />
+          <span className="min-w-0">
+            <span className="block text-[10px] font-semibold tracking-[0.08em] uppercase text-(--text-muted)">
+              Business
+            </span>
+            <span className="block truncate text-sm font-semibold text-(--text)">
+              {currentBusiness.name}
+            </span>
+          </span>
+        </Link>
+      )}
 
       <nav aria-label="Primary" className="mt-8 flex flex-col gap-1">
         {tabs.map((tab) => (
@@ -39,6 +62,8 @@ export function Sidebar({ tabs, settingsPath, sidebarWidthStyle }: SidebarProps)
       </nav>
 
       <div className="mt-auto border-t border-(--border) pt-4">
+        <ThemeToggle variant="nav" />
+
         <NavLink to={settingsPath} className={tabClass}>
           <span className="h-5 w-5">
             <Settings aria-hidden />

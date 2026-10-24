@@ -1,12 +1,14 @@
 import { Button } from '@/components/Button';
 
-interface SectionFooterProps {
+export interface SectionFooterProps {
   editing: boolean;
   isDirty: boolean;
   isSaving: boolean;
   error: string | null;
-  onSave: () => unknown;
+  onSave?: () => unknown;
   onCancel: () => void;
+  /** Submit through a surrounding form instead of calling `onSave`. */
+  submit?: boolean;
 }
 
 /**
@@ -20,6 +22,7 @@ export function SectionFooter({
   error,
   onSave,
   onCancel,
+  submit = false,
 }: SectionFooterProps) {
   if (!editing) return null;
 
@@ -35,11 +38,11 @@ export function SectionFooter({
           Cancel
         </Button>
         <Button
-          type="button"
+          type={submit ? 'submit' : 'button'}
           size="lg"
           isLoading={isSaving}
           disabled={!isDirty && !isSaving}
-          onClick={() => void onSave()}
+          {...(submit ? {} : { onClick: () => void onSave?.() })}
         >
           Save
         </Button>

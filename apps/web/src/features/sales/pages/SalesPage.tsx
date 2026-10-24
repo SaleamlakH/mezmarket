@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState } from '@/components/ErrorState';
 import { LoadingState } from '@/components/LoadingState';
+import { PageHeader } from '@/components/PageHeader';
+import { PageShell } from '@/components/PageShell';
 import { SectionHeader } from '@/components/SectionHeader';
 import { SALES_ALL_PATH } from '@/layouts/navigation';
 import { useForwardNavigationState } from '@/layouts/useNavigationHistory';
@@ -36,11 +38,9 @@ export function SalesPage() {
   const [isReviewOpen, setIsReviewOpen] = useState(false);
 
   return (
-    <div className={`mx-auto max-w-7xl ${hasLines ? 'pb-28 md:pb-4' : 'pb-4'}`}>
+    <PageShell className={hasLines ? 'max-w-6xl pb-28 md:pb-4' : 'max-w-6xl pb-4'}>
       <div className="min-w-0">
-        <div className="pt-1">
-          <h2 className="m-0 text-lg font-bold text-(--text)">Sales</h2>
-        </div>
+        <PageHeader title="Sales" />
 
         <SectionHeader
           icon={<ShoppingCart size={14} aria-hidden />}
@@ -112,6 +112,6 @@ export function SalesPage() {
         businessId={businessId}
         uploadUrls={uploadUrls}
       />
-    </div>
+    </PageShell>
   );
 }

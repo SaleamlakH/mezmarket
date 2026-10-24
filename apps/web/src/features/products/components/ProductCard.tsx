@@ -4,6 +4,7 @@ import { Badge } from '@/components/Badge';
 import { RailCard } from '@/components/RailCard';
 import { useProductImage } from '@/hooks/useProductImage';
 import { productDetailPath } from '@/layouts/navigation';
+import { useForwardNavigationState } from '@/layouts/useNavigationHistory';
 
 export interface ProductCardProps {
   productId: string;
@@ -33,10 +34,12 @@ export function ProductCard({
   // The card owns its image request, so it fills in as soon as this one download
   // lands and the placeholder above covers the gap until then.
   const imageUrl = useProductImage(businessId, uploadId, uploadUrls);
+  const forwardState = useForwardNavigationState();
 
   return (
     <Link
       to={productDetailPath(productId)}
+      state={forwardState}
       aria-label={`Edit ${name}`}
       className="focus-ring block rounded-2xl"
     >

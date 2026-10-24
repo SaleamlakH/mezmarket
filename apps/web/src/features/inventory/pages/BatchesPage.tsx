@@ -1,6 +1,6 @@
-import { Link } from 'react-router';
-import { ChevronLeft } from 'lucide-react';
 import { EmptyState } from '@/components/EmptyState';
+import { PageHeader } from '@/components/PageHeader';
+import { PageShell } from '@/components/PageShell';
 import { INVENTORY_PATH } from '@/layouts/navigation';
 import { useBackNavigation } from '@/layouts/useNavigationHistory';
 import { ErrorState } from '@/components/ErrorState';
@@ -15,19 +15,8 @@ export function BatchesPage() {
   const back = useBackNavigation(INVENTORY_PATH);
 
   return (
-    <div className="mx-auto max-w-5xl pb-4">
-      <div className="flex items-center gap-3 pt-1 pb-5">
-        {/* On a phone the layout header already carries a back arrow. */}
-        <Link
-          to={back.to}
-          state={back.state}
-          aria-label="Back"
-          className="focus-ring hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-(--border) bg-(--field) text-(--text) transition-colors hover:border-(--accent) hover:bg-(--accent) hover:text-white md:inline-flex"
-        >
-          <ChevronLeft size={16} aria-hidden />
-        </Link>
-        <h2 className="m-0 text-lg font-bold text-(--text)">All batches</h2>
-      </div>
+    <PageShell>
+      <PageHeader title="All batches" backTo={back.to} backState={back.state} />
 
       {isPending ? (
         <LoadingState label="Loading batches…" />
@@ -49,6 +38,6 @@ export function BatchesPage() {
           ))}
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

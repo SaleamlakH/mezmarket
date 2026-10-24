@@ -4,8 +4,8 @@ import { Field } from '@/components/Field';
 import { Input } from '@/components/Input';
 import { Switch } from '@/components/Switch';
 import { useProductFieldsForm } from '../hooks/useProductFieldsForm';
-import { SectionCard } from './SectionCard';
-import { SectionFooter } from './SectionFooter';
+import { SectionCard } from '@/components/SectionCard';
+import { SectionFooter } from '@/components/SectionFooter';
 
 interface ProductFieldsCardProps {
   businessId: string;

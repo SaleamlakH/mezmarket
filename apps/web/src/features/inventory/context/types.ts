@@ -6,6 +6,7 @@ export interface InventoryFilterValue {
   filters: ProductInventoryListFilters;
   activeKind: InventoryFilterKind | null;
   selectFilter: (kind: InventoryFilterKind) => void;
+  removeFilter: (kind: Exclude<InventoryFilterKind, 'all'>) => void;
 }
 
 export interface InventoryFilterProviderProps {

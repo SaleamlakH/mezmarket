@@ -1,10 +1,10 @@
 import { useMemo } from 'react';
-import { Link, useParams } from 'react-router';
-import { ChevronLeft } from 'lucide-react';
+import { useParams } from 'react-router';
 import { Banner } from '@/components/Banner';
 import { LoadingState } from '@/components/LoadingState';
 import { ErrorState } from '@/components/ErrorState';
-import { Button } from '@/components';
+import { PageHeader } from '@/components/PageHeader';
+import { PageShell } from '@/components/PageShell';
 import { useCurrency } from '@/hooks/useCurrency';
 import { INVENTORY_PATH } from '@/layouts/navigation';
 import { useBackNavigation } from '@/layouts/useNavigationHistory';
@@ -29,21 +29,23 @@ export function ProductInventoryDetailPage() {
 
   if (isPending) {
     return (
-      <div className="mx-auto max-w-5xl px-3 py-4">
+      <PageShell>
+        <PageHeader title="Product" subtitle="Inventory" backTo={back.to} backState={back.state} />
         <LoadingState label="Loading product…" />
-      </div>
+      </PageShell>
     );
   }
 
   if (isError || !product) {
     return (
-      <div className="mx-auto max-w-5xl px-3 py-4">
+      <PageShell>
+        <PageHeader title="Product" subtitle="Inventory" backTo={back.to} backState={back.state} />
         <ErrorState
           title="Could not load product"
           description="Something went wrong while fetching this product."
           onRetry={() => void refetch()}
         />
-      </div>
+      </PageShell>
     );
   }
 
@@ -55,25 +57,15 @@ export function ProductInventoryDetailPage() {
   } across ${expired.lotCount} ${pluralize(expired.lotCount, 'lot')}`;
 
   return (
-    <div className="mx-auto max-w-5xl pt-3 pb-6 md:px-6 md:pt-6">
-      <header className="flex items-center gap-2.5">
-        <Link to={back.to} state={back.state} aria-label="Back" title="Back">
-          <Button variant="secondary" size="sm" shape="pill">
-            <ChevronLeft aria-hidden className="h-5 w-5" />
-          </Button>
-        </Link>
-        <div className="min-w-0">
-          <h1 className="m-0 truncate text-xl font-bold text-(--text) md:text-2xl">
-            {product.name}
-          </h1>
-          <p className="m-0 text-xs text-(--text-muted)">
-            Base unit: {product.baseUnitLabel} · {lines.length}{' '}
-            {pluralize(lines.length, 'batch line')}
-          </p>
-        </div>
-      </header>
+    <PageShell>
+      <PageHeader
+        title={product.name}
+        subtitle={`Base unit: ${product.baseUnitLabel} · ${lines.length} ${pluralize(lines.length, 'batch line')}`}
+        backTo={back.to}
+        backState={back.state}
+      />
 
-      <div className="mt-5">
+      <div>
         <ProductInventoryMetrics
           product={product}
           currency={currency}
@@ -95,6 +87,6 @@ export function ProductInventoryDetailPage() {
       <div className="mt-6">
         <ProductInventoryBatchList batches={product.batches} currency={currency} now={now} />
       </div>
-    </div>
+    </PageShell>
   );
 }

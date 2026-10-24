@@ -74,7 +74,11 @@ const router = createBrowserRouter([
               { index: true, element: <Navigate to="dashboard" replace /> },
               { path: 'dashboard', element: <DashboardPage /> },
               { path: 'products', element: <ProductsPage /> },
-              { path: 'products/:productId', element: <ProductDetailPage /> },
+              {
+                path: 'products/:productId',
+                element: <ProductDetailPage />,
+                handle: { subPage: true },
+              },
               {
                 path: 'sales',
                 element: <SalesPage />,
@@ -83,21 +87,40 @@ const router = createBrowserRouter([
               {
                 path: 'sales/all',
                 element: <AllSalesPage />,
+                handle: { subPage: true },
               },
               {
                 path: 'sales/:saleId',
                 element: <SaleDetailPage />,
+                handle: { subPage: true },
               },
               { path: 'inventory', element: <InventoryPage /> },
-              { path: 'inventory/batches', element: <BatchesPage /> },
-              { path: 'inventory/batches/:batchId', element: <BatchDetailPage /> },
+              {
+                path: 'inventory/batches',
+                element: <BatchesPage />,
+                handle: { subPage: true },
+              },
+              {
+                path: 'inventory/batches/:batchId',
+                element: <BatchDetailPage />,
+                handle: { subPage: true },
+              },
               {
                 path: 'inventory/products/:productId',
                 element: <ProductInventoryDetailPage />,
+                handle: { subPage: true },
               },
-              { path: 'settings', element: <SettingsPage /> },
-              { path: 'settings/profile', element: <OwnerProfilePage ownerApi={ownerApi} /> },
-              { path: 'settings/business', element: <BusinessProfilePage /> },
+              { path: 'settings', element: <SettingsPage />, handle: { subPage: true } },
+              {
+                path: 'settings/profile',
+                element: <OwnerProfilePage ownerApi={ownerApi} />,
+                handle: { subPage: true },
+              },
+              {
+                path: 'settings/business',
+                element: <BusinessProfilePage />,
+                handle: { subPage: true },
+              },
             ],
           },
         ],

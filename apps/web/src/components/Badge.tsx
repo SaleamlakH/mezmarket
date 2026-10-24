@@ -10,9 +10,9 @@ export interface BadgeProps {
 }
 
 const tones: Record<BadgeTone, string> = {
-  positive: 'bg-[color-mix(in_srgb,var(--positive)_16%,transparent)] text-(--positive)',
-  warning: 'bg-[color-mix(in_srgb,var(--warning)_16%,transparent)] text-(--warning)',
-  danger: 'bg-[color-mix(in_srgb,var(--danger)_16%,transparent)] text-(--danger)',
+  positive: 'bg-(--badge-positive-bg) text-(--badge-positive-text)',
+  warning: 'bg-(--badge-warning-bg) text-(--badge-warning-text)',
+  danger: 'bg-(--badge-danger-bg) text-(--badge-danger-text)',
   neutral: 'text-(--text-muted)',
   accent: 'bg-(--accent) text-white',
 };

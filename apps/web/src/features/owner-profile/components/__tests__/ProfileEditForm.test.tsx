@@ -23,6 +23,7 @@ describe('ProfileEditForm', () => {
   const mockHandleChange = vi.fn();
   const mockHandleBlur = vi.fn();
   const mockHandleSubmit = vi.fn();
+  const mockReset = vi.fn();
   const onCancel = vi.fn();
   const onSaved = vi.fn();
 
@@ -50,6 +51,7 @@ describe('ProfileEditForm', () => {
       handleChange: mockHandleChange,
       handleBlur: mockHandleBlur,
       handleSubmit: mockHandleSubmit,
+      reset: mockReset,
     });
   }
 
@@ -105,6 +107,7 @@ describe('ProfileEditForm', () => {
       handleChange: mockHandleChange,
       handleBlur: mockHandleBlur,
       handleSubmit: mockHandleSubmit,
+      reset: mockReset,
     });
     mockHandleSubmit.mockImplementation((e) => e.preventDefault());
 
@@ -131,6 +134,7 @@ describe('ProfileEditForm', () => {
       handleChange: mockHandleChange,
       handleBlur: mockHandleBlur,
       handleSubmit: mockHandleSubmit,
+      reset: mockReset,
     });
 
     const { container } = renderForm();
@@ -161,6 +165,7 @@ describe('ProfileEditForm', () => {
       handleChange: mockHandleChange,
       handleBlur: mockHandleBlur,
       handleSubmit: mockHandleSubmit,
+      reset: mockReset,
     });
 
     renderForm();

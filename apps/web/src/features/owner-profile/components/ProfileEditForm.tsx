@@ -1,7 +1,7 @@
-import { Button } from '@/components/Button';
 import { Field } from '@/components/Field';
 import { Input } from '@/components/Input';
-import { Toast } from '@/components/Toast';
+import { SectionCard } from '@/components/SectionCard';
+import { SectionFooter } from '@/components/SectionFooter';
 import type { OwnerResponse } from '@mez/types';
 import type { OwnerApi } from '../api/ownerApi';
 import { useOwnerProfileForm } from '../hooks/useOwnerProfileForm';
@@ -9,27 +9,42 @@ import { useOwnerProfileForm } from '../hooks/useOwnerProfileForm';
 export interface ProfileEditFormProps {
   ownerApi: OwnerApi;
   profile: OwnerResponse;
+  /** Defaults to true so the form can be rendered on its own. */
+  editing?: boolean;
+  onEdit?: () => void;
   onCancel: () => void;
   onSaved: (updated: OwnerResponse) => void;
 }
 
-export function ProfileEditForm({ ownerApi, profile, onCancel, onSaved }: ProfileEditFormProps) {
+/**
+ * The owner's contact details. The card owns the form, so the page only decides
+ * when it is being edited.
+ */
+export function ProfileEditForm({
+  ownerApi,
+  profile,
+  editing = true,
+  onEdit,
+  onCancel,
+  onSaved,
+}: ProfileEditFormProps) {
   const form = useOwnerProfileForm(ownerApi, profile, onSaved);
 
-  return (
-    <>
-      {form.submitError && (
-        <Toast
-          message={form.submitError}
-          variant="error"
-          duration={5000}
-          position="top-right"
-          onDismiss={() => {}}
-        />
-      )}
+  const handleCancel = () => {
+    form.reset();
+    onCancel();
+  };
 
+  return (
+    <SectionCard
+      title="Profile"
+      subtitle="Your name and the details we use to reach you."
+      editing={editing}
+      onEdit={onEdit ?? (() => {})}
+      showEdit={Boolean(onEdit)}
+    >
       <form onSubmit={form.handleSubmit} className="flex flex-col">
-        <div className="flex flex-col gap-5 p-5">
+        <div className="flex flex-col gap-3.5">
           <Field id="name" label="Name" error={form.errors.name}>
             <Input
               id="name"
@@ -38,10 +53,11 @@ export function ProfileEditForm({ ownerApi, profile, onCancel, onSaved }: Profil
               onChange={(e) => form.handleChange('name', e.target.value)}
               onBlur={() => form.handleBlur('name')}
               placeholder="Your name"
+              disabled={!editing}
             />
           </Field>
 
-          <Field id="contactEmail" label="Contact Email" error={form.errors.contactEmail}>
+          <Field id="contactEmail" label="Contact email" error={form.errors.contactEmail}>
             <Input
               id="contactEmail"
               name="contactEmail"
@@ -50,10 +66,11 @@ export function ProfileEditForm({ ownerApi, profile, onCancel, onSaved }: Profil
               onChange={(e) => form.handleChange('contactEmail', e.target.value)}
               onBlur={() => form.handleBlur('contactEmail')}
               placeholder="you@example.com"
+              disabled={!editing}
             />
           </Field>
 
-          <Field id="contactPhone" label="Contact Phone" error={form.errors.contactPhone}>
+          <Field id="contactPhone" label="Contact phone" error={form.errors.contactPhone}>
             <Input
               id="contactPhone"
               name="contactPhone"
@@ -62,24 +79,20 @@ export function ProfileEditForm({ ownerApi, profile, onCancel, onSaved }: Profil
               onChange={(e) => form.handleChange('contactPhone', e.target.value)}
               onBlur={() => form.handleBlur('contactPhone')}
               placeholder="+1234567890"
+              disabled={!editing}
             />
           </Field>
         </div>
 
-        <div className="flex gap-3 border-t border-(--border) p-5">
-          <Button variant="secondary" onClick={onCancel} type="button" className="flex-1">
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            className="flex-1"
-            isLoading={form.isSubmitting}
-            disabled={!form.hasChanges || form.isSubmitting || !!Object.values(form.errors).length}
-          >
-            Save
-          </Button>
-        </div>
+        <SectionFooter
+          editing={editing}
+          isDirty={form.hasChanges}
+          isSaving={form.isSubmitting}
+          error={form.submitError}
+          onCancel={handleCancel}
+          submit
+        />
       </form>
-    </>
+    </SectionCard>
   );
 }

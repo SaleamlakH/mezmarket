@@ -10,13 +10,25 @@ export interface ListCardProps {
   title: ReactNode;
   meta?: ReactNode;
   trailing?: ReactNode;
+  /** `field` sits inside a form or sheet; `primary` matches content cards. */
+  surface?: 'field' | 'primary';
   className?: string;
 }
 
-export function ListCard({ icon, thumb, title, meta, trailing, className = '' }: ListCardProps) {
+export function ListCard({
+  icon,
+  thumb,
+  title,
+  meta,
+  trailing,
+  surface = 'field',
+  className = '',
+}: ListCardProps) {
   return (
     <div
-      className={`flex items-center gap-3 rounded-xl border border-(--border) bg-(--field) p-3 ${className}`}
+      className={`flex items-center gap-3 rounded-xl border border-(--border) p-3 ${
+        surface === 'primary' ? 'bg-(--surface-primary)' : 'bg-(--field)'
+      } ${className}`}
     >
       {(icon || thumb) && (
         <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center overflow-hidden rounded-lg border border-(--border) bg-(--surface-secondary) text-(--text-muted)">

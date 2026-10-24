@@ -1,13 +1,14 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router';
-import { ChevronLeft } from 'lucide-react';
+import { useParams } from 'react-router';
 import { Badge } from '@/components/Badge';
-import { Button } from '@/components/Button';
 import { ErrorState } from '@/components/ErrorState';
 import { LoadingState } from '@/components/LoadingState';
+import { PageHeader } from '@/components/PageHeader';
+import { PageShell } from '@/components/PageShell';
 import { Toast } from '@/components/Toast';
 import { useProductUploadUrls } from '@/hooks/useProductUploadUrls';
 import { PRODUCTS_PATH } from '@/layouts/navigation';
+import { useBackNavigation } from '@/layouts/useNavigationHistory';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
 import { AddUnitDialog, type AddUnitMode } from '../components/AddUnitDialog';
 import { AvailabilityCard } from '../components/AvailabilityCard';
@@ -32,23 +33,27 @@ export function ProductDetailPage() {
     productId: productId ?? '',
   });
 
+  const back = useBackNavigation(PRODUCTS_PATH);
+
   if (isPending) {
     return (
-      <div className="mx-auto max-w-6xl px-3 py-4">
+      <PageShell>
+        <PageHeader title="Product" subtitle="Products" backTo={back.to} backState={back.state} />
         <LoadingState label="Loading product…" />
-      </div>
+      </PageShell>
     );
   }
 
   if (isError || !product) {
     return (
-      <div className="mx-auto max-w-6xl px-3 py-4">
+      <PageShell>
+        <PageHeader title="Product" subtitle="Products" backTo={back.to} backState={back.state} />
         <ErrorState
           title="Could not load product"
           description="Something went wrong while fetching this product."
           onRetry={() => void refetch()}
         />
-      </div>
+      </PageShell>
     );
   }
 
@@ -57,27 +62,16 @@ export function ProductDetailPage() {
 
   return (
     <>
-      <div className="mx-auto max-w-5xl pb-4">
-        <header className="flex items-center gap-2.5">
-          <Link to={PRODUCTS_PATH} aria-label="Back to products" title="Back">
-            <Button variant="secondary" size="sm" shape="pill">
-              <ChevronLeft aria-hidden className="h-5 w-5" />
-            </Button>
-          </Link>
-          <nav
-            aria-label="Breadcrumb"
-            className="flex min-w-0 items-center gap-2 text-xl font-bold text-(--text) md:text-2xl"
-          >
-            <Link to={PRODUCTS_PATH} className="hover:underline">
-              Products
-            </Link>
-            <span className="text-(--text-muted)">/</span>
-            <span className="truncate">{product.name}</span>
-            {!product.active && <Badge tone="neutral">Inactive</Badge>}
-          </nav>
-        </header>
+      <PageShell>
+        <PageHeader
+          title={product.name}
+          subtitle="Product"
+          backTo={back.to}
+          backState={back.state}
+          actions={!product.active ? <Badge tone="neutral">Inactive</Badge> : undefined}
+        />
 
-        <div className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_360px] md:items-start md:gap-6">
+        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_360px] md:items-start md:gap-6">
           <div className="flex flex-col gap-4">
             <ProductImageSection
               businessId={businessId}
@@ -109,7 +103,7 @@ export function ProductDetailPage() {
         </div>
 
         <AvailabilityCard businessId={businessId} product={product} onSaved={setSuccessMessage} />
-      </div>
+      </PageShell>
 
       <AddUnitDialog
         open={addUnitMode !== null}

@@ -41,6 +41,28 @@ export function toSaleListFilters(filter: SaleHistoryFilter): SaleListFilters {
   return { status: [filter] };
 }
 
+export interface SaleListDateFilters {
+  from?: string;
+  to?: string;
+  paymentFrom?: string;
+  paymentTo?: string;
+}
+
+/** The date bounds a dashboard link carries, if any. */
+export function dateFiltersFromParams(params: URLSearchParams): SaleListDateFilters {
+  const from = params.get('from');
+  const to = params.get('to');
+  const paymentFrom = params.get('paymentFrom');
+  const paymentTo = params.get('paymentTo');
+
+  return {
+    ...(from ? { from } : {}),
+    ...(to ? { to } : {}),
+    ...(paymentFrom ? { paymentFrom } : {}),
+    ...(paymentTo ? { paymentTo } : {}),
+  };
+}
+
 /**
  * Adds the date bounds a dashboard link carries to the chip's filters. The sale
  * range and the payment range are independent, so both can be present.
@@ -49,18 +71,7 @@ export function withListDateFilters(
   filters: SaleListFilters,
   params: URLSearchParams,
 ): SaleListFilters {
-  const from = params.get('from');
-  const to = params.get('to');
-  const paymentFrom = params.get('paymentFrom');
-  const paymentTo = params.get('paymentTo');
-
-  return {
-    ...filters,
-    ...(from ? { from } : {}),
-    ...(to ? { to } : {}),
-    ...(paymentFrom ? { paymentFrom } : {}),
-    ...(paymentTo ? { paymentTo } : {}),
-  };
+  return { ...filters, ...dateFiltersFromParams(params) };
 }
 
 function isPaymentStatus(value: string): value is PaymentStatus {

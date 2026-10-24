@@ -28,7 +28,7 @@ export function useOwnerProfileForm(
     [profile],
   );
 
-  const { status, values, errors, formError, handleChange, handleBlur, handleSubmit } =
+  const { status, values, errors, formError, handleChange, handleBlur, handleSubmit, reset } =
     useForm<UpdateOwnerFormValues>({
       initialValues,
       validate: validateUpdateOwnerValues,
@@ -57,5 +57,6 @@ export function useOwnerProfileForm(
     handleChange,
     handleBlur,
     handleSubmit,
+    reset,
   };
 }

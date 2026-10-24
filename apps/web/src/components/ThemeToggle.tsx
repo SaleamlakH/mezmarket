@@ -1,14 +1,40 @@
 import { useThemeContext } from '@/providers/theme/useThemeContext';
 import { Sun, Moon } from 'lucide-react';
 
-export function ThemeToggle() {
+interface ThemeToggleProps {
+  /** `icon` is the compact header control; `nav` matches the sidebar links. */
+  variant?: 'icon' | 'nav';
+}
+
+export function ThemeToggle({ variant = 'icon' }: ThemeToggleProps) {
   const { theme, toggleTheme } = useThemeContext();
+  const label = `Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`;
+
+  if (variant === 'nav') {
+    return (
+      <button
+        onClick={toggleTheme}
+        type="button"
+        aria-label={label}
+        title={label}
+        className="focus-ring flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold text-(--text-muted) transition-colors hover:text-(--text)"
+      >
+        <span className="h-5 w-5">
+          {theme === 'dark' ? <Sun aria-hidden /> : <Moon aria-hidden />}
+        </span>
+        <span className="flex-1 text-left">Theme</span>
+        <span className="text-[11px] font-medium text-(--text-muted)">
+          {theme === 'dark' ? 'Dark' : 'Light'}
+        </span>
+      </button>
+    );
+  }
 
   return (
     <button
       onClick={toggleTheme}
       type="button"
-      aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+      aria-label={label}
       title={theme === 'light' ? 'Dark mode' : 'Light mode'}
       className="
         p-2 rounded-lg flex items-center justify-center

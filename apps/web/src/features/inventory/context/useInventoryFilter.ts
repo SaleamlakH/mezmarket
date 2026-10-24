@@ -37,10 +37,41 @@ export function useInventoryFilter(now?: Date): InventoryFilterValue {
     [referenceNow],
   );
 
+  const removeFilter = useCallback((kind: Exclude<InventoryFilterKind, 'all'>) => {
+    setFilters((current) => {
+      const next = { ...current };
+
+      if (kind === 'low') {
+        delete next.stockStatus;
+        return {
+          ...next,
+          status: next.expiryStatus?.length ? (next.status ?? 'active') : 'active',
+        };
+      }
+
+      const expiryStatus = next.expiryStatus?.filter((status) =>
+        kind === 'expiring' ? status !== 'soon' : status !== 'expired',
+      );
+
+      if (!expiryStatus || expiryStatus.length === 0) {
+        delete next.expiryStatus;
+        delete next.expiryBefore;
+        return {
+          ...next,
+          status: next.stockStatus?.length ? (next.status ?? 'active') : 'active',
+        };
+      }
+
+      next.expiryStatus = expiryStatus;
+      if (!expiryStatus.includes('soon')) delete next.expiryBefore;
+      return next;
+    });
+  }, []);
+
   const activeKind = useMemo(() => inventoryFilterKindOf(filters), [filters]);
 
   return useMemo(
-    () => ({ filters, activeKind, selectFilter }),
-    [filters, activeKind, selectFilter],
+    () => ({ filters, activeKind, selectFilter, removeFilter }),
+    [filters, activeKind, selectFilter, removeFilter],
   );
 }
