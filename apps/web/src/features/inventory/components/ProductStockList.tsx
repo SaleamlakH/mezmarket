@@ -42,35 +42,10 @@ function StatusBadge({ product }: { product: ProductInventorySummaryResponse }) 
   return <Badge tone={tone}>{label}</Badge>;
 }
 
-type ExpiryTone = 'danger' | 'warning';
-
-function ExpiryLine({
-  label,
-  group,
-  unitLabel,
-  tone,
-}: {
-  label: string;
-  group: ProductInventorySummaryResponse['expiry']['expired'];
-  unitLabel: string;
-  tone: ExpiryTone;
-}) {
-  const EXPIRY_TONE_CLASS: Record<ExpiryTone, string> = {
-    danger: 'text-(--danger)',
-    warning: 'text-(--warning)',
-  };
-
-  return (
-    <span
-      className={`font-mono tabular-nums ${EXPIRY_TONE_CLASS[tone]}`}
-      title={
-        group.earliestExpiryDate ? `Earliest ${formatDate(group.earliestExpiryDate)}` : undefined
-      }
-    >
-      {label} · {group.lotCount} {pluralize(group.lotCount, 'lot')} ·{' '}
-      {formatQuantity(group.quantity)} {unitLabel}
-    </span>
-  );
+function expiryTitle(group: ProductInventorySummaryResponse['expiry']['expired']): string {
+  const parts = [`${group.lotCount} ${pluralize(group.lotCount, 'lot')}`];
+  if (group.earliestExpiryDate) parts.push(`Earliest ${formatDate(group.earliestExpiryDate)}`);
+  return parts.join(' · ');
 }
 
 function ExpiryCell({ product }: { product: ProductInventorySummaryResponse }) {
@@ -80,22 +55,20 @@ function ExpiryCell({ product }: { product: ProductInventorySummaryResponse }) {
   }
 
   return (
-    <span className="flex flex-col gap-1">
+    <span className="flex flex-col items-start gap-1">
       {expired.lotCount > 0 && (
-        <ExpiryLine
-          label="Expired"
-          group={expired}
-          unitLabel={product.baseUnitLabel}
-          tone="danger"
-        />
+        <span title={expiryTitle(expired)}>
+          <Badge tone="danger">
+            Expired · {expired.lotCount} {pluralize(expired.lotCount, 'lot')}
+          </Badge>
+        </span>
       )}
       {soon.lotCount > 0 && (
-        <ExpiryLine
-          label="In 7 days"
-          group={soon}
-          unitLabel={product.baseUnitLabel}
-          tone="warning"
-        />
+        <span title={expiryTitle(soon)}>
+          <Badge tone="warning">
+            Expiring · {soon.lotCount} {pluralize(soon.lotCount, 'lot')}
+          </Badge>
+        </span>
       )}
     </span>
   );
@@ -112,23 +85,21 @@ function ExpiryQuantities({
   if (expired.lotCount === 0 && soon.lotCount === 0) return null;
 
   return (
-    <span
-      className={`flex flex-wrap items-baseline gap-x-2 gap-y-0.5 font-mono text-[11px] tabular-nums ${className}`}
-    >
+    <span className={`flex flex-col items-start gap-0.5 text-[11px] font-bold ${className}`}>
       {expired.lotCount > 0 && (
         <span
-          className="text-(--danger)"
+          className="whitespace-nowrap text-(--badge-danger-text)"
           title={`${expired.lotCount} ${pluralize(expired.lotCount, 'lot')} expired`}
         >
-          Expired · {formatQuantity(expired.quantity)} {product.baseUnitLabel}
+          Expired · {expired.lotCount} {pluralize(expired.lotCount, 'lot')}
         </span>
       )}
       {soon.lotCount > 0 && (
         <span
-          className="text-(--warning)"
+          className="whitespace-nowrap text-(--badge-warning-text)"
           title={`${soon.lotCount} ${pluralize(soon.lotCount, 'lot')} expiring in 7 days`}
         >
-          In 7 days · {formatQuantity(soon.quantity)} {product.baseUnitLabel}
+          Expiring · {soon.lotCount} {pluralize(soon.lotCount, 'lot')}
         </span>
       )}
     </span>
