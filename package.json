@@ -16,6 +16,7 @@
     "test": "turbo run test",
     "test:watch": "turbo run test:watch",
     "db:migrate": "pnpm --filter api db:migrate",
+    "db:deploy": "pnpm --filter api db:deploy",
     "db:generate": "pnpm turbo db:generate",
     "db:studio": "pnpm --filter api db:studio",
     "db:seed": "pnpm --filter api db:seed"
