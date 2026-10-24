@@ -265,15 +265,23 @@ export type RefundSaleResponse = SaleDetailResponse;
  * Filters a sale-history request may carry.
  */
 export interface SaleListFilters {
-  status?: PaymentStatus;
+  /** Restricts to sales whose payment status is any of the given statuses. */
+  status?: PaymentStatus[];
   /**
-   * ISO 8601 instant lower bound, inclusive for this endpoint. Also inclusive
-   * of the upper bound `to`.
+   * ISO 8601 instant lower bound on the sale datetime, inclusive for this
+   * endpoint. Also inclusive of the upper bound `to`.
    */
   from?: string;
-  /** ISO 8601 instant upper bound, inclusive for this endpoint. */
+  /** ISO 8601 instant upper bound on the sale datetime, inclusive. */
   to?: string;
   productId?: string;
+  /**
+   * ISO 8601 instant lower bound on a payment's paid-at timestamp, inclusive.
+   * A sale matches when it has at least one payment in the range.
+   */
+  paymentFrom?: string;
+  /** ISO 8601 instant upper bound on a payment's paid-at timestamp, inclusive. */
+  paymentTo?: string;
   /** Restricts to sales that still owe a balance and are not stamped paid. */
   unpaid?: boolean;
   /**
