@@ -2,10 +2,12 @@ import type {
   CreateBatchInput,
   CreateBatchLineInput,
   CreateBatchResult,
+  InventoryExpiryStatus,
   ProductInventoryBatch,
   ProductInventoryDetail,
   ProductInventoryDetailFilters,
   ProductInventoryExpiry,
+  ProductInventoryExpiryGroup,
   ProductInventoryListFilters,
   ProductInventoryStock,
   ProductInventorySummary,
@@ -30,10 +32,12 @@ export type {
   CreateBatchInput,
   CreateBatchLineInput,
   CreateBatchResult,
+  InventoryExpiryStatus,
   ProductInventoryBatch,
   ProductInventoryDetail,
   ProductInventoryDetailFilters,
   ProductInventoryExpiry,
+  ProductInventoryExpiryGroup,
   ProductInventoryListFilters,
   ProductInventoryStock,
   ProductInventorySummary,
@@ -135,6 +139,15 @@ export type ProductWithBatchHistoryRecord = Product & {
   stockBatchLines: StockBatchLineWithBatchRecord[];
 };
 
+/** The concrete product predicate the service resolves domain filters into. */
+export type ProductInventoryStockFilters = {
+  active?: boolean;
+  /** Inclusive lower date bound. */
+  from?: Date;
+  /** Exclusive upper date bound. */
+  to?: Date;
+};
+
 export type BatchRepository = {
   getProductUnitContext(businessId: string, productIds: string[]): Promise<ProductContext[]>;
   createBatchAndAdjustStock(command: CreateBatchCommand): Promise<StockBatchRecord>;
@@ -147,6 +160,7 @@ export type BatchRepository = {
   listProductsWithStockLines(
     businessId: string,
     branchId: string,
+    filters: ProductInventoryStockFilters,
   ): Promise<ProductWithStockLinesRecord[]>;
   getProductWithBatchHistory(
     businessId: string,

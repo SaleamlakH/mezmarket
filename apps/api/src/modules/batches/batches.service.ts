@@ -14,9 +14,14 @@ import { toBatchDetail, toProductBatches } from './utils/mappers.js';
 import {
   baseUnitOf,
   buildProductInventoryStock,
-  expiryTotalsOf,
+  expiryBreakdownOf,
   toProductInventorySummary,
 } from './utils/inventory.js';
+import {
+  filterSummariesByStockStatus,
+  productInventoryDetailExpiryBefore,
+  productInventoryListQueryOf,
+} from './utils/filter.js';
 
 export function createBatchService(repository: BatchRepository): BatchService {
   return {
@@ -61,7 +66,13 @@ export function createBatchService(repository: BatchRepository): BatchService {
       { businessId, branchId }: Scope,
       filters: ProductInventoryListFilters,
     ) {
-      const records = await repository.listProductsWithStockLines(businessId, branchId);
+      const asOf = new Date();
+      const { repositoryFilters, summaryExpiryBefore } = productInventoryListQueryOf(filters, asOf);
+      const records = await repository.listProductsWithStockLines(
+        businessId,
+        branchId,
+        repositoryFilters,
+      );
 
       if (records.length === 0) return [];
 
@@ -75,9 +86,11 @@ export function createBatchService(repository: BatchRepository): BatchService {
           .map((attachment) => [attachment.recordId, attachment.uploadId]),
       );
 
-      const expiryBefore = filters.expiryBefore ?? new Date();
+      const summaries = records.map((record) =>
+        toProductInventorySummary(record, uploadIds, asOf, summaryExpiryBefore),
+      );
 
-      return records.map((record) => toProductInventorySummary(record, uploadIds, expiryBefore));
+      return filterSummariesByStockStatus(summaries, filters.stockStatus);
     },
 
     async getProductInventoryDetail(
@@ -101,11 +114,12 @@ export function createBatchService(repository: BatchRepository): BatchService {
         (line) => line.quantityRemaining.toNumber() > 0,
       );
       const baseUnit = baseUnitOf(record);
-      const expiryBefore = filters.expiryBefore ?? new Date();
+      const asOf = new Date();
+      const expiryBefore = productInventoryDetailExpiryBefore(filters, asOf);
 
       return {
         ...buildProductInventoryStock(record, remainingLines, uploadId),
-        expiry: expiryTotalsOf(remainingLines, expiryBefore),
+        expiry: expiryBreakdownOf(remainingLines, asOf, expiryBefore),
         batches: toProductBatches(record.stockBatchLines, record.productUnits, baseUnit.name),
       };
     },
