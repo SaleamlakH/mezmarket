@@ -1,6 +1,11 @@
 import { Link } from 'react-router';
 import { Minus, TrendingDown, TrendingUp } from 'lucide-react';
-import type { DashboardPeriodBucket, DashboardSummaryResponse, ReportingPeriod } from '@mez/types';
+import type {
+  DashboardPeriodBucket,
+  DashboardSummaryResponse,
+  PaymentStatus,
+  ReportingPeriod,
+} from '@mez/types';
 import { ErrorState } from '@/components/ErrorState';
 import { LoadingState } from '@/components/LoadingState';
 import { useCurrency } from '@/hooks/useCurrency';
@@ -43,7 +48,18 @@ function changeDirection(grossProfit: GrossProfit): ChangeDirection {
 }
 
 function periodSearch(period: ReportingPeriod): string {
-  return new URLSearchParams({ from: period.from, to: period.to }).toString();
+  // The dashboard's sale range is half-open while the sales list is inclusive.
+  const to = new Date(new Date(period.to).getTime() - 1).toISOString();
+  return new URLSearchParams({ from: period.from, to }).toString();
+}
+
+function paymentPeriodSearch(period: ReportingPeriod, statuses: PaymentStatus[]): string {
+  const params = new URLSearchParams({
+    paymentFrom: period.from,
+    paymentTo: period.to,
+    status: statuses.join(',').toLowerCase(),
+  });
+  return params.toString().replace(/%2C/gi, ',');
 }
 
 function ChangeIndicator({
@@ -186,14 +202,14 @@ export function SummarySection({
   }
 
   const grossProfit = summary.grossProfit;
-  const search = periodSearch(period);
+  const salesSearch = periodSearch(period);
   const metrics = [
     {
       key: 'sales',
       label: 'Sales',
       value: formatQuantity(summary.sales.total),
       subline: `${summary.sales.count} ${pluralize(summary.sales.count, 'sale')}`,
-      href: `${SALES_ALL_PATH}?${search}`,
+      href: `${SALES_ALL_PATH}?${salesSearch}`,
     },
     {
       key: 'cash',
@@ -203,7 +219,7 @@ export function SummarySection({
         summary.cashCollected.paymentCount,
         'payment',
       )}`,
-      href: `${SALES_ALL_PATH}?${search}`,
+      href: `${SALES_ALL_PATH}?${paymentPeriodSearch(period, ['PAID', 'PARTIALLY_PAID'])}`,
     },
     ...(summary.outstanding
       ? [
@@ -223,7 +239,7 @@ export function SummarySection({
             label: 'Losses',
             value: formatQuantity(summary.losses.total),
             subline: `${summary.losses.count} ${pluralize(summary.losses.count, 'record')}`,
-            href: `${SALES_ALL_PATH}?${search}`,
+            href: '#',
           },
         ]
       : []),
