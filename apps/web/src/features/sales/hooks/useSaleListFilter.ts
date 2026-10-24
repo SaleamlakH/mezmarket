@@ -2,10 +2,12 @@ import { useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import type { SaleListFilters } from '@mez/types';
 import {
+  dateFiltersFromParams,
   fromSearchParams,
   toSaleListFilters,
   withListDateFilters,
   type SaleHistoryFilter,
+  type SaleListDateFilters,
 } from '../lib/saleListFilter';
 
 export interface UseSaleListFilterReturn {
@@ -13,7 +15,10 @@ export interface UseSaleListFilterReturn {
   filter: SaleHistoryFilter;
   /** The API filters that chip stands for. */
   filters: SaleListFilters;
+  /** Date bounds carried by a dashboard link. */
+  dateFilters: SaleListDateFilters;
   setFilter: (filter: SaleHistoryFilter) => void;
+  clearDateFilters: () => void;
 }
 
 /**
@@ -30,6 +35,7 @@ export function useSaleListFilter(): UseSaleListFilterReturn {
     () => withListDateFilters(toSaleListFilters(filter), searchParams),
     [filter, searchParams],
   );
+  const dateFilters = useMemo(() => dateFiltersFromParams(searchParams), [searchParams]);
 
   const setFilter = (next: SaleHistoryFilter) => {
     const params = new URLSearchParams(searchParams);
@@ -52,5 +58,15 @@ export function useSaleListFilter(): UseSaleListFilterReturn {
     navigate({ search: search ? `?${search}` : '' });
   };
 
-  return { filter, filters, setFilter };
+  const clearDateFilters = () => {
+    const params = new URLSearchParams(searchParams);
+    for (const key of ['from', 'to', 'paymentFrom', 'paymentTo']) {
+      params.delete(key);
+    }
+
+    const search = params.toString();
+    navigate({ search: search ? `?${search}` : '' });
+  };
+
+  return { filter, filters, dateFilters, setFilter, clearDateFilters };
 }

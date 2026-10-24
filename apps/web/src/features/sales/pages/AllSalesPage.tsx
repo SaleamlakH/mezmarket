@@ -1,53 +1,80 @@
-import { Link } from 'react-router';
-import { ChevronLeft } from 'lucide-react';
-import { Chip } from '@/components/Chip';
+import { useState } from 'react';
+import { Dialog, DialogHeader } from '@/components/Dialog';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState } from '@/components/ErrorState';
+import { FilterBar, FilterOption, type ActiveFilterChip } from '@/components/FilterBar';
 import { LoadingState } from '@/components/LoadingState';
+import { PageHeader } from '@/components/PageHeader';
+import { PageShell } from '@/components/PageShell';
 import { useCurrency } from '@/hooks/useCurrency';
 import { SALES_PATH } from '@/layouts/navigation';
 import { useBackNavigation } from '@/layouts/useNavigationHistory';
 import { SaleSummaryCard } from '../components/SaleSummaryCard';
 import { useSaleListFilter } from '../hooks/useSaleListFilter';
 import { useSales } from '../hooks/useSalesApi';
-import { SALE_HISTORY_FILTERS } from '../lib/saleListFilter';
+import { SALE_HISTORY_FILTERS, type SaleListDateFilters } from '../lib/saleListFilter';
+
+function dateFilterLabel(dates: SaleListDateFilters): string {
+  const hasSale = Boolean(dates.from || dates.to);
+  const hasPayment = Boolean(dates.paymentFrom || dates.paymentTo);
+  if (hasSale && hasPayment) return 'Sale & payment dates';
+  if (hasPayment) return 'Payment dates';
+  return 'Sale dates';
+}
 
 export function AllSalesPage() {
-  const { filter, filters, setFilter } = useSaleListFilter();
+  const { filter, filters, dateFilters, setFilter, clearDateFilters } = useSaleListFilter();
   const { isPending, isError, refetch, data: sales = [] } = useSales(filters);
   const currency = useCurrency();
   const back = useBackNavigation(SALES_PATH);
+  const [open, setOpen] = useState(false);
+
+  const activeFilters: ActiveFilterChip[] = [];
+  const selected = SALE_HISTORY_FILTERS.find((option) => option.value === filter);
+  if (selected && filter !== 'all') {
+    activeFilters.push({
+      key: filter,
+      label: selected.label,
+      tone: selected.tone,
+      onRemove: () => setFilter('all'),
+    });
+  }
+
+  if (Object.keys(dateFilters).length > 0) {
+    activeFilters.push({
+      key: 'dates',
+      label: dateFilterLabel(dateFilters),
+      tone: 'neutral',
+      onRemove: clearDateFilters,
+    });
+  }
 
   return (
-    <div className="mx-auto max-w-5xl pb-4">
-      <div className="flex items-center gap-3 pt-1 pb-5">
-        {/* On a phone the layout header already carries a back arrow. */}
-        <Link
-          to={back.to}
-          state={back.state}
-          aria-label="Back"
-          className="focus-ring hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-(--border) bg-(--field) text-(--text) transition-colors hover:border-(--accent) hover:bg-(--accent) hover:text-white md:inline-flex"
-        >
-          <ChevronLeft size={16} aria-hidden />
-        </Link>
-        <h2 className="m-0 text-lg font-bold text-(--text)">All sales</h2>
+    <PageShell>
+      <PageHeader title="All sales" backTo={back.to} backState={back.state} />
+
+      <div className="pb-5">
+        <FilterBar activeFilters={activeFilters} onOpen={() => setOpen(true)} />
       </div>
 
-      <div role="group" aria-label="Filter sales" className="flex flex-wrap gap-2 pb-5">
-        {SALE_HISTORY_FILTERS.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            onClick={() => setFilter(option.value)}
-            aria-pressed={filter === option.value}
-            className="focus-ring cursor-pointer rounded-lg"
-          >
-            <Chip active={filter === option.value} tone={option.tone}>
+      <Dialog open={open} onClose={() => setOpen(false)} size="md">
+        <DialogHeader title="Filter sales" onClose={() => setOpen(false)} />
+        <div className="flex flex-col gap-2 pb-4">
+          {SALE_HISTORY_FILTERS.map((option) => (
+            <FilterOption
+              key={option.value}
+              active={filter === option.value}
+              tone={option.tone}
+              onClick={() => {
+                setFilter(option.value);
+                setOpen(false);
+              }}
+            >
               {option.label}
-            </Chip>
-          </button>
-        ))}
-      </div>
+            </FilterOption>
+          ))}
+        </div>
+      </Dialog>
 
       {isPending ? (
         <LoadingState label="Loading sales…" />
@@ -81,6 +108,6 @@ export function AllSalesPage() {
           ))}
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }
