@@ -1,6 +1,6 @@
 import { appendFileSync } from 'fs';
 
-const hookUrl = process.env.RENDER_DEPLOY_HOOK_URL;
+const hookUrl = process.env.RENDER_DEPLOY_HOOK;
 const output = process.env.GITHUB_OUTPUT;
 
 if (!hookUrl || !output) {
