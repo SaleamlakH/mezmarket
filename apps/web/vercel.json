@@ -4,7 +4,6 @@
   "buildCommand": "pnpm build --filter=web...",
   "outputDirectory": "dist",
   "framework": "vite",
-  "cleanUrls": true,
   "headers": [
     {
       "source": "/assets/(.*)",
