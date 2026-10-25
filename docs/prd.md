@@ -147,7 +147,7 @@ For products flagged as track-as-partial (products with an MOU and at least one 
 - Selling a partial unit (e.g., `shot`) draws from open containers per §3.5.
 - Selling a whole/simple unit (e.g., `piece`, `bottle`) draws directly from base-unit stock. If the sale would take sealed stock negative, the system warns but does not block by default — controlled by a business-level setting, "Allow selling beyond recorded stock" (default: on), so stricter businesses can turn it off.
 - Invoice is generated on sale confirmation (viewable, printable/shareable — PDF or shareable link).
-- **Tax:** each business can configure a single default tax rate (or none) at setup, auto-applied to invoice totals. Default display is tax-added-at-checkout (line prices exclude tax, tax shown as its own invoice line); a business-level toggle switches to tax-inclusive display for markets that expect it. Per-product tax rates/classes are out of scope for v1 (see §8).
+- **Tax:** each business can configure a single default tax rate (or none) at setup, auto-applied to invoice totals. Line prices always exclude tax; when the business enables tax on sales, the invoice adds tax as its own line at the configured rate. Per-product tax rates/classes are out of scope for v1 (see §8).
 - Sales can be voided/refunded (with reason), which restores stock. Each product has a **default refund behavior** (restock or not — e.g. an unopened bottle defaults to restock, a poured shot defaults to not), but the person processing the refund can **override the default per sale line** when the situation warrants it.
 
 ### 3.7 Audit Log
@@ -265,7 +265,7 @@ A system-maintained, append-only record of every significant action taken across
 - Multi-currency: out of scope for v1, single currency per business.
 - Tax: single configurable rate per business in v1; per-product tax classes deferred.
 - Multi-MOU: data model supports it now; v1 UI ships single-MOU only.
-- Tax display: default to tax-added-at-checkout (price excludes tax, tax shown as its own invoice line), with a business-level toggle to switch to tax-inclusive display for markets that expect it.
+- Tax: a single rate per business, off by default. When on, tax is added at checkout (line prices exclude tax, tax shown as its own invoice line).
 - SKU/product code: dropped for v1 — no current feature (barcode scanning, supplier code matching) depends on it; can be added later if a concrete need arises.
 - Container close: Closing is a confirm action; deviation is computed automatically as whatever the ledger still expects to remain at that moment — positive or negative — with an optional (never required) free-text reason.
 - Display unit for remaining/deviation: viewer-selectable at display time (e.g. ml, L, or shot), purely a conversion of stored standard-unit figures — not a stored choice.
