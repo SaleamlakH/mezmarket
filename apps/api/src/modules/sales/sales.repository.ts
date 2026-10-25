@@ -38,7 +38,7 @@ export function createSaleRepository(prisma: PrismaClient): SaleRepository {
     async getBusinessSaleConfig(businessId) {
       const business = await prisma.business.findUnique({
         where: { id: businessId },
-        select: { defaultTaxRate: true, allowNegativeStock: true },
+        select: { defaultTaxRate: true, taxOnSales: true, allowNegativeStock: true },
       });
 
       return business ?? null;

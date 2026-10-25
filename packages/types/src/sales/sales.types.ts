@@ -1,4 +1,4 @@
-import type { BusinessMemberSummaryResponse, TaxDisplayMode } from '../business/business.types.js';
+import type { BusinessMemberSummaryResponse } from '../business/business.types.js';
 import type { RequireAllKeys } from '../shared/require-all-keys.js';
 
 /**
@@ -210,7 +210,7 @@ export type SaleInvoiceResponse = SaleDetailResponse & {
   business: {
     name: string;
     currencyCode: string;
-    taxDisplayMode: TaxDisplayMode;
+    taxOnSales: boolean;
   };
   branch: {
     name: string;

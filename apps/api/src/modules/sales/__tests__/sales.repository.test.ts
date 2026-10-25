@@ -71,7 +71,7 @@ function command(overrides: Partial<CreateSaleCommand> = {}): CreateSaleCommand 
     memberId: 'm-1',
     saleDatetime: new Date('2026-02-01T09:00:00.000Z'),
     discount: null,
-    taxRateApplied: 0.15,
+    taxRateApplied: 15,
     subtotal: 1900,
     taxAmount: 285,
     total: 2185,
@@ -126,7 +126,7 @@ function createdSale(overrides: Record<string, unknown> = {}) {
     customerId: null,
     saleDatetime: new Date('2026-02-01T09:00:00.000Z'),
     discount: null,
-    taxRateApplied: 0.15,
+    taxRateApplied: 15,
     subtotal: 1900,
     taxAmount: 285,
     total: 2185,
@@ -211,7 +211,8 @@ describe('sales.repository', () => {
       const { prisma, business } = createPrismaStub();
       const repo = createSaleRepository(prisma);
       business.findUnique.mockResolvedValue({
-        defaultTaxRate: { toNumber: () => 0.15 },
+        defaultTaxRate: { toNumber: () => 15 },
+        taxOnSales: true,
         allowNegativeStock: false,
       });
 
@@ -219,9 +220,10 @@ describe('sales.repository', () => {
 
       expect(business.findUnique).toHaveBeenCalledWith({
         where: { id: 'b-1' },
-        select: { defaultTaxRate: true, allowNegativeStock: true },
+        select: { defaultTaxRate: true, taxOnSales: true, allowNegativeStock: true },
       });
-      expect(result?.defaultTaxRate?.toNumber()).toBe(0.15);
+      expect(result?.defaultTaxRate?.toNumber()).toBe(15);
+      expect(result?.taxOnSales).toBe(true);
       expect(result?.allowNegativeStock).toBe(false);
     });
 
@@ -454,7 +456,7 @@ describe('sales.repository', () => {
           serverMemberId: null,
           saleDatetime: new Date('2026-02-01T09:00:00.000Z'),
           discount: null,
-          taxRateApplied: 0.15,
+          taxRateApplied: 15,
           subtotal: 1900,
           taxAmount: 285,
           total: 2185,

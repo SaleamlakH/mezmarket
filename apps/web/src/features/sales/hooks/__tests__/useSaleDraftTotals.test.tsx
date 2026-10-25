@@ -33,7 +33,7 @@ function businessFixture(overrides: Partial<BusinessResponse> = {}): BusinessRes
     name: 'Test Business',
     currencyCode: 'ETB',
     defaultTaxRate: null,
-    taxDisplayMode: 'EXCLUSIVE',
+    taxOnSales: false,
     allowNegativeStock: true,
     lowStockDefaultThreshold: null,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -82,8 +82,8 @@ describe('useSaleDraftTotals', () => {
     expect(result.current.totals).toMatchObject({ subtotal: 0, taxAmount: 0, total: 0 });
   });
 
-  it('adds tax on top under an exclusive display', async () => {
-    setBusiness(businessFixture({ defaultTaxRate: 0.15, taxDisplayMode: 'EXCLUSIVE' }));
+  it('adds tax on top when tax is on', async () => {
+    setBusiness(businessFixture({ defaultTaxRate: 15, taxOnSales: true }));
     const { result } = render();
 
     act(() => result.current.draft.setQuantityForProduct('prod_tequila', 'unit_tequila_bottle', 2));
@@ -91,26 +91,30 @@ describe('useSaleDraftTotals', () => {
     await waitFor(() => expect(result.current.totals.subtotal).toBe(1700));
     expect(result.current.totals.taxAmount).toBeCloseTo(255);
     expect(result.current.totals.total).toBeCloseTo(1955);
+    expect(result.current.totals.taxRate).toBe(15);
+    expect(result.current.totals.taxOnSales).toBe(true);
   });
 
-  it('backs tax out of the total under an inclusive display', async () => {
-    setBusiness(businessFixture({ defaultTaxRate: 0.15, taxDisplayMode: 'INCLUSIVE' }));
+  it('adds no tax when tax is off, even with a stored rate', async () => {
+    setBusiness(businessFixture({ defaultTaxRate: 15, taxOnSales: false }));
     const { result } = render();
 
     act(() => result.current.draft.setQuantityForProduct('prod_tequila', 'unit_tequila_bottle', 2));
 
     await waitFor(() => expect(result.current.totals.total).toBe(1700));
-    expect(result.current.totals.subtotal).toBeCloseTo(1700 / 1.15);
+    expect(result.current.totals.taxAmount).toBe(0);
+    expect(result.current.totals.taxRate).toBe(0);
+    expect(result.current.totals.taxOnSales).toBe(false);
   });
 
-  it('falls back to no tax without a configured rate', async () => {
-    setBusiness(businessFixture());
+  it('falls back to no tax when tax is on without a configured rate', async () => {
+    setBusiness(businessFixture({ taxOnSales: true }));
     const { result } = render();
 
     act(() => result.current.draft.setQuantityForProduct('prod_tequila', 'unit_tequila_bottle', 2));
 
     await waitFor(() => expect(result.current.totals.total).toBe(1700));
     expect(result.current.totals.taxRate).toBe(0);
-    expect(result.current.totals.taxDisplayMode).toBe('EXCLUSIVE');
+    expect(result.current.totals.taxOnSales).toBe(true);
   });
 });

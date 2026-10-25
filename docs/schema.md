@@ -54,16 +54,16 @@ The only place an auth-provider identifier is stored.
 
 ### `Business`
 
-| Field                    | Type                          | Notes                                   |
-| ------------------------ | ----------------------------- | --------------------------------------- |
-| id                       | String (PK, ulid)             |                                         |
-| ownerId                  | String (FK → Owner)           | single Owner per business               |
-| name                     | String                        |                                         |
-| currencyCode             | String                        | single currency per business (ISO 4217) |
-| defaultTaxRate           | Decimal?                      | nullable = no tax                       |
-| taxDisplayMode           | enum(`exclusive`,`inclusive`) | default `exclusive`                     |
-| allowNegativeStock       | Boolean                       | default `true`                          |
-| lowStockDefaultThreshold | Decimal?                      | optional global fallback                |
+| Field                    | Type                | Notes                                   |
+| ------------------------ | ------------------- | --------------------------------------- |
+| id                       | String (PK, ulid)   |                                         |
+| ownerId                  | String (FK → Owner) | single Owner per business               |
+| name                     | String              |                                         |
+| currencyCode             | String              | single currency per business (ISO 4217) |
+| defaultTaxRate           | Decimal?            | percent (1–50); nullable = no rate set  |
+| taxOnSales               | Boolean             | default `false`; adds tax at checkout   |
+| allowNegativeStock       | Boolean             | default `true`                          |
+| lowStockDefaultThreshold | Decimal?            | optional global fallback                |
 
 ### `Branch`
 
@@ -313,7 +313,7 @@ No login — exists so a Pending/Partially-Paid sale can answer "who owes this."
 | customerId                   | String? (FK → Customer, nullable)       |                                                                                                                                                                                |
 | saleDatetime                 | DateTime                                |                                                                                                                                                                                |
 | discount                     | Decimal?                                |                                                                                                                                                                                |
-| taxRateApplied               | Decimal                                 | snapshot of business rate at time of sale                                                                                                                                      |
+| taxRateApplied               | Decimal                                 | snapshot of the business tax rate (percent) at time of sale, or 0 when tax is off                                                                                              |
 | subtotal / taxAmount / total | Decimal                                 |                                                                                                                                                                                |
 | paymentStatus                | enum(`PENDING`,`PARTIALLY_PAID`,`PAID`) |                                                                                                                                                                                |
 | amountPaid                   | Decimal                                 | derived value — `SUM(Payment.amount)` for this sale, see §9                                                                                                                    |

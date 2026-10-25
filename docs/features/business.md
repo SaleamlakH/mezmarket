@@ -28,7 +28,7 @@ For the identity model and auth flow, see [auth.md](auth.md) and
 
 - One owner may own several businesses, so a business is addressed by its own id (`/api/businesses/:businessId`) and never inferred from the identity alone. The owner's businesses are listed oldest first, which is the order they were created in.
 
-- The settings on this profile are the shop's name, its currency, the default tax rate, whether tax is displayed inclusive or exclusive, whether sales may go beyond recorded stock, and the low-stock alert threshold. Whether sales may go beyond stock is a stored default that can only be changed here, never chosen at creation. The low-stock threshold is also stored but is not currently applied as a fallback: inventory and dashboard status use each product's own `lowStockThreshold`.
+- The settings on this profile are the shop's name, its currency, the default tax rate, whether tax is added to sales, whether sales may go beyond recorded stock, and the low-stock alert threshold. Tax is off by default; turning it on requires a rate between 1 and 50 percent. Whether sales may go beyond stock is a stored default that can only be changed here, never chosen at creation. The low-stock threshold is also stored but is not currently applied as a fallback: inventory and dashboard status use each product's own `lowStockThreshold`.
 
 - An update restates the profile rather than patching it: the name and the currency are part of every save, because the form always submits the whole profile it was opened with. The remaining settings may be left out, and a field left out keeps whatever was already stored.
 

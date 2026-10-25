@@ -1,7 +1,5 @@
 import type { RequireAllKeys } from '../shared/require-all-keys.js';
 
-export type TaxDisplayMode = 'EXCLUSIVE' | 'INCLUSIVE';
-
 export type BusinessMemberRole = 'OWNER' | 'MANAGER' | 'CASHIER' | 'SERVER';
 
 /**
@@ -13,7 +11,7 @@ export interface Business {
   name: string;
   currencyCode: string;
   defaultTaxRate: number | null;
-  taxDisplayMode: TaxDisplayMode;
+  taxOnSales: boolean;
   allowNegativeStock: boolean;
   lowStockDefaultThreshold: number | null;
   createdAt: Date;
@@ -96,7 +94,7 @@ export interface MemberListFilters {
 
 export type CreateBusinessInput = Pick<Business, 'name' | 'currencyCode'> & {
   defaultTaxRate?: number;
-  taxDisplayMode?: TaxDisplayMode;
+  taxOnSales?: boolean;
   lowStockDefaultThreshold?: number;
 };
 
@@ -110,7 +108,7 @@ export type UpdateBusinessInput = Partial<
     | 'name'
     | 'currencyCode'
     | 'defaultTaxRate'
-    | 'taxDisplayMode'
+    | 'taxOnSales'
     | 'allowNegativeStock'
     | 'lowStockDefaultThreshold'
   >

@@ -1,5 +1,5 @@
 import z from 'zod';
-import type { CreateBusinessInput, TaxDisplayMode, UpdateBusinessInput } from '@mez/types';
+import type { CreateBusinessInput, UpdateBusinessInput } from '@mez/types';
 
 /**
  * Values a user submits in the create-business form.
@@ -46,19 +46,9 @@ const defaultTaxRateSchema = z.preprocess(
   preprocessOptionalNumber,
   z
     .number()
-    .min(0, 'Tax rate must be at least 0')
-    .max(100, 'Tax rate must be at most 100')
+    .min(1, 'Tax rate must be at least 1')
+    .max(50, 'Tax rate must be at most 50')
     .optional(),
-);
-
-export const taxDisplayModeValues = {
-  EXCLUSIVE: 'EXCLUSIVE',
-  INCLUSIVE: 'INCLUSIVE',
-} satisfies Record<TaxDisplayMode, TaxDisplayMode>;
-
-const taxDisplayModeSchema = z.preprocess(
-  (value) => (value === '' ? undefined : value),
-  z.enum(Object.values(taxDisplayModeValues)).optional(),
 );
 
 const lowStockDefaultThresholdSchema = z.preprocess(
@@ -66,19 +56,39 @@ const lowStockDefaultThresholdSchema = z.preprocess(
   z.number().min(0, 'Low stock threshold must be at least 0').optional(),
 );
 
-export const createBusinessSchema = z.object({
-  name: nameSchema,
-  currencyCode: currencyCodeSchema,
-  defaultTaxRate: defaultTaxRateSchema,
-  taxDisplayMode: taxDisplayModeSchema,
-  lowStockDefaultThreshold: lowStockDefaultThresholdSchema,
-});
+export const createBusinessSchema = z
+  .object({
+    name: nameSchema,
+    currencyCode: currencyCodeSchema,
+    defaultTaxRate: defaultTaxRateSchema,
+    taxOnSales: z.boolean().optional(),
+    lowStockDefaultThreshold: lowStockDefaultThresholdSchema,
+  })
+  .superRefine((data, ctx) => {
+    if (data.taxOnSales === true && data.defaultTaxRate === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['defaultTaxRate'],
+        message: 'Tax Rate is required if added to sales',
+      });
+    }
+  });
 
-export const updateBusinessSchema = z.object({
-  name: nameSchema,
-  currencyCode: currencyCodeSchema,
-  defaultTaxRate: defaultTaxRateSchema,
-  taxDisplayMode: taxDisplayModeSchema,
-  allowNegativeStock: z.boolean().optional(),
-  lowStockDefaultThreshold: lowStockDefaultThresholdSchema,
-});
+export const updateBusinessSchema = z
+  .object({
+    name: nameSchema,
+    currencyCode: currencyCodeSchema,
+    defaultTaxRate: defaultTaxRateSchema,
+    taxOnSales: z.boolean().optional(),
+    allowNegativeStock: z.boolean().optional(),
+    lowStockDefaultThreshold: lowStockDefaultThresholdSchema,
+  })
+  .superRefine((data, ctx) => {
+    if (data.taxOnSales === true && data.defaultTaxRate === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['defaultTaxRate'],
+        message: 'Tax on sales is on. Set a rate between 1 and 50.',
+      });
+    }
+  });

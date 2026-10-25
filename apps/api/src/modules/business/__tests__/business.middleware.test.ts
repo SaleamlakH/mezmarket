@@ -78,7 +78,7 @@ describe('business.middleware', () => {
       name: 'Shop v2',
       currencyCode: 'usd',
       defaultTaxRate: 15,
-      taxDisplayMode: 'INCLUSIVE',
+      taxOnSales: true,
       allowNegativeStock: false,
       lowStockDefaultThreshold: 10,
     };

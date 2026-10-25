@@ -3,6 +3,7 @@ import { Button } from '@/components/Button';
 import { Field } from '@/components/Field';
 import { Input } from '@/components/Input';
 import { LedgerLine } from '@/components/LedgerLine';
+import { Switch } from '@/components/Switch';
 import { Toast } from '@/components/Toast';
 import { useCreateBusinessForm } from '../hooks/useCreateBusinessForm';
 
@@ -88,7 +89,7 @@ export function CreateBusinessPage() {
             <Field
               id="defaultTaxRate"
               label="Default tax rate (%)"
-              hint="Leave empty for no tax"
+              hint="1 to 50. Required when tax is added to sales."
               error={errors?.defaultTaxRate}
             >
               <Input
@@ -96,8 +97,8 @@ export function CreateBusinessPage() {
                 name="defaultTaxRate"
                 type="number"
                 inputMode="decimal"
-                min="0"
-                max="100"
+                min="1"
+                max="50"
                 step="0.01"
                 placeholder="0"
                 value={values.defaultTaxRate ?? ''}
@@ -107,23 +108,16 @@ export function CreateBusinessPage() {
             </Field>
 
             <Field
-              id="taxDisplayMode"
-              label="Tax display mode"
-              hint="Whether prices include tax"
-              error={errors?.taxDisplayMode}
+              id="taxOnSales"
+              label="Tax on sales"
+              hint="Tax will be added to the sale at the default rate."
+              error={errors?.taxOnSales}
             >
-              <select
-                id="taxDisplayMode"
-                name="taxDisplayMode"
-                value={values.taxDisplayMode ?? ''}
-                onChange={(e) => handleChange('taxDisplayMode', e.target.value)}
-                onBlur={() => handleBlur('taxDisplayMode')}
-                className="focus-ring w-full rounded-[13px] border border-(--border) bg-(--field) px-4 py-3.5 text-md text-(--text) outline-none transition-colors duration-150 placeholder:text-(--text-muted) focus:border-transparent"
-              >
-                <option value="">EXCLUSIVE</option>
-                <option value="EXCLUSIVE">EXCLUSIVE (price excludes tax)</option>
-                <option value="INCLUSIVE">INCLUSIVE (price includes tax)</option>
-              </select>
+              <Switch
+                checked={values.taxOnSales ?? false}
+                onChange={(checked) => handleChange('taxOnSales', checked)}
+                label="Tax on sales"
+              />
             </Field>
 
             <Field

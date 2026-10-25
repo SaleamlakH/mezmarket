@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import type { TaxDisplayMode } from '@mez/types';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
 import { saleTotals, type SaleTotalsPreview } from '../lib/saleTotals';
 import { useSaleDraftView } from './useSaleDraftView';
@@ -11,12 +10,12 @@ import { useSaleDraftView } from './useSaleDraftView';
  */
 export function useSaleDraftTotals(): SaleTotalsPreview {
   const { currentBusiness } = useBusinessContext();
-  const taxRate = currentBusiness?.defaultTaxRate ?? 0;
-  const taxDisplayMode: TaxDisplayMode = currentBusiness?.taxDisplayMode ?? 'EXCLUSIVE';
+  const taxOnSales = currentBusiness?.taxOnSales ?? false;
+  const taxRate = taxOnSales ? (currentBusiness?.defaultTaxRate ?? 0) : 0;
   const { total } = useSaleDraftView();
 
   return useMemo(
-    () => ({ ...saleTotals(total, taxRate, taxDisplayMode), taxRate, taxDisplayMode }),
-    [total, taxRate, taxDisplayMode],
+    () => ({ ...saleTotals(total, taxRate), taxRate, taxOnSales }),
+    [total, taxRate, taxOnSales],
   );
 }

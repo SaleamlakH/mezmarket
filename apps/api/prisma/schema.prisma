@@ -11,11 +11,6 @@ datasource db {
 // ENUMS
 // ==========================================
 
-enum TaxDisplayMode {
-  EXCLUSIVE
-  INCLUSIVE
-}
-
 enum BusinessMemberRole {
   OWNER
   MANAGER
@@ -140,8 +135,8 @@ model Business {
 
   name                     String
   currencyCode             String
-  defaultTaxRate           Decimal?       @db.Decimal(6, 4)
-  taxDisplayMode           TaxDisplayMode @default(EXCLUSIVE)
+  defaultTaxRate           Decimal?       @db.Decimal(5, 2)
+  taxOnSales               Boolean        @default(false)
   allowNegativeStock       Boolean        @default(true)
   lowStockDefaultThreshold Decimal?       @db.Decimal(12, 4)
 
@@ -643,7 +638,7 @@ model Sale {
   saleDatetime DateTime @default(now())
 
   discount       Decimal? @db.Decimal(10, 2)
-  taxRateApplied Decimal  @db.Decimal(6, 4)
+  taxRateApplied Decimal  @db.Decimal(5, 2)
   subtotal       Decimal  @db.Decimal(10, 2)
   taxAmount      Decimal  @db.Decimal(10, 2)
   total          Decimal  @db.Decimal(10, 2)

@@ -42,7 +42,7 @@ function businessFixture(id: string): BusinessResponse {
     name: 'Test Business',
     currencyCode: 'ETB',
     defaultTaxRate: null,
-    taxDisplayMode: 'EXCLUSIVE',
+    taxOnSales: false,
     allowNegativeStock: true,
     lowStockDefaultThreshold: null,
     createdAt: '2026-01-01T00:00:00.000Z',

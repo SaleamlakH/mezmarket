@@ -169,6 +169,7 @@ export type ServerRef = {
 /** The business settings a sale snapshots at the moment it is created. */
 export type BusinessSaleConfig = {
   defaultTaxRate: StoredDecimal | null;
+  taxOnSales: boolean;
   allowNegativeStock: boolean;
 };
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createBusinessRepository } from '../business.repository.js';
 import type { BusinessRepository, UpdateBusinessInput } from '../business.types.js';
-import { TaxDisplayMode, type PrismaClient } from '../../../../generated/prisma/client.js';
+import type { PrismaClient } from '../../../../generated/prisma/client.js';
 
 type MockTx = {
   business: {
@@ -135,7 +135,7 @@ describe('business.repository', () => {
       });
     });
 
-    it('exclude taxDisplayMode if not provided', async () => {
+    it('excludes taxOnSales if not provided', async () => {
       const { prisma, tx } = createPrismaStub();
       const repo = createBusinessRepository(prisma);
       registerSuccess(tx);
@@ -163,7 +163,7 @@ describe('business.repository', () => {
         name: 'Test',
         currencyCode: 'USD',
         defaultTaxRate: 0,
-        taxDisplayMode: 'EXCLUSIVE',
+        taxOnSales: false,
         lowStockDefaultThreshold: 0,
       });
 
@@ -173,7 +173,7 @@ describe('business.repository', () => {
           name: 'Test',
           currencyCode: 'USD',
           defaultTaxRate: 0,
-          taxDisplayMode: 'EXCLUSIVE',
+          taxOnSales: false,
           lowStockDefaultThreshold: 0,
         },
       });
@@ -303,7 +303,7 @@ describe('business.repository', () => {
       name: 'Shop v2',
       currencyCode: 'USD',
       defaultTaxRate: 15,
-      taxDisplayMode: TaxDisplayMode.INCLUSIVE,
+      taxOnSales: true,
       allowNegativeStock: false,
       lowStockDefaultThreshold: 10,
     };
