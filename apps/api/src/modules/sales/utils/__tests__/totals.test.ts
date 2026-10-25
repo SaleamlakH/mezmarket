@@ -28,12 +28,32 @@ function line(overrides: Partial<ResolvedSaleLine> = {}): ResolvedSaleLine {
 describe('computeSaleTotals', () => {
   it('sums the lines into a subtotal', () => {
     // 2 x 950 = 1900
-    expect(computeSaleTotals([line()], 0).subtotal).toBe(1900);
+    expect(
+      computeSaleTotals(
+        [
+          line({
+            quantity: 2,
+            unitPrice: 950,
+          }),
+        ],
+        0,
+      ).subtotal,
+    ).toBe(1900);
   });
 
   it('applies the tax rate to the subtotal', () => {
     // 1900 at 15% = 285; total = 2185
-    expect(computeSaleTotals([line()], 0.15)).toEqual({
+    expect(
+      computeSaleTotals(
+        [
+          line({
+            quantity: 2,
+            unitPrice: 950,
+          }),
+        ],
+        15,
+      ),
+    ).toEqual({
       subtotal: 1900,
       taxAmount: 285,
       total: 2185,
@@ -41,12 +61,32 @@ describe('computeSaleTotals', () => {
   });
 
   it('charges no tax when the rate is zero', () => {
-    expect(computeSaleTotals([line()], 0)).toMatchObject({ taxAmount: 0, total: 1900 });
+    expect(
+      computeSaleTotals(
+        [
+          line({
+            quantity: 2,
+            unitPrice: 950,
+          }),
+        ],
+        0,
+      ),
+    ).toMatchObject({ taxAmount: 0, total: 1900 });
   });
 
   it('rounds money to the precision the columns store', () => {
     // 3 x 950 = 2850; 7.5% = 213.75; total = 3063.75
-    expect(computeSaleTotals([line({ quantity: 3 })], 0.075)).toEqual({
+    expect(
+      computeSaleTotals(
+        [
+          line({
+            quantity: 3,
+            unitPrice: 950,
+          }),
+        ],
+        7.5,
+      ),
+    ).toEqual({
       subtotal: 2850,
       taxAmount: 213.75,
       total: 3063.75,
@@ -55,7 +95,18 @@ describe('computeSaleTotals', () => {
 
   it('subtracts a whole-sale discount before tax', () => {
     // 2 x 950 = 1900; less 100 = 1800; 15% = 270; total = 2070
-    expect(computeSaleTotals([line()], 0.15, 100)).toEqual({
+    expect(
+      computeSaleTotals(
+        [
+          line({
+            quantity: 2,
+            unitPrice: 950,
+          }),
+        ],
+        15,
+        100,
+      ),
+    ).toEqual({
       subtotal: 1900,
       taxAmount: 270,
       total: 2070,
@@ -64,7 +115,18 @@ describe('computeSaleTotals', () => {
 
   it('reduces the total by a discount when there is no tax', () => {
     // subtotal 100, discount 10 -> total 90
-    expect(computeSaleTotals([line({ quantity: 1, unitPrice: 100 })], 0, 10)).toEqual({
+    expect(
+      computeSaleTotals(
+        [
+          line({
+            quantity: 1,
+            unitPrice: 100,
+          }),
+        ],
+        0,
+        10,
+      ),
+    ).toEqual({
       subtotal: 100,
       taxAmount: 0,
       total: 90,
@@ -72,13 +134,33 @@ describe('computeSaleTotals', () => {
   });
 
   it('refuses a discount larger than the subtotal', () => {
-    expect(() => computeSaleTotals([line()], 0, 5000)).toThrow(
-      appError(ERROR_CODES.BAD_REQUEST, 400),
-    );
+    expect(() =>
+      computeSaleTotals(
+        [
+          line({
+            quantity: 2,
+            unitPrice: 950,
+          }),
+        ],
+        0,
+        5000,
+      ),
+    ).toThrow(appError(ERROR_CODES.BAD_REQUEST, 400));
   });
 
   it('allows a discount equal to the subtotal', () => {
-    expect(computeSaleTotals([line()], 0, 1900)).toEqual({
+    expect(
+      computeSaleTotals(
+        [
+          line({
+            quantity: 2,
+            unitPrice: 950,
+          }),
+        ],
+        0,
+        1900,
+      ),
+    ).toEqual({
       subtotal: 1900,
       taxAmount: 0,
       total: 0,
@@ -86,6 +168,27 @@ describe('computeSaleTotals', () => {
   });
 
   it('treats a missing discount as none', () => {
-    expect(computeSaleTotals([line()], 0.15)).toEqual(computeSaleTotals([line()], 0.15, undefined));
+    expect(
+      computeSaleTotals(
+        [
+          line({
+            quantity: 2,
+            unitPrice: 950,
+          }),
+        ],
+        15,
+      ),
+    ).toEqual(
+      computeSaleTotals(
+        [
+          line({
+            quantity: 2,
+            unitPrice: 950,
+          }),
+        ],
+        15,
+        undefined,
+      ),
+    );
   });
 });

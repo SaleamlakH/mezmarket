@@ -58,7 +58,7 @@ export const sale: SaleDetailResponse = {
   serverMemberId: null,
   customerId: null,
   discount: null,
-  taxRateApplied: 0.15,
+  taxRateApplied: 15,
   subtotal: 8870,
   taxAmount: 1330,
   total: 10200,

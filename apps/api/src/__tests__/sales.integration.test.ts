@@ -83,7 +83,7 @@ const SALE_RECORD = {
   customerId: null,
   saleDatetime: new Date('2026-02-01T09:00:00.000Z'),
   discount: null,
-  taxRateApplied: decimal(0.15),
+  taxRateApplied: decimal(15),
   subtotal: decimal(1900),
   taxAmount: decimal(285),
   total: decimal(2185),
@@ -158,7 +158,8 @@ describe('sales.integration', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     salesRepository.getBusinessSaleConfig.mockResolvedValue({
-      defaultTaxRate: decimal(0.15),
+      defaultTaxRate: decimal(15),
+      taxOnSales: true,
       allowNegativeStock: true,
     });
     salesRepository.getProductSellContext.mockResolvedValue([PRODUCT]);
@@ -400,7 +401,8 @@ describe('sales.integration', () => {
     it('blocks a sale that would oversell when the business disallows negative stock', async () => {
       await authenticate();
       salesRepository.getBusinessSaleConfig.mockResolvedValue({
-        defaultTaxRate: decimal(0.15),
+        defaultTaxRate: decimal(15),
+        taxOnSales: true,
         allowNegativeStock: false,
       });
       salesRepository.getProductSellContext.mockResolvedValue([

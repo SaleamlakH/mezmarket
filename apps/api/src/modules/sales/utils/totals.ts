@@ -3,15 +3,12 @@ import { AppError, ERROR_CODES } from '../../../shared/errors/app-error.js';
 import { roundMoney } from '../../../shared/utils/rounding.js';
 
 /**
- * The sale's money totals from its resolved lines, the tax rate applied and an
- * optional whole-sale discount: the subtotal is the sum of the lines, the
- * discount is taken off it, the tax is what is left at the rate, and the total
- * is the discounted amount plus that tax. Each step is rounded to the precision
- * the columns store, so no total carries a fraction the database cannot hold.
+ * Return the sale's money totals from its resolved lines, the tax rate applied as a
+ * percentage and an optional whole-sale discount.
  *
- * A discount larger than the subtotal is refused rather than swallowed: the
- * caller told us to take off more than the goods are worth, which is a mistake
- * worth surfacing, not silently turning into a free sale.
+ * Tax is applied on the sales total and the discount difference.
+ *
+ * A discount larger than the subtotal is refused.
  */
 export function computeSaleTotals(
   lines: ResolvedSaleLine[],
@@ -33,7 +30,7 @@ export function computeSaleTotals(
   }
 
   const taxable = roundMoney(subtotal - discountAmount);
-  const taxAmount = roundMoney(taxable * taxRate);
+  const taxAmount = roundMoney(taxable * (taxRate / 100));
   const total = roundMoney(taxable + taxAmount);
 
   return { subtotal, taxAmount, total };

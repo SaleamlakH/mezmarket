@@ -61,7 +61,9 @@ export function createSaleService(repository: SaleRepository): SaleService {
       const lines = snapshotSaleLines(products, actor.businessId, input.lines);
       const allocated = allocateStock(products, lots, lines, saleConfig.allowNegativeStock);
 
-      const taxRateApplied = saleConfig.defaultTaxRate?.toNumber() ?? 0;
+      const taxRateApplied = saleConfig.taxOnSales
+        ? (saleConfig.defaultTaxRate?.toNumber() ?? 0)
+        : 0;
       const { subtotal, taxAmount, total } = computeSaleTotals(
         allocated,
         taxRateApplied,

@@ -18,7 +18,7 @@ function business(): BusinessResponse {
     name: 'Selam Mart',
     currencyCode: 'ETB',
     defaultTaxRate: 15,
-    taxDisplayMode: 'EXCLUSIVE',
+    taxOnSales: false,
     allowNegativeStock: true,
     lowStockDefaultThreshold: 10,
     createdAt: '2026-01-01T00:00:00.000Z',

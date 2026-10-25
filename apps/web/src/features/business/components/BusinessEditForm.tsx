@@ -2,15 +2,9 @@ import { Field } from '@/components/Field';
 import { Input } from '@/components/Input';
 import { SectionCard } from '@/components/SectionCard';
 import { SectionFooter } from '@/components/SectionFooter';
-import { Select } from '@/components/Select';
 import { Switch } from '@/components/Switch';
 import type { BusinessResponse } from '@mez/types';
 import { useBusinessEditForm } from '../hooks/useBusinessEditForm';
-
-const TAX_MODE_OPTIONS = [
-  { value: 'EXCLUSIVE', label: 'Tax never added' },
-  { value: 'INCLUSIVE', label: 'Prices include tax' },
-];
 
 export interface BusinessEditFormProps {
   business: BusinessResponse;
@@ -96,8 +90,8 @@ export function BusinessEditForm({
 
             <Field
               id="defaultTaxRate"
-              label="Default tax rate"
-              hint="Leave empty for no tax"
+              label="Default tax rate (%)"
+              hint="1 to 50. Required when tax is added to sales."
               error={errors?.defaultTaxRate}
             >
               <Input
@@ -105,8 +99,8 @@ export function BusinessEditForm({
                 name="defaultTaxRate"
                 type="number"
                 inputMode="decimal"
-                min="0"
-                max="100"
+                min="1"
+                max="50"
                 step="0.01"
                 placeholder="0"
                 value={values.defaultTaxRate}
@@ -117,18 +111,15 @@ export function BusinessEditForm({
             </Field>
 
             <Field
-              id="taxDisplayMode"
-              label="Tax display"
-              hint="Whether prices include tax"
-              error={errors?.taxDisplayMode}
+              id="taxOnSales"
+              label="Tax on sales"
+              hint="Tax will be added to the sale at the default rate."
+              error={errors?.taxOnSales}
             >
-              <Select
-                id="taxDisplayMode"
-                name="taxDisplayMode"
-                options={TAX_MODE_OPTIONS}
-                value={values.taxDisplayMode}
-                onChange={(e) => handleChange('taxDisplayMode', e.target.value)}
-                onBlur={() => handleBlur('taxDisplayMode')}
+              <Switch
+                checked={values.taxOnSales ?? false}
+                onChange={(checked) => handleChange('taxOnSales', checked)}
+                label="Tax on sales"
                 disabled={!editing}
               />
             </Field>

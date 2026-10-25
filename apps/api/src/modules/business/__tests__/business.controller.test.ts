@@ -130,7 +130,7 @@ describe('business.controller', () => {
         name: 'Shop v2',
         currencyCode: 'USD',
         defaultTaxRate: 15,
-        taxDisplayMode: 'INCLUSIVE',
+        taxOnSales: true,
         allowNegativeStock: false,
         lowStockDefaultThreshold: 10,
       };

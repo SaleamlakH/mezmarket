@@ -31,7 +31,7 @@ function groupLinesByProduct(lines: SaleLineDetailResponse[]): ProductGroup[] {
 export function SaleDetailPurchaseSection({ sale, currency }: SaleDetailPurchaseSectionProps) {
   const groups = groupLinesByProduct(sale.lines);
   const taxLabel = `Sales tax${
-    sale.taxRateApplied > 0 ? ` (${(sale.taxRateApplied * 100).toFixed(0)}%)` : ''
+    sale.taxRateApplied > 0 ? ` (${sale.taxRateApplied.toFixed(0)}%)` : ''
   }`;
 
   return (

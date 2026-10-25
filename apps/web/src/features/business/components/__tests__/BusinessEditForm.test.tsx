@@ -22,7 +22,7 @@ function business(): BusinessResponse {
     name: 'Selam Mart',
     currencyCode: 'ETB',
     defaultTaxRate: 15,
-    taxDisplayMode: 'EXCLUSIVE',
+    taxOnSales: false,
     allowNegativeStock: true,
     lowStockDefaultThreshold: 10,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -60,8 +60,8 @@ describe('BusinessEditForm', () => {
     expect(screen.getByLabelText('Name')).toHaveValue('Selam Mart');
     expect(screen.getByLabelText('Currency')).toHaveValue('ETB');
     expect(screen.getByLabelText('Currency')).toHaveAttribute('maxlength', '3');
-    expect(screen.getByLabelText('Default tax rate')).toHaveValue(15);
-    expect(screen.getByLabelText('Tax display')).toHaveValue('EXCLUSIVE');
+    expect(screen.getByLabelText(/default tax rate/i)).toHaveValue(15);
+    expect(screen.getByRole('switch', { name: /tax on sales/i })).not.toBeChecked();
     expect(screen.getByRole('switch', { name: /allow sales beyond stock/i })).toBeChecked();
     expect(screen.getByLabelText('Low-stock alert')).toHaveValue(10);
   });
@@ -119,6 +119,22 @@ describe('BusinessEditForm', () => {
       ),
     );
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
+  });
+
+  it('submits taxOnSales when the tax toggle is turned on', async () => {
+    const user = userEvent.setup();
+    vi.mocked(businessService.updateBusiness).mockResolvedValue(business() as never);
+    renderForm();
+
+    await user.click(screen.getByRole('switch', { name: /tax on sales/i }));
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    await waitFor(() =>
+      expect(businessService.updateBusiness).toHaveBeenCalledWith(
+        'b-1',
+        expect.objectContaining({ taxOnSales: true, defaultTaxRate: 15 }),
+      ),
+    );
   });
 
   it('calls onCancel and does not submit when Cancel is clicked', async () => {

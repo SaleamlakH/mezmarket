@@ -32,7 +32,7 @@ function valuesEqual(a: BusinessEditFormValues, b: BusinessEditFormValues): bool
     a.name === b.name &&
     a.currencyCode === b.currencyCode &&
     String(a.defaultTaxRate) === String(b.defaultTaxRate) &&
-    a.taxDisplayMode === b.taxDisplayMode &&
+    a.taxOnSales === b.taxOnSales &&
     a.allowNegativeStock === b.allowNegativeStock &&
     String(a.lowStockDefaultThreshold) === String(b.lowStockDefaultThreshold)
   );

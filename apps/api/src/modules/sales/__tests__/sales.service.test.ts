@@ -103,7 +103,7 @@ function saleRecord(overrides: Partial<SaleRecordWithDetail> = {}): SaleRecordWi
     customerId: null,
     saleDatetime: new Date('2026-02-01T09:00:00.000Z'),
     discount: null,
-    taxRateApplied: decimal(0.15),
+    taxRateApplied: decimal(15),
     subtotal: decimal(1900),
     taxAmount: decimal(285),
     total: decimal(2185),
@@ -176,7 +176,8 @@ describe('sales.service', () => {
     mockRepo = mockRepository();
     service = createSaleService(mockRepo);
     vi.mocked(mockRepo.getBusinessSaleConfig).mockResolvedValue({
-      defaultTaxRate: decimal(0.15),
+      defaultTaxRate: decimal(15),
+      taxOnSales: true,
       allowNegativeStock: true,
     });
     vi.mocked(mockRepo.getProductSellContext).mockResolvedValue(CATALOG);
@@ -252,9 +253,26 @@ describe('sales.service', () => {
       // 2 x 950 = 1900; tax 15% = 285; total = 2185
       expect(written()).toMatchObject({
         subtotal: 1900,
-        taxRateApplied: 0.15,
+        taxRateApplied: 15,
         taxAmount: 285,
         total: 2185,
+      });
+    });
+
+    it('charges no tax when tax is off, even with a configured rate', async () => {
+      vi.mocked(mockRepo.getBusinessSaleConfig).mockResolvedValue({
+        defaultTaxRate: decimal(15),
+        taxOnSales: false,
+        allowNegativeStock: true,
+      });
+
+      await service.createSale(actor(), input({ lines: [line({ quantity: 2 })] }));
+
+      expect(written()).toMatchObject({
+        subtotal: 1900,
+        taxRateApplied: 0,
+        taxAmount: 0,
+        total: 1900,
       });
     });
 

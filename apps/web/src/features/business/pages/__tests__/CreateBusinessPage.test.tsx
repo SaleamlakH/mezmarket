@@ -54,7 +54,7 @@ describe('CreateBusinessPage', () => {
     expect(screen.getByRole('button', { name: /create business/i })).toBeInTheDocument();
 
     expect(screen.queryByLabelText(/default tax rate/i)).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/tax display mode/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('switch', { name: /tax on sales/i })).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/low stock threshold/i)).not.toBeInTheDocument();
   });
 
@@ -65,7 +65,7 @@ describe('CreateBusinessPage', () => {
     await user.click(screen.getByRole('button', { name: /optional settings/i }));
 
     expect(screen.getByLabelText(/default tax rate/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/tax display mode/i)).toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: /tax on sales/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/low stock threshold/i)).toBeInTheDocument();
   });
 
@@ -78,6 +78,38 @@ describe('CreateBusinessPage', () => {
 
     expect(await screen.findByText(/business name is required/i)).toBeInTheDocument();
     expect(businessService.createBusiness).not.toHaveBeenCalled();
+  });
+
+  it('requires a tax rate when tax on sales is turned on', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.type(screen.getByLabelText(/business name/i), 'Selam Mart');
+    await user.type(screen.getByLabelText(/currency/i), 'ETB');
+    await user.click(screen.getByRole('button', { name: /optional settings/i }));
+    await user.click(screen.getByRole('switch', { name: /tax on sales/i }));
+    await user.click(screen.getByRole('button', { name: /create business/i }));
+
+    expect(await screen.findByText('Tax Rate is required if added to sales')).toBeInTheDocument();
+    expect(businessService.createBusiness).not.toHaveBeenCalled();
+  });
+
+  it('submits the tax rate and taxOnSales toggle together', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.type(screen.getByLabelText(/business name/i), 'Selam Mart');
+    await user.type(screen.getByLabelText(/currency/i), 'ETB');
+    await user.click(screen.getByRole('button', { name: /optional settings/i }));
+    await user.type(screen.getByLabelText(/default tax rate/i), '15');
+    await user.click(screen.getByRole('switch', { name: /tax on sales/i }));
+    await user.click(screen.getByRole('button', { name: /create business/i }));
+
+    await waitFor(() =>
+      expect(businessService.createBusiness).toHaveBeenCalledWith(
+        expect.objectContaining({ defaultTaxRate: 15, taxOnSales: true }),
+      ),
+    );
   });
 
   it('submits transformed values, sets the new business, and navigates to the dashboard on success', async () => {

@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { validateCreateBusiness, validateUpdateBusiness } from '../parser.js';
-import { taxDisplayModeValues } from '../schema/business.schema.js';
 
 describe('parser', () => {
   describe('validateCreateBusiness', () => {
@@ -16,7 +15,7 @@ describe('parser', () => {
         name: 'My Shop',
         currencyCode: 'USD',
         defaultTaxRate: '15' as unknown as number,
-        taxDisplayMode: 'INCLUSIVE',
+        taxOnSales: true,
         lowStockDefaultThreshold: '10' as unknown as number,
       });
 
@@ -24,7 +23,7 @@ describe('parser', () => {
         name: 'My Shop',
         currencyCode: 'USD',
         defaultTaxRate: 15,
-        taxDisplayMode: 'INCLUSIVE',
+        taxOnSales: true,
         lowStockDefaultThreshold: 10,
       });
       expect(result.errors).toBeNull();
@@ -35,7 +34,6 @@ describe('parser', () => {
         name: 'My Shop',
         currencyCode: 'USD',
         defaultTaxRate: '' as unknown as number,
-        taxDisplayMode: '' as never,
         lowStockDefaultThreshold: '' as unknown as number,
       });
 
@@ -54,15 +52,15 @@ describe('parser', () => {
       expect(result.errors).toBeNull();
     });
 
-    it('should preserve a zero defaultTaxRate', () => {
+    it('should invalidate a defaultTaxRate below 1', () => {
       const result = validateCreateBusiness({
         name: 'My Shop',
         currencyCode: 'USD',
         defaultTaxRate: '0' as unknown as number,
       });
 
-      expect(result.data).toEqual({ name: 'My Shop', currencyCode: 'USD', defaultTaxRate: 0 });
-      expect(result.errors).toBeNull();
+      expect(result.data).toBeNull();
+      expect(result.errors).toEqual({ defaultTaxRate: expect.any(String) });
     });
 
     it('should trim whitespace around name', () => {
@@ -135,15 +133,15 @@ describe('parser', () => {
       expect(result.errors).toEqual({ defaultTaxRate: expect.any(String) });
     });
 
-    it('should invalidate a defaultTaxRate above 100', () => {
+    it('should invalidate a defaultTaxRate above 50', () => {
       const result = validateCreateBusiness({
         name: 'My Shop',
         currencyCode: 'USD',
-        defaultTaxRate: '101' as unknown as number,
+        defaultTaxRate: '51' as unknown as number,
       });
 
       expect(result.data).toBeNull();
-      expect(result.errors).toEqual({ defaultTaxRate: 'Tax rate must be at most 100' });
+      expect(result.errors).toEqual({ defaultTaxRate: expect.any(String) });
     });
 
     it('should invalidate a negative defaultTaxRate', () => {
@@ -154,31 +152,50 @@ describe('parser', () => {
       });
 
       expect(result.data).toBeNull();
-      expect(result.errors).toEqual({ defaultTaxRate: 'Tax rate must be at least 0' });
+      expect(result.errors).toEqual({ defaultTaxRate: expect.any(String) });
     });
 
-    it('should accept both valid taxDisplayMode values', () => {
-      for (const taxDisplayMode of ['EXCLUSIVE', 'INCLUSIVE'] as const) {
+    it('should accept taxOnSales as a boolean', () => {
+      for (const taxOnSales of [true, false] as const) {
         const result = validateCreateBusiness({
           name: 'My Shop',
           currencyCode: 'USD',
-          taxDisplayMode,
+          ...(taxOnSales ? { defaultTaxRate: 15 } : {}),
+          taxOnSales,
         });
 
-        expect(result.data).toEqual({ name: 'My Shop', currencyCode: 'USD', taxDisplayMode });
+        expect(result.data).toEqual({
+          name: 'My Shop',
+          currencyCode: 'USD',
+          taxOnSales,
+          ...(taxOnSales ? { defaultTaxRate: 15 } : {}),
+        });
         expect(result.errors).toBeNull();
       }
     });
 
-    it('should invalidate an invalid taxDisplayMode', () => {
+    it('should require a tax rate when tax is added to sales', () => {
       const result = validateCreateBusiness({
         name: 'My Shop',
         currencyCode: 'USD',
-        taxDisplayMode: 'INVALID' as never,
+        taxOnSales: true,
       });
 
       expect(result.data).toBeNull();
-      expect(result.errors).toEqual({ taxDisplayMode: expect.any(String) });
+      expect(result.errors).toEqual({
+        defaultTaxRate: expect.any(String),
+      });
+    });
+
+    it('should invalidate a taxOnSales that is not a boolean', () => {
+      const result = validateCreateBusiness({
+        name: 'My Shop',
+        currencyCode: 'USD',
+        taxOnSales: 'yes' as never,
+      });
+
+      expect(result.data).toBeNull();
+      expect(result.errors).toEqual({ taxOnSales: expect.any(String) });
     });
 
     it('should invalidate a negative lowStockDefaultThreshold', () => {
@@ -209,7 +226,7 @@ describe('parser', () => {
       const input = {
         ...base,
         defaultTaxRate: 15,
-        taxDisplayMode: taxDisplayModeValues.INCLUSIVE,
+        taxOnSales: true,
         allowNegativeStock: false,
         lowStockDefaultThreshold: 10,
       };
@@ -302,11 +319,11 @@ describe('parser', () => {
       expect(result.errors).toBeNull();
     });
 
-    it('should preserve a zero defaultTaxRate', () => {
+    it('should invalidate a defaultTaxRate below 1', () => {
       const result = validateUpdateBusiness({ ...base, defaultTaxRate: 0 });
 
-      expect(result.data).toEqual({ ...base, defaultTaxRate: 0 });
-      expect(result.errors).toBeNull();
+      expect(result.data).toBeNull();
+      expect(result.errors).toEqual({ defaultTaxRate: expect.any(String) });
     });
 
     it('should reject a null defaultTaxRate', () => {
@@ -323,34 +340,44 @@ describe('parser', () => {
       expect(result.errors).toEqual({ defaultTaxRate: expect.any(String) });
     });
 
-    it('should invalidate a defaultTaxRate above 100', () => {
-      const result = validateUpdateBusiness({ ...base, defaultTaxRate: 101 });
+    it('should invalidate a defaultTaxRate above 50', () => {
+      const result = validateUpdateBusiness({ ...base, defaultTaxRate: 51 });
 
       expect(result.data).toBeNull();
-      expect(result.errors).toEqual({ defaultTaxRate: 'Tax rate must be at most 100' });
+      expect(result.errors).toEqual({ defaultTaxRate: expect.any(String) });
     });
 
     it('should invalidate a negative defaultTaxRate', () => {
       const result = validateUpdateBusiness({ ...base, defaultTaxRate: -1 });
 
       expect(result.data).toBeNull();
-      expect(result.errors).toEqual({ defaultTaxRate: 'Tax rate must be at least 0' });
+      expect(result.errors).toEqual({ defaultTaxRate: expect.any(String) });
     });
 
-    it('should accept both valid taxDisplayMode values', () => {
-      for (const taxDisplayMode of ['EXCLUSIVE', 'INCLUSIVE'] as const) {
-        const result = validateUpdateBusiness({ ...base, taxDisplayMode });
+    it('should accept taxOnSales as a boolean', () => {
+      const off = validateUpdateBusiness({ ...base, taxOnSales: false });
+      const on = validateUpdateBusiness({ ...base, defaultTaxRate: 15, taxOnSales: true });
 
-        expect(result.data).toEqual({ ...base, taxDisplayMode });
-        expect(result.errors).toBeNull();
-      }
+      expect(off.data).toEqual({ ...base, taxOnSales: false });
+      expect(off.errors).toBeNull();
+      expect(on.data).toEqual({ ...base, defaultTaxRate: 15, taxOnSales: true });
+      expect(on.errors).toBeNull();
     });
 
-    it('should invalidate an invalid taxDisplayMode', () => {
-      const result = validateUpdateBusiness({ ...base, taxDisplayMode: 'INVALID' as never });
+    it('should require a tax rate when tax is added to sales', () => {
+      const result = validateUpdateBusiness({ ...base, taxOnSales: true });
 
       expect(result.data).toBeNull();
-      expect(result.errors).toEqual({ taxDisplayMode: expect.any(String) });
+      expect(result.errors).toEqual({
+        defaultTaxRate: expect.any(String),
+      });
+    });
+
+    it('should invalidate a taxOnSales that is not a boolean', () => {
+      const result = validateUpdateBusiness({ ...base, taxOnSales: 'yes' as never });
+
+      expect(result.data).toBeNull();
+      expect(result.errors).toEqual({ taxOnSales: expect.any(String) });
     });
 
     it('should accept allowNegativeStock as a boolean', () => {

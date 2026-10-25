@@ -26,7 +26,7 @@ export function SaleTotalsCard({ totals, currency }: SaleTotalsCardProps) {
     <div className="flex flex-col gap-1 rounded-xl border border-(--border) bg-(--surface-secondary) p-2.5">
       <TotalRow label="Subtotal" value={formatMoney(totals.subtotal, currency)} />
       <TotalRow
-        label={`Tax (${taxPercent.format(totals.taxRate)})`}
+        label={`Tax (${taxPercent.format(totals.taxRate / 100)})`}
         value={formatMoney(totals.taxAmount, currency)}
       />
 

@@ -30,8 +30,8 @@ export function createBusinessRepository(prisma: PrismaClient): BusinessReposito
             ownerId,
             name: input.name,
             currencyCode: input.currencyCode,
-            ...(input.taxDisplayMode !== undefined && {
-              taxDisplayMode: input.taxDisplayMode,
+            ...(input.taxOnSales !== undefined && {
+              taxOnSales: input.taxOnSales,
             }),
             ...(input.defaultTaxRate !== undefined && {
               defaultTaxRate: input.defaultTaxRate,
@@ -79,8 +79,8 @@ export function createBusinessRepository(prisma: PrismaClient): BusinessReposito
       });
 
       return branch?.id ?? null;
-    }, 
-    
+    },
+
     async getForOwner(businessId: string, ownerId: string) {
       return prisma.business.findFirst({
         where: { id: businessId, ownerId },
