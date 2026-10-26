@@ -61,7 +61,7 @@ describe('useProductUploadUrls', () => {
   });
 
   it('surfaces a failed signing request so it can be retried', async () => {
-    getProductUploadUrls.mockRejectedValue(new Error('offline'));
+    getProductUploadUrls.mockRejectedValue(new Error('network error'));
     const client = createClient();
 
     renderHook(() => useProductUploadUrls('b-1'), { wrapper: wrapper(client) });

@@ -18,7 +18,7 @@
     "db:seed": "pnpm prisma db seed"
   },
   "author": "Sale Habtamu <saleamlak.7h@gmail.com>",
-  "license": "ISC",
+  "license": "AGPL-3.0-only",
   "dependencies": {
     "@mez/validation": "workspace:*",
     "@prisma/adapter-pg": "^7.8.0",

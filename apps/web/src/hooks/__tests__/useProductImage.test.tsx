@@ -132,7 +132,9 @@ describe('useProductImage', () => {
 
   it('reports a failed download on that image query only', async () => {
     fetchMock.mockImplementation((url: string) =>
-      url.endsWith('1.jpg') ? Promise.reject(new Error('offline')) : Promise.resolve(okResponse()),
+      url.endsWith('1.jpg')
+        ? Promise.reject(new Error('network error'))
+        : Promise.resolve(okResponse()),
     );
     const client = createClient();
 

@@ -157,7 +157,7 @@ Different physical package sizes of what might look like "the same product" (a 5
 | currentSealedStock | Decimal                           | derived value, see §9                                                       |
 | active             | Boolean                           |                                                                             |
 
-No `sku`, no `cost_price` — neither is stored: SKU has no current feature depending on it, and cost is recorded per `StockBatchLine` at time of purchase (and varies purchase to purchase), so margin is derived from that history rather than a static field.
+No `cost_price` is stored: cost is recorded per `StockBatchLine` at time of purchase (and varies purchase to purchase), so margin is derived from that history rather than a static field.
 
 A product's photo, if any, is not a field on this table — it is represented by a live `Attachment` row referencing this product (see `Upload` and `Attachment` below), since a product does not directly reference the file that represents its photo.
 
