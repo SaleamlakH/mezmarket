@@ -39,7 +39,6 @@ Most inventory/POS tools are either too generic (spreadsheets — no batch/lot t
 - Payroll, HR, or shift management.
 - Accounting/tax filing integration.
 - Complex role hierarchies (department heads, approval chains).
-- Offline-first / full PWA sync (may be a fast-follow).
 
 ---
 
@@ -266,7 +265,6 @@ A system-maintained, append-only record of every significant action taken across
 - Tax: single configurable rate per business in v1; per-product tax classes deferred.
 - Multi-MOU: data model supports it now; v1 UI ships single-MOU only.
 - Tax: a single rate per business, off by default. When on, tax is added at checkout (line prices exclude tax, tax shown as its own invoice line).
-- SKU/product code: dropped for v1 — no current feature (barcode scanning, supplier code matching) depends on it; can be added later if a concrete need arises.
 - Container close: Closing is a confirm action; deviation is computed automatically as whatever the ledger still expects to remain at that moment — positive or negative — with an optional (never required) free-text reason.
 - Display unit for remaining/deviation: viewer-selectable at display time (e.g. ml, L, or shot), purely a conversion of stored standard-unit figures — not a stored choice.
 - Historical integrity of units,quantities and cost: every Batch and Sale line permanently snapshots both the unit-as-entered/quantity and the resolved standard-unit equivalent and the cost at that moment; later changes to units and costs never retroactively alter past records.
