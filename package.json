@@ -23,7 +23,7 @@
   },
   "keywords": [],
   "author": "Sale Habtamu <saleamlak.7h@gmail.com>",
-  "license": "ISC",
+  "license": "AGPL-3.0-only",
   "devDependencies": {
     "@changesets/cli": "^2.31.0",
     "eslint": "^10.5.0",

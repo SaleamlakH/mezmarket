@@ -235,4 +235,4 @@ See [workflows.md](docs/workflows.md) and [deployment.md](docs/deployment.md) fo
 
 ## License
 
-ISC. See the root `package.json`.
+GNU Affero General Public License v3.0 only. See [`LICENSE`](LICENSE).
