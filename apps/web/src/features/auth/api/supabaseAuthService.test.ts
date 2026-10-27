@@ -8,6 +8,8 @@ function createFakeSupabaseClient() {
     auth: {
       signInWithPassword: vi.fn(),
       signUp: vi.fn(),
+      verifyOtp: vi.fn(),
+      resend: vi.fn(),
       signOut: vi.fn(),
       getSession: vi.fn(),
       onAuthStateChange: vi.fn(),
@@ -41,7 +43,7 @@ describe('createSupabaseAuthService', () => {
 
       expect(result).toEqual({
         status: 'authenticated',
-        user: { id: 'u1', email: 'a@b.com' },
+        user: { id: 'u1', email: 'a@b.com', emailVerifiedAt: null },
       });
     });
 
@@ -159,6 +161,18 @@ describe('createSupabaseAuthService', () => {
       await expect(service.signInWithEmail(credentials)).rejects.toThrow();
     });
 
+    it('preserves the email_not_confirmed code for the login flow', async () => {
+      fakeClient.auth.signInWithPassword.mockResolvedValue({
+        data: { user: null, session: null },
+        error: { message: 'Email not confirmed', code: 'email_not_confirmed' },
+      });
+
+      await expect(service.signInWithEmail(credentials)).rejects.toMatchObject({
+        code: 'email_not_confirmed',
+        message: 'Email not confirmed',
+      });
+    });
+
     it('throws when the underlying call rejects (e.g. network error)', async () => {
       fakeClient.auth.signInWithPassword.mockRejectedValue(new Error('network down'));
 
@@ -172,34 +186,192 @@ describe('createSupabaseAuthService', () => {
       password: 'secret123',
     };
 
-    it('resolves with void on success and calls supabase with correct args', async () => {
+    it('returns the created user with a null verification timestamp', async () => {
       fakeClient.auth.signUp.mockResolvedValue({
-        data: { user: { id: 'u1' }, session: {} },
+        data: {
+          user: {
+            id: 'u1',
+            email: 'a@b.com',
+            email_confirmed_at: null,
+            identities: [{}],
+          },
+          session: null,
+        },
         error: null,
       });
 
       const result = await service.signUpWithEmail(credentials);
 
-      expect(fakeClient.auth.signOut).not.toHaveBeenCalled();
       expect(fakeClient.auth.signUp).toHaveBeenCalledWith(
         expect.objectContaining({ email: 'a@b.com', password: 'secret123' }),
       );
-      expect(result).toBeUndefined();
+      expect(result).toEqual({ id: 'u1', email: 'a@b.com', emailVerifiedAt: null });
     });
 
-    it('throws when supabase returns an error (e.g. email already registered)', async () => {
+    it('returns the created user when signup auto-confirms the email', async () => {
       fakeClient.auth.signUp.mockResolvedValue({
-        data: { user: null, session: null },
-        error: { message: 'User already registered' },
+        data: {
+          user: {
+            id: 'u1',
+            email: 'a@b.com',
+            email_confirmed_at: '2026-01-01T00:00:00Z',
+            identities: [{}],
+          },
+          session: { access_token: 'token' },
+        },
+        error: null,
       });
 
-      await expect(service.signUpWithEmail(credentials)).rejects.toThrow();
+      const result = await service.signUpWithEmail(credentials);
+
+      expect(result).toEqual({
+        id: 'u1',
+        email: 'a@b.com',
+        emailVerifiedAt: '2026-01-01T00:00:00Z',
+      });
+    });
+
+    it('rejects an obfuscated duplicate user with an empty identities list', async () => {
+      fakeClient.auth.signUp.mockResolvedValue({
+        data: {
+          user: { id: 'fake', email: 'a@b.com', email_confirmed_at: null, identities: [] },
+          session: null,
+        },
+        error: null,
+      });
+
+      await expect(service.signUpWithEmail(credentials)).rejects.toMatchObject({
+        code: 'email_exists',
+        message: expect.any(String),
+      });
+    });
+
+    it('maps provider signup errors such as email already registered', async () => {
+      fakeClient.auth.signUp.mockResolvedValue({
+        data: { user: null, session: null },
+        error: { message: 'User already registered', code: 'user_already_exists' },
+      });
+
+      await expect(service.signUpWithEmail(credentials)).rejects.toMatchObject({
+        code: 'user_already_exists',
+        message: 'User already registered',
+      });
+    });
+
+    it('throws when signup succeeds without a user', async () => {
+      fakeClient.auth.signUp.mockResolvedValue({
+        data: { user: null, session: null },
+        error: null,
+      });
+
+      await expect(service.signUpWithEmail(credentials)).rejects.toMatchObject({
+        message: expect.any(String),
+      });
     });
 
     it('throws when the underlying call rejects (e.g. network error)', async () => {
       fakeClient.auth.signUp.mockRejectedValue(new Error('network down'));
 
       await expect(service.signUpWithEmail(credentials)).rejects.toThrow();
+    });
+  });
+
+  describe('verifyOtp', () => {
+    it('verifies a signup email code', async () => {
+      fakeClient.auth.verifyOtp.mockResolvedValue({ data: {}, error: null });
+
+      await service.verifyOtp({ email: 'a@b.com', token: '123456', type: 'email' });
+
+      expect(fakeClient.auth.verifyOtp).toHaveBeenCalledWith({
+        email: 'a@b.com',
+        token: '123456',
+        type: 'email',
+      });
+    });
+
+    it('verifies a password recovery code', async () => {
+      fakeClient.auth.verifyOtp.mockResolvedValue({ data: {}, error: null });
+
+      await service.verifyOtp({ email: 'a@b.com', token: '123456', type: 'recovery' });
+
+      expect(fakeClient.auth.verifyOtp).toHaveBeenCalledWith({
+        email: 'a@b.com',
+        token: '123456',
+        type: 'recovery',
+      });
+    });
+
+    it('throws when the provider rejects the token', async () => {
+      fakeClient.auth.verifyOtp.mockResolvedValue({
+        data: {},
+        error: { message: 'Token has expired or is invalid' },
+      });
+
+      await expect(
+        service.verifyOtp({ email: 'a@b.com', token: '000000', type: 'email' }),
+      ).rejects.toThrow('Token has expired or is invalid');
+    });
+
+    it('reports an invalid email address with a friendly message', async () => {
+      fakeClient.auth.verifyOtp.mockResolvedValue({
+        data: {},
+        error: { message: 'Email address is invalid', code: 'email_address_invalid' },
+      });
+
+      await expect(
+        service.verifyOtp({ email: 'a@b.com', token: '123456', type: 'email' }),
+      ).rejects.toThrow('Email address is invalid');
+    });
+
+    it('reports an expired code with a friendly message', async () => {
+      fakeClient.auth.verifyOtp.mockResolvedValue({
+        data: {},
+        error: { message: 'Token has expired or is invalid', code: 'otp_expired' },
+      });
+
+      await expect(
+        service.verifyOtp({ email: 'a@b.com', token: '123456', type: 'recovery' }),
+      ).rejects.toThrow('Token has expired or is invalid');
+    });
+  });
+
+  describe('resendSignupOtp', () => {
+    it('requests a new signup code for the email', async () => {
+      fakeClient.auth.resend.mockResolvedValue({ data: {}, error: null });
+
+      await service.resendSignupOtp('a@b.com');
+
+      expect(fakeClient.auth.resend).toHaveBeenCalledWith({
+        type: 'signup',
+        email: 'a@b.com',
+      });
+    });
+
+    it('throws when the provider cannot resend the code', async () => {
+      fakeClient.auth.resend.mockResolvedValue({
+        data: {},
+        error: { message: 'For security purposes, you can only request this after 60 seconds' },
+      });
+
+      await expect(service.resendSignupOtp('a@b.com')).rejects.toThrow(/60 seconds/);
+    });
+
+    it('reports a missing account when the email does not exist', async () => {
+      fakeClient.auth.resend.mockResolvedValue({
+        data: {},
+        error: { message: 'User not found', code: 'user_not_found' },
+      });
+
+      await expect(service.resendSignupOtp('missing@b.com')).rejects.toThrow('User not found');
+    });
+
+    it('reports when resend is rate limited', async () => {
+      fakeClient.auth.resend.mockResolvedValue({
+        data: {},
+        error: { message: 'Email rate limit exceeded', code: 'over_email_send_rate_limit' },
+      });
+
+      await expect(service.resendSignupOtp('a@b.com')).rejects.toThrow('Email rate limit exceeded');
     });
   });
 });

@@ -4,7 +4,7 @@ import { Navigate, Outlet } from 'react-router';
 
 export function ProtectedRoute() {
   const {
-    session: { status },
+    session: { status, user },
   } = useAuthContext();
 
   if (status === 'loading') {
@@ -16,6 +16,8 @@ export function ProtectedRoute() {
   }
 
   if (status === 'guest') return <Navigate to="/login" replace />;
+
+  if (!user?.emailVerifiedAt) return <Navigate to="/verify-email" replace />;
 
   return <Outlet />;
 }

@@ -8,7 +8,11 @@ function createFakeAuthService(overrides: Partial<AuthService> = {}): AuthServic
     getSession: vi.fn().mockResolvedValue({ status: 'guest', user: null } satisfies AuthSession),
     onAuthStateChange: vi.fn().mockReturnValue(vi.fn()),
     signInWithEmail: vi.fn().mockResolvedValue(undefined),
-    signUpWithEmail: vi.fn().mockResolvedValue(undefined),
+    signUpWithEmail: vi
+      .fn()
+      .mockResolvedValue({ id: 'u1', email: 'a@b.com', emailVerifiedAt: null }),
+    verifyOtp: vi.fn().mockResolvedValue(undefined),
+    resendSignupOtp: vi.fn().mockResolvedValue(undefined),
     signOut: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };

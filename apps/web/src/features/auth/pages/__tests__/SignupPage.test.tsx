@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { SignupPage } from '../SignupPage';
 import { useAuthContext } from '@/providers/auth-provider/useAuthContext';
 import { useNavigate, MemoryRouter } from 'react-router';
-import type { AuthContextValue } from '@/providers/auth-provider/types';
+import type { AuthContextValue, User } from '@/providers/auth-provider/types';
 
 vi.mock('@/providers/auth-provider/useAuthContext');
 vi.mock('react-router', async () => {
@@ -71,7 +71,7 @@ describe('LoginPage', () => {
   });
 
   it('calls signUpWithEmail with entered credentials on valid submit', async () => {
-    mockSignUp.mockResolvedValue(undefined);
+    mockSignUp.mockResolvedValue({ id: 'u1', email: 'a@b.com', emailVerifiedAt: null });
     const user = userEvent.setup();
     renderSignupPage();
 
@@ -84,13 +84,12 @@ describe('LoginPage', () => {
       expect(mockSignUp).toHaveBeenCalledWith({
         email: 'a@b.com',
         password: 'Secret123',
-        confirmPassword: 'Secret123',
       }),
     );
   });
 
-  it('navigates to home after a successful login', async () => {
-    mockSignUp.mockResolvedValue(undefined);
+  it('navigates to email verification after signup when verification is required', async () => {
+    mockSignUp.mockResolvedValue({ id: 'u1', email: 'a@b.com', emailVerifiedAt: null });
     const user = userEvent.setup();
     renderSignupPage();
 
@@ -99,10 +98,32 @@ describe('LoginPage', () => {
     await user.type(screen.getByLabelText(/^confirm password/i), 'Secret123');
     await user.click(screen.getByRole('button', { name: /create account/i }));
 
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/'));
+    await waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith('/verify-email', {
+        replace: true,
+        state: { verificationSent: true },
+      }),
+    );
   });
 
-  it('shows a form-level error when signInWithEmail throws, and does not navigate', async () => {
+  it('navigates home when the provider confirms the email during signup', async () => {
+    mockSignUp.mockResolvedValue({
+      id: 'u1',
+      email: 'a@b.com',
+      emailVerifiedAt: '2026-01-01T00:00:00Z',
+    });
+    const user = userEvent.setup();
+    renderSignupPage();
+
+    await user.type(screen.getByLabelText(/email/i), 'a@b.com');
+    await user.type(screen.getByLabelText(/^password/i), 'Secret123');
+    await user.type(screen.getByLabelText(/^confirm password/i), 'Secret123');
+    await user.click(screen.getByRole('button', { name: /create account/i }));
+
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true }));
+  });
+
+  it('shows a form-level error when signUpWithEmail throws, and does not navigate', async () => {
     mockSignUp.mockRejectedValue(new Error('Email already exist'));
     const user = userEvent.setup();
     renderSignupPage();
@@ -117,7 +138,7 @@ describe('LoginPage', () => {
   });
 
   it('disables the submit button while the request is in flight', async () => {
-    let resolveSignIn: (values?: unknown) => void;
+    let resolveSignIn: (values: User) => void;
     mockSignUp.mockReturnValue(
       new Promise((resolve) => {
         resolveSignIn = resolve;
@@ -136,7 +157,7 @@ describe('LoginPage', () => {
     expect(submitButton).toBeDisabled();
 
     act(() => {
-      resolveSignIn();
+      resolveSignIn({ id: 'u1', email: 'a@b.com', emailVerifiedAt: null });
     });
     await waitFor(() => expect(mockNavigate).toHaveBeenCalled());
   });

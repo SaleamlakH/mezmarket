@@ -11,6 +11,7 @@ function renderWithRoutes() {
     <MemoryRouter initialEntries={['/']}>
       <Routes>
         <Route path="/login" element={<div>Login Page</div>} />
+        <Route path="/verify-email" element={<div>Verify Email Page</div>} />
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<div>Protected Content</div>} />
         </Route>
@@ -46,9 +47,23 @@ describe('ProtectedRoute', () => {
     expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
   });
 
-  it('renders the protected content when authenticated', () => {
+  it('redirects unverified users to /verify-email', () => {
     vi.mocked(useAuthContext).mockReturnValue({
       session: { status: 'authenticated', user: { id: 'u1', email: 'a@b.com' } },
+    } as ReturnType<typeof useAuthContext>);
+
+    renderWithRoutes();
+
+    expect(screen.getByText('Verify Email Page')).toBeInTheDocument();
+    expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
+  });
+
+  it('renders the protected content when authenticated and verified', () => {
+    vi.mocked(useAuthContext).mockReturnValue({
+      session: {
+        status: 'authenticated',
+        user: { id: 'u1', email: 'a@b.com', emailVerifiedAt: '2026-01-01T00:00:00Z' },
+      },
     } as ReturnType<typeof useAuthContext>);
 
     renderWithRoutes();

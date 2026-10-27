@@ -23,6 +23,14 @@ export interface AuthSession {
 
 export type AuthStateListener = (session: AuthSession) => void;
 
+export type OtpVerificationType = 'email' | 'recovery';
+
+export interface VerifyOtpInput {
+  email: string;
+  token: string;
+  type: OtpVerificationType;
+}
+
 export interface AuthService {
   /**
    * Retrieve the current active session
@@ -45,7 +53,17 @@ export interface AuthService {
   /**
    * Registers a new user with email and password.
    */
-  signUpWithEmail(credentials: SignupCredentials): Promise<void>;
+  signUpWithEmail(credentials: SignupCredentials): Promise<User>;
+
+  /**
+   * Confirms an email OTP, either for signup or password recovery.
+   */
+  verifyOtp(input: VerifyOtpInput): Promise<void>;
+
+  /**
+   * Requests a new signup verification code for the given email.
+   */
+  resendSignupOtp(email: string): Promise<void>;
 
   /**
    * Ends the current session. Defaults to the local session only.

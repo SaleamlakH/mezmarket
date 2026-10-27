@@ -27,11 +27,13 @@ import {
   SalesPage,
   SettingsPage,
   SignupPage,
+  VerifyEmailPage,
 } from './lazy-pages';
 import { withSuspense } from './withSuspense';
 
 const SuspendedLoginPage = withSuspense(LoginPage);
 const SuspendedSignupPage = withSuspense(SignupPage);
+const SuspendedVerifyEmailPage = withSuspense(VerifyEmailPage);
 const SuspendedDashboardPage = withSuspense(DashboardPage);
 const SuspendedProductsPage = withSuspense(ProductsPage);
 const SuspendedProductDetailPage = withSuspense(ProductDetailPage);
@@ -166,6 +168,16 @@ export const router = createBrowserRouter([
       {
         path: 'signup',
         element: <SuspendedSignupPage />,
+      },
+    ],
+  },
+  {
+    element: <RegistrationLayout />,
+    errorElement: <SuspendedErrorPage />,
+    children: [
+      {
+        path: 'verify-email',
+        element: <SuspendedVerifyEmailPage />,
       },
     ],
   },
