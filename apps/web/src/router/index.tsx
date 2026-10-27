@@ -156,7 +156,7 @@ export const router = createBrowserRouter([
     ],
   },
   {
-    element: <RegistrationLayout />,
+    element: <RegistrationLayout guestOnly />,
     errorElement: <SuspendedErrorPage />,
     children: [
       {

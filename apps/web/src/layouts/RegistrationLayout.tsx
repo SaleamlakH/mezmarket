@@ -1,8 +1,29 @@
 import { Brand } from '@/components/Brand';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { Outlet } from 'react-router';
+import { useAuthContext } from '@/providers/auth-provider/useAuthContext';
+import { Navigate, Outlet } from 'react-router';
 
-export function RegistrationLayout() {
+interface RegistrationLayoutProps {
+  guestOnly?: boolean;
+}
+
+export function RegistrationLayout({ guestOnly = false }: RegistrationLayoutProps) {
+  const {
+    session: { status },
+  } = useAuthContext();
+
+  if (guestOnly && status === 'loading') {
+    return (
+      <main className="h-full flex items-center justify-center">
+        <Brand size="lg" />
+      </main>
+    );
+  }
+
+  if (guestOnly && status === 'authenticated') {
+    return <Navigate to="/" replace />;
+  }
+
   // Mobile: full-screen bg. Desktop: centers the card.
   return (
     <div className="md:py-5 w-full m-h-full flex self-stretch items-center justify-center">
