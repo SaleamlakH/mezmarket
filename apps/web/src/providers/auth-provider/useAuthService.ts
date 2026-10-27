@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import type { AuthContextValue } from './types';
-import type { AuthService, AuthSession } from '@mez/types';
+import type { AuthContextValue, AuthService, AuthSession } from './types';
 
 export function useAuthService(authService: AuthService): AuthContextValue {
   const [session, setSession] = useState<AuthSession>({ user: null, status: 'loading' });

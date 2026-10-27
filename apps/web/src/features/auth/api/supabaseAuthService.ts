@@ -1,4 +1,5 @@
-import type { AuthService, AuthSession, LoginCredentials, SignupCredentials } from '@mez/types';
+import type { LoginCredentials, SignupCredentials } from '@mez/types';
+import type { AuthService, AuthSession } from '@/providers/auth-provider/types';
 import type { Session, SupabaseClient } from '@supabase/supabase-js';
 
 function toAuthSession(session: Session | null): AuthSession {

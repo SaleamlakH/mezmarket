@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { renderHook } from '@testing-library/react';
 import { AuthProvider } from '../AuthProvider';
 import { useAuthContext } from '../useAuthContext';
-import type { AuthService, AuthSession } from '@mez/types';
+import type { AuthService, AuthSession } from '../types';
 
 function createFakeAuthService(overrides: Partial<AuthService> = {}): AuthService {
   return {

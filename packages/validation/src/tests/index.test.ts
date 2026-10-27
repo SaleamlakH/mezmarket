@@ -12,8 +12,6 @@ import {
   type FieldErrors,
   validateLoginValues,
   validateSignupValues,
-  type LoginFormValues,
-  type SignupFormValues,
   validateCreateBusiness,
   type CreateBusinessFormValues,
   validateUpdateOwnerValues,
@@ -92,14 +90,6 @@ describe('index', () => {
 
   it('exports validateCreateUpload', () => {
     expect(validateCreateUpload).toBeDefined();
-  });
-
-  it('exports LoginFormValues', () => {
-    expectTypeOf<LoginFormValues>().toBeObject();
-  });
-
-  it('exports SignupFormValues', () => {
-    expectTypeOf<SignupFormValues>().toBeObject();
   });
 
   it('exports CreateBusinessFormValues', () => {

@@ -12,6 +12,7 @@ import type {
   BatchLineFormValues,
   CustomerFormValues,
   CreateUploadInput,
+  LoginFormValues,
   PaymentFormValues,
   PaymentSummaryQueryFilters,
   RefundSaleFormValues,
@@ -20,6 +21,7 @@ import type {
   SaleFormValues,
   SaleLineFormValues,
   SaleListFilters,
+  SignupFormValues,
   MemberListFilters,
   ProductInventoryDetailFilters,
   ProductInventoryListFilters,
@@ -32,12 +34,7 @@ import type {
   UpdateUploadInput,
   VoidSaleFormValues,
 } from '@mez/types';
-import {
-  loginSchema,
-  signupSchema,
-  type LoginFormValues,
-  type SignupFormValues,
-} from './schema/auth.schema.js';
+import { loginSchema, signupSchema } from './schema/auth.schema.js';
 import {
   createBatchLineSchema,
   createBatchSchema,

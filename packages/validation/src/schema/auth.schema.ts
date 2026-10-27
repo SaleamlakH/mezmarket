@@ -1,10 +1,5 @@
 import z from 'zod';
-import type { LoginCredentials, SignupCredentials } from '@mez/types';
-
-export type LoginFormValues = LoginCredentials;
-export interface SignupFormValues extends SignupCredentials {
-  confirmPassword: string;
-}
+import type { LoginFormValues, SignupFormValues } from '@mez/types';
 
 const emailSchema = z
   .string()

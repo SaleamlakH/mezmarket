@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { useAuthService } from '../useAuthService';
-import type { AuthService, AuthSession } from '@mez/types';
+import type { AuthService, AuthSession } from '../types';
 
 function createFakeAuthService(overrides: Partial<AuthService> = {}): AuthService {
   return {

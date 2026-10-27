@@ -1,4 +1,5 @@
-import { validateLoginValues, type LoginFormValues } from '@mez/validation';
+import type { LoginFormValues } from '@mez/types';
+import { validateLoginValues } from '@mez/validation';
 import { useForm } from '@/hooks/useForm';
 import { useNavigate } from 'react-router';
 import { useAuthContext } from '@/providers/auth-provider/useAuthContext';

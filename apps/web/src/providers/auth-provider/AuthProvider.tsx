@@ -1,4 +1,4 @@
-import type { AuthService } from '@mez/types';
+import type { AuthService } from './types';
 import { AuthContext } from './context';
 import { useAuthService } from './useAuthService';
 
