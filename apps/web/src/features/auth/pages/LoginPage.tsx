@@ -5,6 +5,7 @@ import { PasswordInput } from '../../../components/PasswordInput';
 import { LedgerLine } from '../../../components/LedgerLine';
 import { Link } from 'react-router';
 import { useLoginForm } from '../hooks/useLoginForm';
+import { Banner } from '@/components/Banner';
 import { Toast } from '@/components/Toast';
 
 export function LoginPage() {
@@ -23,13 +24,9 @@ export function LoginPage() {
     <>
       {/* Error toast*/}
       {formError && (
-        <Toast
-          message={formError}
-          variant="error"
-          onDismiss={() => setFormError(null)}
-          duration={5000}
-          position="top-right"
-        />
+        <Toast position="top-right" duration={5000} onDismiss={() => setFormError(null)}>
+          <Banner tone="danger" title={formError} onDismiss={() => setFormError(null)} />
+        </Toast>
       )}
 
       {/*headline*/}

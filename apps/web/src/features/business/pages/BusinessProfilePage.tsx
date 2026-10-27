@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { EmptyState } from '@/components/EmptyState';
 import { PageHeader } from '@/components/PageHeader';
 import { PageShell } from '@/components/PageShell';
+import { Banner } from '@/components/Banner';
 import { Toast } from '@/components/Toast';
 import { SETTINGS_PATH } from '@/layouts/navigation';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
@@ -22,13 +23,13 @@ function BusinessProfileContent({ business }: { business: BusinessResponse }) {
   return (
     <PageShell>
       {toast && (
-        <Toast
-          message={toast.message}
-          variant={toast.variant}
-          duration={3000}
-          position="top-right"
-          onDismiss={() => setToast(null)}
-        />
+        <Toast position="top-right" duration={3000} onDismiss={() => setToast(null)}>
+          <Banner
+            tone={toast.variant === 'error' ? 'danger' : 'success'}
+            title={toast.message}
+            onDismiss={() => setToast(null)}
+          />
+        </Toast>
       )}
 
       <PageHeader

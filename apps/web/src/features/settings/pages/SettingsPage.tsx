@@ -5,6 +5,7 @@ import { ListCard } from '@/components/ListCard';
 import { PageHeader } from '@/components/PageHeader';
 import { PageShell } from '@/components/PageShell';
 import { SectionHeader } from '@/components/SectionHeader';
+import { Banner } from '@/components/Banner';
 import { Toast } from '@/components/Toast';
 import { DASHBOARD_PATH } from '@/layouts/navigation';
 import { useSignOut } from '@/hooks/useSignOut';
@@ -15,13 +16,9 @@ export function SettingsPage() {
   return (
     <PageShell>
       {error && (
-        <Toast
-          message={error}
-          variant="error"
-          duration={5000}
-          position="top-right"
-          onDismiss={clearError}
-        />
+        <Toast position="top-right" duration={5000} onDismiss={clearError}>
+          <Banner tone="danger" title={error} onDismiss={clearError} />
+        </Toast>
       )}
 
       <PageHeader

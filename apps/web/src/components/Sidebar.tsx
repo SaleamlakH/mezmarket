@@ -2,6 +2,7 @@ import { Link, NavLink } from 'react-router';
 import { LogOut, Settings, Store } from 'lucide-react';
 import { Brand } from '@/components/Brand';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { Banner } from '@/components/Banner';
 import { Toast } from '@/components/Toast';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
 import { useSignOut } from '@/hooks/useSignOut';
@@ -34,13 +35,9 @@ export function Sidebar({ tabs, settingsPath, businessPath, sidebarWidthStyle }:
       className="fixed inset-y-0 left-0 z-30 hidden shrink-0 flex-col border-r border-(--border) bg-(--surface-primary) px-4 py-5 lg:flex"
     >
       {error && (
-        <Toast
-          message={error}
-          variant="error"
-          duration={5000}
-          position="top-right"
-          onDismiss={clearError}
-        />
+        <Toast position="top-right" duration={5000} onDismiss={clearError}>
+          <Banner tone="danger" title={error} onDismiss={clearError} />
+        </Toast>
       )}
 
       <div className="px-2">

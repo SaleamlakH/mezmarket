@@ -4,6 +4,7 @@ import { Field } from '@/components/Field';
 import { Input } from '@/components/Input';
 import { LedgerLine } from '@/components/LedgerLine';
 import { Switch } from '@/components/Switch';
+import { Banner } from '@/components/Banner';
 import { Toast } from '@/components/Toast';
 import { useCreateBusinessForm } from '../hooks/useCreateBusinessForm';
 
@@ -24,13 +25,9 @@ export function CreateBusinessPage() {
   return (
     <>
       {formError && (
-        <Toast
-          message={formError}
-          variant="error"
-          onDismiss={() => setFormError(null)}
-          duration={5000}
-          position="top-right"
-        />
+        <Toast position="top-right" duration={5000} onDismiss={() => setFormError(null)}>
+          <Banner tone="danger" title={formError} onDismiss={() => setFormError(null)} />
+        </Toast>
       )}
 
       <div className="mt-6 mb-6">

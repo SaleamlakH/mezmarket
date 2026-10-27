@@ -6,6 +6,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { PageHeader } from '@/components/PageHeader';
 import { PageShell } from '@/components/PageShell';
 import { SectionHeader } from '@/components/SectionHeader';
+import { Banner } from '@/components/Banner';
 import { Toast } from '@/components/Toast';
 import { BATCHES_PATH } from '@/layouts/navigation';
 import { useForwardNavigationState } from '@/layouts/useNavigationHistory';
@@ -145,13 +146,9 @@ export function InventoryPage() {
       />
 
       {successMessage && (
-        <Toast
-          message={successMessage}
-          variant="success"
-          duration={3000}
-          position="top-center"
-          onDismiss={() => setSuccessMessage(null)}
-        />
+        <Toast position="top-center" duration={3000} onDismiss={() => setSuccessMessage(null)}>
+          <Banner tone="success" title={successMessage} onDismiss={() => setSuccessMessage(null)} />
+        </Toast>
       )}
     </PageShell>
   );
