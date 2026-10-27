@@ -8,6 +8,7 @@ function createFakeSupabaseClient() {
     auth: {
       signInWithPassword: vi.fn(),
       signUp: vi.fn(),
+      signOut: vi.fn(),
       getSession: vi.fn(),
       onAuthStateChange: vi.fn(),
     },
@@ -20,6 +21,7 @@ describe('createSupabaseAuthService', () => {
 
   beforeEach(() => {
     fakeClient = createFakeSupabaseClient();
+    fakeClient.auth.signOut.mockResolvedValue({ error: null });
     service = createSupabaseAuthService(fakeClient as unknown as SupabaseClient);
   });
 
@@ -98,6 +100,36 @@ describe('createSupabaseAuthService', () => {
     });
   });
 
+  describe('signOut', () => {
+    it('signs out of the local session by default', async () => {
+      await service.signOut();
+
+      expect(fakeClient.auth.signOut).toHaveBeenCalledWith({ scope: 'local' });
+    });
+
+    it('supports signing out globally', async () => {
+      await service.signOut('global');
+
+      expect(fakeClient.auth.signOut).toHaveBeenCalledWith({ scope: 'global' });
+    });
+
+    it('throws when supabase returns an error', async () => {
+      fakeClient.auth.signOut.mockResolvedValue({
+        error: { name: 'AuthError', message: 'network error' },
+      });
+
+      await expect(service.signOut()).rejects.toThrow('network error');
+    });
+
+    it('treats an already-ended session as a successful sign out', async () => {
+      fakeClient.auth.signOut.mockResolvedValue({
+        error: { name: 'AuthSessionMissingError', message: 'Auth session missing!' },
+      });
+
+      await expect(service.signOut()).resolves.toBeUndefined();
+    });
+  });
+
   describe('signInWithEmail', () => {
     const credentials = { email: 'a@b.com', password: 'secret123' };
 
@@ -109,6 +141,7 @@ describe('createSupabaseAuthService', () => {
 
       const result = await service.signInWithEmail(credentials);
 
+      expect(fakeClient.auth.signOut).not.toHaveBeenCalled();
       expect(fakeClient.auth.signInWithPassword).toHaveBeenCalledWith({
         email: 'a@b.com',
         password: 'secret123',
@@ -147,6 +180,7 @@ describe('createSupabaseAuthService', () => {
 
       const result = await service.signUpWithEmail(credentials);
 
+      expect(fakeClient.auth.signOut).not.toHaveBeenCalled();
       expect(fakeClient.auth.signUp).toHaveBeenCalledWith(
         expect.objectContaining({ email: 'a@b.com', password: 'secret123' }),
       );

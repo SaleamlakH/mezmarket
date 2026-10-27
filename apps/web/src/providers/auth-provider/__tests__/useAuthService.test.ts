@@ -9,6 +9,7 @@ function createFakeAuthService(overrides: Partial<AuthService> = {}): AuthServic
     onAuthStateChange: vi.fn().mockReturnValue(vi.fn()),
     signInWithEmail: vi.fn().mockResolvedValue(undefined),
     signUpWithEmail: vi.fn().mockResolvedValue(undefined),
+    signOut: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }

@@ -46,6 +46,11 @@ export interface AuthService {
    * Registers a new user with email and password.
    */
   signUpWithEmail(credentials: SignupCredentials): Promise<void>;
+
+  /**
+   * Ends the current session. Defaults to the local session only.
+   */
+  signOut(scope?: 'local' | 'global'): Promise<void>;
 }
 
 export interface AuthContextValue extends AuthService {

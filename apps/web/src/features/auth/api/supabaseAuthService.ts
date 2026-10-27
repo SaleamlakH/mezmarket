@@ -43,5 +43,17 @@ export function createSupabaseAuthService(client: SupabaseClient): AuthService {
       const { error } = await client.auth.signUp({ email, password });
       if (error) throw Error(error.message);
     },
+
+    async signOut(scope = 'local') {
+      const { error } = await client.auth.signOut({ scope });
+
+      if (
+        error &&
+        error.name !== 'AuthSessionMissingError' &&
+        error.message !== 'Auth session missing!'
+      ) {
+        throw new Error(error.message);
+      }
+    },
   };
 }
