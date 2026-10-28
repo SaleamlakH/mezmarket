@@ -49,8 +49,12 @@ export function createSupabaseAuthService(client: SupabaseClient): AuthService {
       if (error) throw toAuthFlowError(error);
     },
 
-    async signUpWithEmail({ email, password }: SignupCredentials) {
-      const { data, error } = await client.auth.signUp({ email, password });
+    async signUpWithEmail({ name, email, password }: SignupCredentials) {
+      const { data, error } = await client.auth.signUp({
+        email,
+        password,
+        options: { data: { full_name: name } },
+      });
       if (error) throw toAuthFlowError(error);
       if (!data.user) throw new Error('We could not create your account. Try again.');
 

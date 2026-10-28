@@ -33,9 +33,10 @@ describe('LoginPage', () => {
     );
   };
 
-  it('renders email, password and confirm password fields and a submit button', () => {
+  it('renders full name, email, password and confirm password fields and a submit button', () => {
     renderSignupPage();
 
+    expect(screen.getByLabelText(/^full name/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/^password/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/^confirm password/i)).toBeInTheDocument();
@@ -46,14 +47,17 @@ describe('LoginPage', () => {
     const user = userEvent.setup();
     renderSignupPage();
 
+    const nameInput = screen.getByLabelText(/^full name/i);
     const emailInput = screen.getByLabelText(/email/i);
     const passwordInput = screen.getByLabelText(/^password/i);
     const confirmPasswordInput = screen.getByLabelText(/^confirm password/i);
 
+    await user.type(nameInput, 'Jane Doe');
     await user.type(emailInput, 'a@b.com');
     await user.type(passwordInput, 'secret123');
     await user.type(confirmPasswordInput, 'secret123');
 
+    expect(nameInput).toHaveValue('Jane Doe');
     expect(emailInput).toHaveValue('a@b.com');
     expect(passwordInput).toHaveValue('secret123');
     expect(confirmPasswordInput).toHaveValue('secret123');
@@ -75,6 +79,7 @@ describe('LoginPage', () => {
     const user = userEvent.setup();
     renderSignupPage();
 
+    await user.type(screen.getByLabelText(/^full name/i), 'Jane Doe');
     await user.type(screen.getByLabelText(/email/i), 'a@b.com');
     await user.type(screen.getByLabelText(/^password/i), 'Secret123');
     await user.type(screen.getByLabelText(/^confirm password/i), 'Secret123');
@@ -82,6 +87,7 @@ describe('LoginPage', () => {
 
     await waitFor(() =>
       expect(mockSignUp).toHaveBeenCalledWith({
+        name: 'Jane Doe',
         email: 'a@b.com',
         password: 'Secret123',
       }),
@@ -93,6 +99,7 @@ describe('LoginPage', () => {
     const user = userEvent.setup();
     renderSignupPage();
 
+    await user.type(screen.getByLabelText(/^full name/i), 'Jane Doe');
     await user.type(screen.getByLabelText(/email/i), 'a@b.com');
     await user.type(screen.getByLabelText(/^password/i), 'Secret123');
     await user.type(screen.getByLabelText(/^confirm password/i), 'Secret123');
@@ -115,6 +122,7 @@ describe('LoginPage', () => {
     const user = userEvent.setup();
     renderSignupPage();
 
+    await user.type(screen.getByLabelText(/^full name/i), 'Jane Doe');
     await user.type(screen.getByLabelText(/email/i), 'a@b.com');
     await user.type(screen.getByLabelText(/^password/i), 'Secret123');
     await user.type(screen.getByLabelText(/^confirm password/i), 'Secret123');
@@ -128,6 +136,7 @@ describe('LoginPage', () => {
     const user = userEvent.setup();
     renderSignupPage();
 
+    await user.type(screen.getByLabelText(/^full name/i), 'Jane Doe');
     await user.type(screen.getByLabelText(/email/i), 'a@b.com');
     await user.type(screen.getByLabelText(/^password/i), 'Wrong123');
     await user.type(screen.getByLabelText(/^confirm password/i), 'Wrong123');
@@ -148,6 +157,7 @@ describe('LoginPage', () => {
     const user = userEvent.setup();
     const { container } = renderSignupPage();
 
+    await user.type(screen.getByLabelText(/^full name/i), 'Jane Doe');
     await user.type(screen.getByLabelText(/email/i), 'a@b.com');
     await user.type(screen.getByLabelText(/^password/i), 'Secret123');
     await user.type(screen.getByLabelText(/^confirm password/i), 'Secret123');

@@ -9,8 +9,8 @@ export function useSignupForm() {
   const navigate = useNavigate();
   const { signUpWithEmail } = useAuthContext();
 
-  async function handleSubmit({ email, password }: SignupFormValues) {
-    const user = await signUpWithEmail({ email, password });
+  async function handleSubmit({ name, email, password }: SignupFormValues) {
+    const user = await signUpWithEmail({ name, email, password });
 
     if (!user.emailVerifiedAt) {
       pendingVerification.start(email);
@@ -22,7 +22,7 @@ export function useSignupForm() {
   }
 
   return useForm<SignupFormValues>({
-    initialValues: { email: '', password: '', confirmPassword: '' },
+    initialValues: { name: '', email: '', password: '', confirmPassword: '' },
     validate: validateSignupValues,
     onSubmit: handleSubmit,
     onSuccess: () => {},

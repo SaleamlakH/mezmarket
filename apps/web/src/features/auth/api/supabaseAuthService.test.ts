@@ -184,6 +184,7 @@ describe('createSupabaseAuthService', () => {
 
   describe('signUpWithEmail', () => {
     const credentials = {
+      name: 'Jane Doe',
       email: 'a@b.com',
       password: 'secret123',
     };
@@ -204,9 +205,11 @@ describe('createSupabaseAuthService', () => {
 
       const result = await service.signUpWithEmail(credentials);
 
-      expect(fakeClient.auth.signUp).toHaveBeenCalledWith(
-        expect.objectContaining({ email: 'a@b.com', password: 'secret123' }),
-      );
+      expect(fakeClient.auth.signUp).toHaveBeenCalledWith({
+        email: 'a@b.com',
+        password: 'secret123',
+        options: { data: { full_name: 'Jane Doe' } },
+      });
       expect(result).toEqual({ id: 'u1', email: 'a@b.com', emailVerifiedAt: null });
     });
 

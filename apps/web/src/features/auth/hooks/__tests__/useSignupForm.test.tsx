@@ -14,7 +14,12 @@ vi.mock('react-router', async () => {
 });
 
 const guestSession: AuthSession = { status: 'guest', user: null };
-const values = { email: 'a@b.com', password: 'Secret123', confirmPassword: 'Secret123' };
+const values = {
+  name: 'Jane Doe',
+  email: 'a@b.com',
+  password: 'Secret123',
+  confirmPassword: 'Secret123',
+};
 
 function submitEvent() {
   return { preventDefault: vi.fn() } as unknown as SubmitEvent<HTMLFormElement>;
@@ -51,7 +56,11 @@ describe('useSignupForm logic', () => {
       await result.current.handleSubmit(submitEvent());
     });
 
-    expect(mockSignUp).toHaveBeenCalledWith({ email: 'a@b.com', password: 'Secret123' });
+    expect(mockSignUp).toHaveBeenCalledWith({
+      name: 'Jane Doe',
+      email: 'a@b.com',
+      password: 'Secret123',
+    });
     expect(pendingVerification.get()).toMatchObject({ email: 'a@b.com' });
     expect(mockNavigate).toHaveBeenCalledWith('/verify-email', {
       replace: true,
@@ -91,7 +100,14 @@ describe('useSignupForm logic', () => {
 
   it('does not call signup when the form is invalid', async () => {
     const { result } = renderForm();
-    act(() => result.current.reset({ email: 'not-an-email', password: 'x', confirmPassword: 'x' }));
+    act(() =>
+      result.current.reset({
+        name: 'Jane Doe',
+        email: 'not-an-email',
+        password: 'x',
+        confirmPassword: 'x',
+      }),
+    );
 
     await act(async () => {
       await result.current.handleSubmit(submitEvent());

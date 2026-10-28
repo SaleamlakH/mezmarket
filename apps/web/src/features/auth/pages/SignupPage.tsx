@@ -41,6 +41,19 @@ export function SignupPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4 flex-1">
+        <Field id="name" label="Full Name" error={errors?.name}>
+          <Input
+            type="text"
+            id="name"
+            name="name"
+            placeholder="John Doe"
+            value={values.name}
+            onChange={(e) => handleChange('name', e.target.value)}
+            onBlur={() => handleBlur('name')}
+            autoComplete="name"
+          />
+        </Field>
+
         <Field id="email" label="Email" error={errors?.email}>
           <Input
             type="email"
