@@ -10,7 +10,9 @@ import type {
 } from '@mez/types';
 import {
   type FieldErrors,
+  validateForgotPasswordValues,
   validateLoginValues,
+  validateNewPasswordValues,
   validateSignupValues,
   validateCreateBusiness,
   type CreateBusinessFormValues,
@@ -74,6 +76,11 @@ describe('index', () => {
 
   it('exports validateSignupForm', () => {
     expect(validateSignupValues).toBeDefined();
+  });
+
+  it('exports password reset validators', () => {
+    expect(validateForgotPasswordValues).toBeDefined();
+    expect(validateNewPasswordValues).toBeDefined();
   });
 
   it('exports validateCreateBusiness', () => {

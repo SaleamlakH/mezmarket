@@ -1,5 +1,10 @@
 import z from 'zod';
-import type { LoginFormValues, SignupFormValues } from '@mez/types';
+import type {
+  ForgotPasswordFormValues,
+  LoginFormValues,
+  NewPasswordFormValues,
+  SignupFormValues,
+} from '@mez/types';
 
 const emailSchema = z
   .string()
@@ -30,3 +35,17 @@ export const signupSchema = z
     error: "Passwords don't match",
     path: ['confirmPassword'],
   }) satisfies z.ZodType<SignupFormValues>;
+
+export const forgotPasswordSchema = z.object({
+  email: emailSchema,
+}) satisfies z.ZodType<ForgotPasswordFormValues>;
+
+export const newPasswordSchema = z
+  .object({
+    password: signupPasswordSchema,
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    error: "Passwords don't match",
+    path: ['confirmPassword'],
+  }) satisfies z.ZodType<NewPasswordFormValues>;
