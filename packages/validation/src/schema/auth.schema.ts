@@ -1,5 +1,6 @@
 import z from 'zod';
 import type {
+  ChangePasswordFormValues,
   ForgotPasswordFormValues,
   LoginFormValues,
   NewPasswordFormValues,
@@ -56,3 +57,14 @@ export const newPasswordSchema = z
     error: "Passwords don't match",
     path: ['confirmPassword'],
   }) satisfies z.ZodType<NewPasswordFormValues>;
+
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().trim().min(1, 'Current password is required'),
+    newPassword: signupPasswordSchema,
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    error: "Passwords don't match",
+    path: ['confirmPassword'],
+  }) satisfies z.ZodType<ChangePasswordFormValues>;
