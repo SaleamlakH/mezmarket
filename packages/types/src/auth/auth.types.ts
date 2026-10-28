@@ -10,3 +10,12 @@ export type LoginFormValues = LoginCredentials;
 export interface SignupFormValues extends SignupCredentials {
   confirmPassword: string;
 }
+
+export interface ForgotPasswordFormValues {
+  email: string;
+}
+
+export interface NewPasswordFormValues {
+  password: string;
+  confirmPassword: string;
+}
