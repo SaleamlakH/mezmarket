@@ -9,12 +9,13 @@ import type { Session, SupabaseClient, User as SupabaseUser } from '@supabase/su
 import { AuthFlowError, toAuthFlowError } from '../lib/authErrors';
 
 function toUser(user: SupabaseUser): User {
-  const { id, email, email_confirmed_at } = user;
+  const { id, email, email_confirmed_at, updated_at } = user;
 
   return {
     id,
     ...(email && { email }),
     emailVerifiedAt: email_confirmed_at ?? null,
+    ...(updated_at && { updatedAt: updated_at }),
   };
 }
 
@@ -83,8 +84,11 @@ export function createSupabaseAuthService(client: SupabaseClient): AuthService {
       if (error) throw toAuthFlowError(error);
     },
 
-    async updatePassword(password: string) {
-      const { error } = await client.auth.updateUser({ password });
+    async updatePassword(password: string, currentPassword?: string) {
+      const { error } = await client.auth.updateUser({
+        password,
+        ...(currentPassword && { current_password: currentPassword }),
+      });
       if (error) throw toAuthFlowError(error);
     },
 

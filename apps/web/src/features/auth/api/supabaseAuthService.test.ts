@@ -34,7 +34,7 @@ describe('createSupabaseAuthService', () => {
       fakeClient.auth.getSession.mockResolvedValue({
         data: {
           session: {
-            user: { id: 'u1', email: 'a@b.com' },
+            user: { id: 'u1', email: 'a@b.com', updated_at: '2026-02-01T00:00:00Z' },
             access_token: 'should-not-leak',
           },
         },
@@ -45,7 +45,12 @@ describe('createSupabaseAuthService', () => {
 
       expect(result).toEqual({
         status: 'authenticated',
-        user: { id: 'u1', email: 'a@b.com', emailVerifiedAt: null },
+        user: {
+          id: 'u1',
+          email: 'a@b.com',
+          emailVerifiedAt: null,
+          updatedAt: '2026-02-01T00:00:00Z',
+        },
       });
     });
 
@@ -408,6 +413,17 @@ describe('createSupabaseAuthService', () => {
       await service.updatePassword('NewSecret123');
 
       expect(fakeClient.auth.updateUser).toHaveBeenCalledWith({ password: 'NewSecret123' });
+    });
+
+    it('includes the current password for a signed-in change', async () => {
+      fakeClient.auth.updateUser.mockResolvedValue({ data: {}, error: null });
+
+      await service.updatePassword('NewSecret123', 'OldSecret123');
+
+      expect(fakeClient.auth.updateUser).toHaveBeenCalledWith({
+        password: 'NewSecret123',
+        current_password: 'OldSecret123',
+      });
     });
 
     it('throws when the provider rejects the new password', async () => {

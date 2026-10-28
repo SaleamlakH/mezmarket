@@ -14,6 +14,9 @@ export interface User {
    * null = not yet confirmed
    */
   emailVerifiedAt?: string | null;
+
+  /** Last time the auth account was updated. */
+  updatedAt?: string | null;
 }
 
 export interface AuthSession {
@@ -71,9 +74,10 @@ export interface AuthService {
   requestPasswordReset(email: string): Promise<void>;
 
   /**
-   * Sets a new password for the current recovery session.
+   * Sets a new password for the current session. The current password is
+   * required for signed-in changes and omitted during recovery.
    */
-  updatePassword(password: string): Promise<void>;
+  updatePassword(password: string, currentPassword?: string): Promise<void>;
 
   /**
    * Ends the current session. Defaults to the local session only.
