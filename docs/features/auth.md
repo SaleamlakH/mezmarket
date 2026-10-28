@@ -11,8 +11,8 @@ For the deeper design context, see [architecture.md](../architecture.md) and the
 ```
 Client -> Authorization: Bearer <supabase jwt> -> /api/*
    -> auth middleware extracts token through remote JWKs
-   -> verifyJwt returns payload { sub, email }
-   -> authService.resolve(sub, email) returns an existing identity or creates one on first login.
+   -> verifyJwt returns payload { sub, email, name }
+   -> authService.resolve(sub, email, name) returns an existing identity or creates one on first login.
    -> req.auth = { ownerId }
    -> onward; errors handled by the global error handler
 ```
@@ -32,12 +32,13 @@ The shared error class and global handler live under `shared/errors/`; see
 ## Components
 
 - `verifyJwt` verifies the token with `jose` against the Supabase JWKS URL,
-  extracts the `sub` and `email` claims, and throws `AppError(UNAUTHORIZED)`
-  on any failure or when `sub` is missing.
+  extracts the `sub` and `email` claims plus the signup name from
+  `user_metadata.full_name`, and throws `AppError(UNAUTHORIZED)` on any failure or
+  when `sub` is missing.
 - `auth.repository` provides `findIdentity`, which queries by `providerUserId`,
-  and `createIdentity`, which runs a transaction that creates a new owner
-  (default name `New User`) and the linked account identity, returning the
-  identity.
+  and `createIdentity`, which runs a transaction that creates a new owner using
+  the verified JWT name (falling back to `New User`) and the linked account
+  identity, returning the identity.
 - `auth.service` exposes `resolve`, which returns an existing identity or
   creates one on first login.
 - `auth.middleware` reads the Bearer header, verifies the token, resolves the

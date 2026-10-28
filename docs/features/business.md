@@ -72,7 +72,7 @@ Client -> Authorization: Bearer <jwt> + JSON body
    -> validation middleware validates the body against the shared rules
    -> service verifies the owner id is present
    -> repository creates the business, its "main" branch, and its owner
-      membership (name "me", role OWNER) in a single transaction
+      membership (owner's name, role OWNER) in a single transaction
    -> 201 { business, branch, member }
 ```
 
