@@ -1,11 +1,17 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { RESEND_COOLDOWN_MS, createPendingOtpStore, pendingVerification } from '../pendingOtp';
+import {
+  RESEND_COOLDOWN_MS,
+  createPendingOtpStore,
+  pendingPasswordReset,
+  pendingVerification,
+} from '../pendingOtp';
 
 describe('pending OTP store', () => {
   const store = createPendingOtpStore();
 
   beforeEach(() => {
     store.clear();
+    pendingPasswordReset.clear();
     pendingVerification.clear();
     sessionStorage.clear();
   });
@@ -34,5 +40,13 @@ describe('pending OTP store', () => {
 
     expect(store.resendAvailableInMs(1_000)).toBe(RESEND_COOLDOWN_MS);
     expect(store.resendAvailableInMs(1_000 + RESEND_COOLDOWN_MS)).toBe(0);
+  });
+
+  it('keeps verification and password reset pending states separate', () => {
+    pendingVerification.start('verify@b.com');
+    pendingPasswordReset.start('reset@b.com');
+
+    expect(pendingVerification.get()?.email).toBe('verify@b.com');
+    expect(pendingPasswordReset.get()?.email).toBe('reset@b.com');
   });
 });

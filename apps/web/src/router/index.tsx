@@ -15,6 +15,7 @@ import {
   DashboardPage,
   DesignSystemPage,
   ErrorPage,
+  ForgotPasswordPage,
   InventoryPage,
   LoginPage,
   NotFoundPage,
@@ -34,6 +35,7 @@ import { withSuspense } from './withSuspense';
 const SuspendedLoginPage = withSuspense(LoginPage);
 const SuspendedSignupPage = withSuspense(SignupPage);
 const SuspendedVerifyEmailPage = withSuspense(VerifyEmailPage);
+const SuspendedForgotPasswordPage = withSuspense(ForgotPasswordPage);
 const SuspendedDashboardPage = withSuspense(DashboardPage);
 const SuspendedProductsPage = withSuspense(ProductsPage);
 const SuspendedProductDetailPage = withSuspense(ProductDetailPage);
@@ -178,6 +180,10 @@ export const router = createBrowserRouter([
       {
         path: 'verify-email',
         element: <SuspendedVerifyEmailPage />,
+      },
+      {
+        path: 'forgot-password',
+        element: <SuspendedForgotPasswordPage />,
       },
     ],
   },

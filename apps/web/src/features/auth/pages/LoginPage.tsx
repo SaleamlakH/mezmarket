@@ -1,14 +1,20 @@
+import { useState } from 'react';
 import { Button } from '../../../components/Button';
 import { Field } from '../../../components/Field';
 import { Input } from '../../../components/Input';
 import { PasswordInput } from '../../../components/PasswordInput';
 import { LedgerLine } from '../../../components/LedgerLine';
-import { Link } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { useLoginForm } from '../hooks/useLoginForm';
 import { Banner } from '@/components/Banner';
 import { Toast } from '@/components/Toast';
 
 export function LoginPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [showResetSuccess, setShowResetSuccess] = useState(() =>
+    Boolean((location.state as { passwordReset?: boolean } | null)?.passwordReset),
+  );
   const {
     status,
     values,
@@ -20,8 +26,24 @@ export function LoginPage() {
     handleSubmit,
   } = useLoginForm();
 
+  function dismissResetSuccess() {
+    setShowResetSuccess(false);
+    navigate(location.pathname, { replace: true, state: null });
+  }
+
   return (
     <>
+      {showResetSuccess && !formError && (
+        <Toast position="top-right" duration={5000} onDismiss={dismissResetSuccess}>
+          <Banner
+            tone="info"
+            title="Password updated"
+            description="Log in with your new password."
+            onDismiss={dismissResetSuccess}
+          />
+        </Toast>
+      )}
+
       {/* Error toast*/}
       {formError && (
         <Toast position="top-right" duration={5000} onDismiss={() => setFormError(null)}>
@@ -65,7 +87,10 @@ export function LoginPage() {
         </Field>
 
         <div className="flex justify-end">
-          <Link to="#" className="text-end text-(--text-muted) underline underline-offset-1">
+          <Link
+            to="/forgot-password"
+            className="text-end text-(--text-muted) underline underline-offset-1"
+          >
             Forgot password?
           </Link>
         </div>

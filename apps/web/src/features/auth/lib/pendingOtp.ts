@@ -42,3 +42,4 @@ export function createPendingOtpStore(): PendingOtpStore {
 }
 
 export const pendingVerification = createPendingOtpStore();
+export const pendingPasswordReset = createPendingOtpStore();

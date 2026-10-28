@@ -42,6 +42,25 @@ describe('LoginPage', () => {
     expect(screen.getByRole('button', { name: /log in/i })).toBeInTheDocument();
   });
 
+  it('links to the forgot password page', () => {
+    renderLoginPage();
+
+    expect(screen.getByRole('link', { name: /forgot password/i })).toHaveAttribute(
+      'href',
+      '/forgot-password',
+    );
+  });
+
+  it('shows a success notice after completing a password reset', () => {
+    render(
+      <MemoryRouter initialEntries={[{ pathname: '/login', state: { passwordReset: true } }]}>
+        <LoginPage />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText(/password updated/i)).toBeInTheDocument();
+  });
+
   it('allows typing into the email and password fields', async () => {
     const user = userEvent.setup();
     renderLoginPage();

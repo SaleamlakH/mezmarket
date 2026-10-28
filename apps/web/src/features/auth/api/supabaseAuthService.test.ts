@@ -10,6 +10,8 @@ function createFakeSupabaseClient() {
       signUp: vi.fn(),
       verifyOtp: vi.fn(),
       resend: vi.fn(),
+      resetPasswordForEmail: vi.fn(),
+      updateUser: vi.fn(),
       signOut: vi.fn(),
       getSession: vi.fn(),
       onAuthStateChange: vi.fn(),
@@ -372,6 +374,48 @@ describe('createSupabaseAuthService', () => {
       });
 
       await expect(service.resendSignupOtp('a@b.com')).rejects.toThrow('Email rate limit exceeded');
+    });
+  });
+
+  describe('requestPasswordReset', () => {
+    it('requests a recovery code for the email', async () => {
+      fakeClient.auth.resetPasswordForEmail.mockResolvedValue({ data: {}, error: null });
+
+      await service.requestPasswordReset('a@b.com');
+
+      expect(fakeClient.auth.resetPasswordForEmail).toHaveBeenCalledWith('a@b.com');
+    });
+
+    it('throws when the provider cannot send the recovery code', async () => {
+      fakeClient.auth.resetPasswordForEmail.mockResolvedValue({
+        data: {},
+        error: { message: 'Email rate limit exceeded', code: 'over_email_send_rate_limit' },
+      });
+
+      await expect(service.requestPasswordReset('a@b.com')).rejects.toThrow(
+        'Email rate limit exceeded',
+      );
+    });
+  });
+
+  describe('updatePassword', () => {
+    it('updates the password for the recovery session', async () => {
+      fakeClient.auth.updateUser.mockResolvedValue({ data: {}, error: null });
+
+      await service.updatePassword('NewSecret123');
+
+      expect(fakeClient.auth.updateUser).toHaveBeenCalledWith({ password: 'NewSecret123' });
+    });
+
+    it('throws when the provider rejects the new password', async () => {
+      fakeClient.auth.updateUser.mockResolvedValue({
+        data: {},
+        error: { message: 'New password should be different from the old password' },
+      });
+
+      await expect(service.updatePassword('NewSecret123')).rejects.toThrow(
+        'New password should be different from the old password',
+      );
     });
   });
 });

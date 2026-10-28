@@ -15,6 +15,8 @@ function createFakeAuthService(overrides: Partial<AuthService> = {}): AuthServic
       .mockResolvedValue({ id: 'u1', email: 'a@b.com', emailVerifiedAt: null }),
     verifyOtp: vi.fn().mockResolvedValue(undefined),
     resendSignupOtp: vi.fn().mockResolvedValue(undefined),
+    requestPasswordReset: vi.fn().mockResolvedValue(undefined),
+    updatePassword: vi.fn().mockResolvedValue(undefined),
     signOut: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };

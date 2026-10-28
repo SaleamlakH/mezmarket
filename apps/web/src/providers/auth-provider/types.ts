@@ -66,6 +66,16 @@ export interface AuthService {
   resendSignupOtp(email: string): Promise<void>;
 
   /**
+   * Sends a password recovery code when an account exists for the email.
+   */
+  requestPasswordReset(email: string): Promise<void>;
+
+  /**
+   * Sets a new password for the current recovery session.
+   */
+  updatePassword(password: string): Promise<void>;
+
+  /**
    * Ends the current session. Defaults to the local session only.
    */
   signOut(scope?: 'local' | 'global'): Promise<void>;

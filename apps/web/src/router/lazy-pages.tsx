@@ -11,6 +11,12 @@ export const VerifyEmailPage = lazy(() =>
     default: module.VerifyEmailPage,
   })),
 );
+export const ForgotPasswordPage = lazy(() =>
+  import('@/features/auth/pages/ForgotPasswordPage').then((module) => ({
+    default: module.ForgotPasswordPage,
+  })),
+);
+
 export const DashboardPage = lazy(() =>
   import('@/features/dashboard/pages/DashboardPage').then((module) => ({
     default: module.DashboardPage,

@@ -74,6 +74,16 @@ export function createSupabaseAuthService(client: SupabaseClient): AuthService {
       if (error) throw toAuthFlowError(error);
     },
 
+    async requestPasswordReset(email: string) {
+      const { error } = await client.auth.resetPasswordForEmail(email);
+      if (error) throw toAuthFlowError(error);
+    },
+
+    async updatePassword(password: string) {
+      const { error } = await client.auth.updateUser({ password });
+      if (error) throw toAuthFlowError(error);
+    },
+
     async signOut(scope = 'local') {
       const { error } = await client.auth.signOut({ scope });
 
