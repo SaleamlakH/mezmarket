@@ -70,25 +70,25 @@ export function VerifyEmailPage() {
 
         <Button
           type="submit"
+          size="lg"
           isLoading={isSubmitting}
           disabled={code.length !== OTP_CODE_LENGTH}
-          className="w-full h-11 rounded-2xl"
         >
           Verify email
         </Button>
 
-        <button
+        <Button
           type="button"
+          variant="outline"
           onClick={() => void handleResend()}
           disabled={resendInSeconds > 0 || isSubmitting || isResending}
-          className="focus-ring mx-auto text-sm font-semibold text-(--text-muted) underline underline-offset-2 transition-colors hover:text-(--text) disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isResending
             ? 'Sending...'
             : resendInSeconds > 0
               ? `Resend code in ${resendInSeconds}s`
               : 'Resend code'}
-        </button>
+        </Button>
 
         <p className="text-center text-sm text-(--text-muted)">
           Wrong email?{' '}

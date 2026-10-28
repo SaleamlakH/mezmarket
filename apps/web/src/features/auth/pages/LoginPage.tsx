@@ -110,7 +110,7 @@ export function LoginPage() {
           New here?{' '}
           <Link
             to="/signup"
-            className="text-(--accent) font-bold no-underline cursor-pointer hover:text-(--accent-hover)"
+            className="pl-1 cursor-pointer focus-ring mx-auto text-sm font-semibold text-(--accent) underline underline-offset-2 transition-colors hover:text-(--text)"
           >
             Create an account
           </Link>

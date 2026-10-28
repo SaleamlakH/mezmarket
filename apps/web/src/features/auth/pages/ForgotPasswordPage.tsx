@@ -69,33 +69,36 @@ export function ForgotPasswordPage() {
 
           <Button
             type="submit"
+            size="lg"
             isLoading={codeForm.isSubmitting}
             disabled={codeForm.code.length !== OTP_CODE_LENGTH}
-            className="w-full h-11 rounded-2xl"
           >
             Verify code
           </Button>
 
-          <button
+          <Button
             type="button"
+            variant="outline"
             onClick={() => void codeForm.handleResend()}
             disabled={codeForm.resendInSeconds > 0 || codeForm.isSubmitting || codeForm.isResending}
-            className="focus-ring mx-auto text-sm font-semibold text-(--text-muted) underline underline-offset-2 transition-colors hover:text-(--text) disabled:cursor-not-allowed disabled:opacity-50"
           >
             {codeForm.isResending
               ? 'Sending...'
               : codeForm.resendInSeconds > 0
                 ? `Resend code in ${codeForm.resendInSeconds}s`
                 : 'Resend code'}
-          </button>
+          </Button>
 
-          <button
-            type="button"
-            onClick={restart}
-            className="focus-ring mx-auto text-sm font-semibold text-(--text-muted) underline underline-offset-2 transition-colors hover:text-(--text)"
-          >
-            Use a different email
-          </button>
+          <p className="text-center text-sm text-(--text-muted)">
+            Wrong email?
+            <button
+              type="button"
+              onClick={restart}
+              className="pl-1 cursor-pointer focus-ring mx-auto text-sm font-semibold text-(--accent) underline underline-offset-2 transition-colors hover:text-(--text)"
+            >
+              Use Different Email
+            </button>
+          </p>
         </form>
       </>
     );
@@ -217,7 +220,7 @@ export function ForgotPasswordPage() {
           Remembered it?{' '}
           <Link
             to="/login"
-            className="text-(--accent) font-bold no-underline cursor-pointer hover:text-(--accent-hover)"
+            className="pl-1 cursor-pointer focus-ring mx-auto text-sm font-semibold text-(--accent) underline underline-offset-2 transition-colors hover:text-(--text)"
           >
             Back to login
           </Link>
