@@ -3,7 +3,9 @@ export interface LoginCredentials {
   password: string;
 }
 
-export type SignupCredentials = LoginCredentials;
+export interface SignupCredentials extends LoginCredentials {
+  name: string;
+}
 
 export type LoginFormValues = LoginCredentials;
 
