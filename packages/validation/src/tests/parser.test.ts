@@ -28,12 +28,14 @@ describe('parser', () => {
   describe('validateSignupValues', () => {
     it('should validate valid signup values', () => {
       const result = validateSignupValues({
+        name: 'Jane Doe',
         email: 'test@example.com',
         password: 'Password123',
         confirmPassword: 'Password123',
       });
 
       expect(result.data).toEqual({
+        name: 'Jane Doe',
         email: 'test@example.com',
         password: 'Password123',
         confirmPassword: 'Password123',
@@ -44,6 +46,7 @@ describe('parser', () => {
 
     it('should invalidate invalid signup values', () => {
       const result = validateSignupValues({
+        name: '',
         email: 'invalid-email',
         password: 'short',
         confirmPassword: 'do not match',
@@ -52,10 +55,23 @@ describe('parser', () => {
       expect(result.data).toBeNull();
 
       expect(result.errors).toEqual({
+        name: 'Name is required',
         email: 'Enter a valid email address',
         password: 'Password must be at least 8 characters',
         confirmPassword: "Passwords don't match",
       });
+    });
+
+    it('rejects a name longer than 20 characters', () => {
+      const result = validateSignupValues({
+        name: 'A'.repeat(21),
+        email: 'test@example.com',
+        password: 'Password123',
+        confirmPassword: 'Password123',
+      });
+
+      expect(result.data).toBeNull();
+      expect(result.errors).toEqual({ name: 'Name must be 20 characters or less' });
     });
   });
 

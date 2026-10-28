@@ -14,6 +14,12 @@ const emailSchema = z
 
 const passwordSchema = z.string().trim().min(8, 'Password must be at least 8 characters');
 
+const nameSchema = z
+  .string()
+  .trim()
+  .min(1, 'Name is required')
+  .max(20, 'Name must be 20 characters or less');
+
 // Login schema
 export const loginSchema = z.object({
   email: emailSchema,
@@ -27,6 +33,7 @@ const signupPasswordSchema = passwordSchema
 
 export const signupSchema = z
   .object({
+    name: nameSchema,
     email: emailSchema,
     password: signupPasswordSchema,
     confirmPassword: z.string(),
