@@ -7,6 +7,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { Loader } from '@/components/Loader';
 import { PageHeader } from '@/components/PageHeader';
 import { PageShell } from '@/components/PageShell';
+import { Banner } from '@/components/Banner';
 import { Toast } from '@/components/Toast';
 import { useProductUploadUrls } from '@/hooks/useProductUploadUrls';
 import { pluralize } from '@/lib/format';
@@ -128,13 +129,9 @@ export function ProductsPage() {
       />
 
       {successMessage && (
-        <Toast
-          message={successMessage}
-          variant="success"
-          duration={3000}
-          position="top-center"
-          onDismiss={() => setSuccessMessage(null)}
-        />
+        <Toast position="top-center" duration={3000} onDismiss={() => setSuccessMessage(null)}>
+          <Banner tone="success" title={successMessage} onDismiss={() => setSuccessMessage(null)} />
+        </Toast>
       )}
     </PageShell>
   );

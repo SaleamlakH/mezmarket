@@ -5,6 +5,7 @@ import { ERROR_CODES } from '../shared/errors/app-error.js';
 export interface JwtPayload {
   sub: string;
   email?: string;
+  name?: string;
 }
 
 export async function verifyJwt(token: string): Promise<JwtPayload> {
@@ -18,8 +19,18 @@ export async function verifyJwt(token: string): Promise<JwtPayload> {
     }
 
     const email = typeof payload.email === 'string' ? payload.email : undefined;
+    const metadata = payload.user_metadata;
+    const rawName =
+      typeof metadata === 'object' && metadata !== null
+        ? (metadata as { full_name?: unknown }).full_name
+        : undefined;
+    const name = typeof rawName === 'string' && rawName.trim() ? rawName.trim() : undefined;
 
-    return email ? { sub: payload.sub, email } : { sub: payload.sub };
+    return {
+      sub: payload.sub,
+      ...(email ? { email } : {}),
+      ...(name ? { name } : {}),
+    };
   } catch {
     throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Invalid token', 401);
   }

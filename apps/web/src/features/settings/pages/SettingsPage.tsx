@@ -1,14 +1,26 @@
 import { Link } from 'react-router';
-import { ChevronRight, Store, UserRound } from 'lucide-react';
+import { ChevronRight, LogOut, Store, UserRound } from 'lucide-react';
+import { Button } from '@/components/Button';
 import { ListCard } from '@/components/ListCard';
 import { PageHeader } from '@/components/PageHeader';
 import { PageShell } from '@/components/PageShell';
 import { SectionHeader } from '@/components/SectionHeader';
+import { Banner } from '@/components/Banner';
+import { Toast } from '@/components/Toast';
 import { DASHBOARD_PATH } from '@/layouts/navigation';
+import { useSignOut } from '@/hooks/useSignOut';
 
 export function SettingsPage() {
+  const { signOut, isSigningOut, error, clearError } = useSignOut();
+
   return (
     <PageShell>
+      {error && (
+        <Toast position="top-right" duration={5000} onDismiss={clearError}>
+          <Banner tone="danger" title={error} onDismiss={clearError} />
+        </Toast>
+      )}
+
       <PageHeader
         title="Settings"
         subtitle="Manage your account, shop and preferences."
@@ -31,6 +43,19 @@ export function SettingsPage() {
               trailing={<ChevronRight size={16} className="text-(--text-muted)" />}
             />
           </Link>
+
+          <Button
+            type="button"
+            variant="secondary"
+            className="mt-2 w-full justify-start"
+            onClick={signOut}
+            isLoading={isSigningOut}
+          >
+            <span className="flex items-center gap-1.5 text-(--danger)">
+              <LogOut size={18} aria-hidden />
+              Logout
+            </span>
+          </Button>
         </section>
 
         <section>

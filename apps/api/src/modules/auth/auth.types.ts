@@ -6,9 +6,9 @@ export interface AuthIdentity {
 
 export type AuthRepository = {
   findIdentity(providerUserId: string): Promise<AuthIdentity | null>;
-  createIdentity(providerUserId: string, email?: string): Promise<AuthIdentity>;
+  createIdentity(providerUserId: string, email?: string, name?: string): Promise<AuthIdentity>;
 };
 
 export type AuthService = {
-  resolve(providerUserId: string, email?: string): Promise<AuthIdentity>;
+  resolve(providerUserId: string, email?: string, name?: string): Promise<AuthIdentity>;
 };

@@ -48,7 +48,21 @@ describe('auth.repository', () => {
   });
 
   describe('createIdentity', () => {
-    it('creates the owner with a default name and the provided email', async () => {
+    it('creates the owner with the provided name and email', async () => {
+      const { prisma, tx } = createPrismaStub();
+      const repo = createAuthRepository(prisma);
+
+      tx.owner.create.mockResolvedValue({ id: 'owner-2' });
+      tx.accountIdentity.create.mockResolvedValue({});
+
+      await repo.createIdentity('sub-abc', 'user@test.com', 'Jane Doe');
+
+      expect(tx.owner.create).toHaveBeenCalledWith({
+        data: { name: 'Jane Doe', contactEmail: 'user@test.com' },
+      });
+    });
+
+    it('falls back to the default name when none is provided', async () => {
       const { prisma, tx } = createPrismaStub();
       const repo = createAuthRepository(prisma);
 

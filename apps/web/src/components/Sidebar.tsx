@@ -1,8 +1,11 @@
 import { Link, NavLink } from 'react-router';
-import { Settings, Store } from 'lucide-react';
+import { LogOut, Settings, Store } from 'lucide-react';
 import { Brand } from '@/components/Brand';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { Banner } from '@/components/Banner';
+import { Toast } from '@/components/Toast';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
+import { useSignOut } from '@/hooks/useSignOut';
 import type { CSSProperties } from 'react';
 import type { NavTab } from '@/layouts/navigation';
 
@@ -23,6 +26,7 @@ function tabClass({ isActive }: { isActive: boolean }) {
 
 export function Sidebar({ tabs, settingsPath, businessPath, sidebarWidthStyle }: SidebarProps) {
   const { currentBusiness } = useBusinessContext();
+  const { signOut, isSigningOut, error, clearError } = useSignOut();
 
   return (
     <aside
@@ -30,6 +34,12 @@ export function Sidebar({ tabs, settingsPath, businessPath, sidebarWidthStyle }:
       style={sidebarWidthStyle}
       className="fixed inset-y-0 left-0 z-30 hidden shrink-0 flex-col border-r border-(--border) bg-(--surface-primary) px-4 py-5 lg:flex"
     >
+      {error && (
+        <Toast position="top-right" duration={5000} onDismiss={clearError}>
+          <Banner tone="danger" title={error} onDismiss={clearError} />
+        </Toast>
+      )}
+
       <div className="px-2">
         <Brand />
       </div>
@@ -62,14 +72,26 @@ export function Sidebar({ tabs, settingsPath, businessPath, sidebarWidthStyle }:
       </nav>
 
       <div className="mt-auto border-t border-(--border) pt-4">
-        <ThemeToggle variant="nav" />
-
         <NavLink to={settingsPath} className={tabClass}>
           <span className="h-5 w-5">
             <Settings aria-hidden />
           </span>
           Settings
         </NavLink>
+
+        <ThemeToggle variant="nav" />
+
+        <button
+          type="button"
+          onClick={signOut}
+          disabled={isSigningOut}
+          className="focus-ring flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold text-(--danger) transition-colors hover:text-[color-mix(in_srgb,var(--danger)_80%,black)] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <span className="h-5 w-5">
+            <LogOut aria-hidden />
+          </span>
+          {isSigningOut ? 'Logging out…' : 'Logout'}
+        </button>
       </div>
     </aside>
   );

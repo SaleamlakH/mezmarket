@@ -12,6 +12,9 @@ import type {
   BatchLineFormValues,
   CustomerFormValues,
   CreateUploadInput,
+  ForgotPasswordFormValues,
+  LoginFormValues,
+  NewPasswordFormValues,
   PaymentFormValues,
   PaymentSummaryQueryFilters,
   RefundSaleFormValues,
@@ -20,6 +23,7 @@ import type {
   SaleFormValues,
   SaleLineFormValues,
   SaleListFilters,
+  SignupFormValues,
   MemberListFilters,
   ProductInventoryDetailFilters,
   ProductInventoryListFilters,
@@ -33,10 +37,10 @@ import type {
   VoidSaleFormValues,
 } from '@mez/types';
 import {
+  forgotPasswordSchema,
   loginSchema,
+  newPasswordSchema,
   signupSchema,
-  type LoginFormValues,
-  type SignupFormValues,
 } from './schema/auth.schema.js';
 import {
   createBatchLineSchema,
@@ -104,6 +108,14 @@ export function validateLoginValues(values: LoginFormValues) {
 
 export function validateSignupValues(values: SignupFormValues) {
   return validateInput(signupSchema, values);
+}
+
+export function validateForgotPasswordValues(values: ForgotPasswordFormValues) {
+  return validateInput(forgotPasswordSchema, values);
+}
+
+export function validateNewPasswordValues(values: NewPasswordFormValues) {
+  return validateInput(newPasswordSchema, values);
 }
 
 export function validateCreateBusiness(values: CreateBusinessFormValues) {

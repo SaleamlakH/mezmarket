@@ -1,27 +1,29 @@
-export interface User {
-  /**
-   * The auth PROVIDER'S subject id.
-   */
-  id: string;
-
-  /** user may not registered with email*/
-  email?: string | null;
-
-  /**
-   * may not have email verification
-   * null = not yet confirmed
-   */
-  emailVerifiedAt?: string | null;
-}
-
 export interface LoginCredentials {
   email: string;
   password: string;
 }
 
-export type SignupCredentials = LoginCredentials;
+export interface SignupCredentials extends LoginCredentials {
+  name: string;
+}
 
-export interface AuthSession {
-  status: 'loading' | 'authenticated' | 'guest';
-  user: User | null;
+export type LoginFormValues = LoginCredentials;
+
+export interface SignupFormValues extends SignupCredentials {
+  confirmPassword: string;
+}
+
+export interface ForgotPasswordFormValues {
+  email: string;
+}
+
+export interface NewPasswordFormValues {
+  password: string;
+  confirmPassword: string;
+}
+
+export interface ChangePasswordFormValues {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
 }

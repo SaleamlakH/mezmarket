@@ -1,45 +1,23 @@
-import { CircleAlert, CircleCheck, Info, TriangleAlert, X } from 'lucide-react';
-import { useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
-type Variant = 'error' | 'warning' | 'success' | 'info';
 type Position = 'top-right' | 'top-center' | 'bottom-right' | 'bottom-center';
 
 interface ToastProps {
-  message: string;
-  description?: string;
-  variant: Variant;
+  children: ReactNode;
   duration: number;
   position: Position;
   onDismiss: () => void;
 }
 
-const VARIANTS = {
-  error: {
-    symbol: <CircleAlert className="text-red-400" />,
-  },
-  warning: {
-    symbol: <TriangleAlert className="text-(--warning)" />,
-  },
-  success: {
-    symbol: <CircleCheck className="text-(--positive)" />,
-  },
-  info: {
-    symbol: <Info className="text-(--accent)" />,
-  },
-};
-
-export function Toast({
-  message,
-  description,
-  variant,
-  duration,
-  position,
-  onDismiss,
-}: ToastProps) {
+export function Toast({ children, duration, position, onDismiss }: ToastProps) {
   const [visible, setVisible] = useState(false);
-  const timeoutRef = useRef<number | undefined>(undefined);
+  const autoDismissRef = useRef<number | undefined>(undefined);
+  const exitTimeoutRef = useRef<number | undefined>(undefined);
+  const onDismissRef = useRef(onDismiss);
 
-  const v = VARIANTS[variant];
+  useEffect(() => {
+    onDismissRef.current = onDismiss;
+  }, [onDismiss]);
 
   const positionClasses = {
     'top-right': 'top-4 right-4',
@@ -48,53 +26,37 @@ export function Toast({
     'bottom-center': 'bottom-4 left-1/2 -translate-x-1/2',
   }[position];
 
-  // slide-in on mount, slide-out before unmount
+  const hiddenClasses = position.endsWith('right')
+    ? 'opacity-0 translate-x-full'
+    : 'opacity-0 translate-x-8';
+
+  const hide = useCallback(() => {
+    window.clearTimeout(autoDismissRef.current);
+    setVisible(false);
+    window.clearTimeout(exitTimeoutRef.current);
+    exitTimeoutRef.current = window.setTimeout(() => onDismissRef.current(), 300);
+  }, []);
+
+  // slide in from the side on mount, then slide out before unmount
   useEffect(() => {
     const enter = requestAnimationFrame(() => setVisible(true));
-    timeoutRef.current = setTimeout(() => {
-      // setVisible(false);
-      setTimeout(() => onDismiss?.(), 300); // wait for exit transition
-    }, duration);
+    autoDismissRef.current = window.setTimeout(hide, duration);
 
     return () => {
       cancelAnimationFrame(enter);
-      clearTimeout(timeoutRef.current);
+      window.clearTimeout(autoDismissRef.current);
+      window.clearTimeout(exitTimeoutRef.current);
     };
-  }, [duration, onDismiss]);
-
-  const handleClose = () => {
-    clearTimeout(timeoutRef.current);
-    setVisible(false);
-    setTimeout(() => onDismiss?.(), 300);
-  };
+  }, [duration, hide]);
 
   return (
-    <div
-      role="alert"
-      className={`fixed z-50 ${positionClasses} w-[calc(100%-2rem)] max-w-sm
-        transition-all duration-300 ease-out
-        ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}
-      `}
-    >
+    <div className={`fixed z-50 ${positionClasses} w-[calc(100%-2rem)] max-w-sm`}>
       <div
-        className={`flex items-start gap-3 rounded-lg
-          bg-(--surface-primary) border-(--border)
-          px-4 py-3 shadow-lg`}
+        className={`transition-all duration-300 ease-out
+          ${visible ? 'opacity-100 translate-x-0' : hiddenClasses}
+        `}
       >
-        <span className={`mt-0.5 text-sm font-bold`}>{v.symbol}</span>
-
-        <div className="flex-1 min-w-0">
-          <p className="text-md font-medium text-(--text)">{message}</p>
-          {description && <p className="mt-0.5 text-xs text-(--text-muted)">{description}</p>}
-        </div>
-
-        <button
-          onClick={handleClose}
-          className="text-(--text-muted) hover:text-(--text) text-sm leading-none"
-          aria-label="Dismiss"
-        >
-          <X size={18} strokeWidth={2} />
-        </button>
+        {children}
       </div>
     </div>
   );

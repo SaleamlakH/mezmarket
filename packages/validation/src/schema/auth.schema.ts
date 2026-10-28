@@ -1,10 +1,11 @@
 import z from 'zod';
-import type { LoginCredentials, SignupCredentials } from '@mez/types';
-
-export type LoginFormValues = LoginCredentials;
-export interface SignupFormValues extends SignupCredentials {
-  confirmPassword: string;
-}
+import type {
+  ChangePasswordFormValues,
+  ForgotPasswordFormValues,
+  LoginFormValues,
+  NewPasswordFormValues,
+  SignupFormValues,
+} from '@mez/types';
 
 const emailSchema = z
   .string()
@@ -13,6 +14,12 @@ const emailSchema = z
   .email('Enter a valid email address');
 
 const passwordSchema = z.string().trim().min(8, 'Password must be at least 8 characters');
+
+const nameSchema = z
+  .string()
+  .trim()
+  .min(1, 'Name is required')
+  .max(20, 'Name must be 20 characters or less');
 
 // Login schema
 export const loginSchema = z.object({
@@ -27,6 +34,7 @@ const signupPasswordSchema = passwordSchema
 
 export const signupSchema = z
   .object({
+    name: nameSchema,
     email: emailSchema,
     password: signupPasswordSchema,
     confirmPassword: z.string(),
@@ -35,3 +43,28 @@ export const signupSchema = z
     error: "Passwords don't match",
     path: ['confirmPassword'],
   }) satisfies z.ZodType<SignupFormValues>;
+
+export const forgotPasswordSchema = z.object({
+  email: emailSchema,
+}) satisfies z.ZodType<ForgotPasswordFormValues>;
+
+export const newPasswordSchema = z
+  .object({
+    password: signupPasswordSchema,
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    error: "Passwords don't match",
+    path: ['confirmPassword'],
+  }) satisfies z.ZodType<NewPasswordFormValues>;
+
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().trim().min(1, 'Current password is required'),
+    newPassword: signupPasswordSchema,
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    error: "Passwords don't match",
+    path: ['confirmPassword'],
+  }) satisfies z.ZodType<ChangePasswordFormValues>;

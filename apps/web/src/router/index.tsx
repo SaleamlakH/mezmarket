@@ -15,6 +15,7 @@ import {
   DashboardPage,
   DesignSystemPage,
   ErrorPage,
+  ForgotPasswordPage,
   InventoryPage,
   LoginPage,
   NotFoundPage,
@@ -27,11 +28,14 @@ import {
   SalesPage,
   SettingsPage,
   SignupPage,
+  VerifyEmailPage,
 } from './lazy-pages';
 import { withSuspense } from './withSuspense';
 
 const SuspendedLoginPage = withSuspense(LoginPage);
 const SuspendedSignupPage = withSuspense(SignupPage);
+const SuspendedVerifyEmailPage = withSuspense(VerifyEmailPage);
+const SuspendedForgotPasswordPage = withSuspense(ForgotPasswordPage);
 const SuspendedDashboardPage = withSuspense(DashboardPage);
 const SuspendedProductsPage = withSuspense(ProductsPage);
 const SuspendedProductDetailPage = withSuspense(ProductDetailPage);
@@ -156,7 +160,7 @@ export const router = createBrowserRouter([
     ],
   },
   {
-    element: <RegistrationLayout />,
+    element: <RegistrationLayout guestOnly />,
     errorElement: <SuspendedErrorPage />,
     children: [
       {
@@ -166,6 +170,20 @@ export const router = createBrowserRouter([
       {
         path: 'signup',
         element: <SuspendedSignupPage />,
+      },
+    ],
+  },
+  {
+    element: <RegistrationLayout />,
+    errorElement: <SuspendedErrorPage />,
+    children: [
+      {
+        path: 'verify-email',
+        element: <SuspendedVerifyEmailPage />,
+      },
+      {
+        path: 'forgot-password',
+        element: <SuspendedForgotPasswordPage />,
       },
     ],
   },

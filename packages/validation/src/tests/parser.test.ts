@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { validateLoginValues, validateSignupValues, validateUpdateOwnerValues } from '../parser.js';
+import {
+  validateForgotPasswordValues,
+  validateLoginValues,
+  validateNewPasswordValues,
+  validateSignupValues,
+  validateUpdateOwnerValues,
+} from '../parser.js';
 
 describe('parser', () => {
   describe('validateLoginValues', () => {
@@ -22,12 +28,14 @@ describe('parser', () => {
   describe('validateSignupValues', () => {
     it('should validate valid signup values', () => {
       const result = validateSignupValues({
+        name: 'Jane Doe',
         email: 'test@example.com',
         password: 'Password123',
         confirmPassword: 'Password123',
       });
 
       expect(result.data).toEqual({
+        name: 'Jane Doe',
         email: 'test@example.com',
         password: 'Password123',
         confirmPassword: 'Password123',
@@ -38,6 +46,7 @@ describe('parser', () => {
 
     it('should invalidate invalid signup values', () => {
       const result = validateSignupValues({
+        name: '',
         email: 'invalid-email',
         password: 'short',
         confirmPassword: 'do not match',
@@ -46,10 +55,63 @@ describe('parser', () => {
       expect(result.data).toBeNull();
 
       expect(result.errors).toEqual({
+        name: 'Name is required',
         email: 'Enter a valid email address',
         password: 'Password must be at least 8 characters',
         confirmPassword: "Passwords don't match",
       });
+    });
+
+    it('rejects a name longer than 20 characters', () => {
+      const result = validateSignupValues({
+        name: 'A'.repeat(21),
+        email: 'test@example.com',
+        password: 'Password123',
+        confirmPassword: 'Password123',
+      });
+
+      expect(result.data).toBeNull();
+      expect(result.errors).toEqual({ name: 'Name must be 20 characters or less' });
+    });
+  });
+
+  describe('validateForgotPasswordValues', () => {
+    it('should validate a valid email', () => {
+      const result = validateForgotPasswordValues({ email: 'test@example.com' });
+      expect(result.data).toEqual({ email: 'test@example.com' });
+      expect(result.errors).toBeNull();
+    });
+
+    it('should invalidate an invalid email', () => {
+      const result = validateForgotPasswordValues({ email: 'invalid-email' });
+      expect(result.data).toBeNull();
+      expect(result.errors).toHaveProperty('email');
+    });
+  });
+
+  describe('validateNewPasswordValues', () => {
+    it('should validate a new password and confirmation', () => {
+      const result = validateNewPasswordValues({
+        password: 'Password123',
+        confirmPassword: 'Password123',
+      });
+
+      expect(result.data).toEqual({
+        password: 'Password123',
+        confirmPassword: 'Password123',
+      });
+      expect(result.errors).toBeNull();
+    });
+
+    it('should invalidate a weak password and mismatch', () => {
+      const result = validateNewPasswordValues({
+        password: 'short',
+        confirmPassword: 'do not match',
+      });
+
+      expect(result.data).toBeNull();
+      expect(result.errors).toHaveProperty('password');
+      expect(result.errors).toHaveProperty('confirmPassword');
     });
   });
 

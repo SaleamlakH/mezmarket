@@ -5,6 +5,7 @@ import { PasswordInput } from '../../../components/PasswordInput';
 import { LedgerLine } from '../../../components/LedgerLine';
 import { Link } from 'react-router';
 import { useSignupForm } from '../hooks/useSignupForm';
+import { Banner } from '@/components/Banner';
 import { Toast } from '@/components/Toast';
 
 export function SignupPage() {
@@ -23,13 +24,9 @@ export function SignupPage() {
     <>
       {/* Error toast*/}
       {formError && (
-        <Toast
-          message={formError}
-          variant="error"
-          onDismiss={() => setFormError(null)}
-          duration={5000}
-          position="top-right"
-        />
+        <Toast position="top-right" duration={5000} onDismiss={() => setFormError(null)}>
+          <Banner tone="danger" title={formError} onDismiss={() => setFormError(null)} />
+        </Toast>
       )}
 
       {/*headline*/}
@@ -44,6 +41,19 @@ export function SignupPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4 flex-1">
+        <Field id="name" label="Full Name" error={errors?.name}>
+          <Input
+            type="text"
+            id="name"
+            name="name"
+            placeholder="John Doe"
+            value={values.name}
+            onChange={(e) => handleChange('name', e.target.value)}
+            onBlur={() => handleBlur('name')}
+            autoComplete="name"
+          />
+        </Field>
+
         <Field id="email" label="Email" error={errors?.email}>
           <Input
             type="email"
@@ -93,7 +103,7 @@ export function SignupPage() {
           Already have an account?{' '}
           <Link
             to="/login"
-            className="text-(--accent) font-bold no-underline cursor-pointer hover:text-(--accent-hover)"
+            className="pl-1 cursor-pointer focus-ring mx-auto text-sm font-semibold text-(--accent) underline underline-offset-2 transition-colors hover:text-(--text)"
           >
             Login
           </Link>

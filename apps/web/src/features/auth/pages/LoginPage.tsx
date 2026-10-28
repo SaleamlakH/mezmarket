@@ -1,13 +1,20 @@
+import { useState } from 'react';
 import { Button } from '../../../components/Button';
 import { Field } from '../../../components/Field';
 import { Input } from '../../../components/Input';
 import { PasswordInput } from '../../../components/PasswordInput';
 import { LedgerLine } from '../../../components/LedgerLine';
-import { Link } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { useLoginForm } from '../hooks/useLoginForm';
+import { Banner } from '@/components/Banner';
 import { Toast } from '@/components/Toast';
 
 export function LoginPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [showResetSuccess, setShowResetSuccess] = useState(() =>
+    Boolean((location.state as { passwordReset?: boolean } | null)?.passwordReset),
+  );
   const {
     status,
     values,
@@ -19,17 +26,29 @@ export function LoginPage() {
     handleSubmit,
   } = useLoginForm();
 
+  function dismissResetSuccess() {
+    setShowResetSuccess(false);
+    navigate(location.pathname, { replace: true, state: null });
+  }
+
   return (
     <>
+      {showResetSuccess && !formError && (
+        <Toast position="top-right" duration={5000} onDismiss={dismissResetSuccess}>
+          <Banner
+            tone="info"
+            title="Password updated"
+            description="Log in with your new password."
+            onDismiss={dismissResetSuccess}
+          />
+        </Toast>
+      )}
+
       {/* Error toast*/}
       {formError && (
-        <Toast
-          message={formError}
-          variant="error"
-          onDismiss={() => setFormError(null)}
-          duration={5000}
-          position="top-right"
-        />
+        <Toast position="top-right" duration={5000} onDismiss={() => setFormError(null)}>
+          <Banner tone="danger" title={formError} onDismiss={() => setFormError(null)} />
+        </Toast>
       )}
 
       {/*headline*/}
@@ -68,7 +87,10 @@ export function LoginPage() {
         </Field>
 
         <div className="flex justify-end">
-          <Link to="#" className="text-end text-(--text-muted) underline underline-offset-1">
+          <Link
+            to="/forgot-password"
+            className="text-end text-(--text-muted) underline underline-offset-1"
+          >
             Forgot password?
           </Link>
         </div>
@@ -88,7 +110,7 @@ export function LoginPage() {
           New here?{' '}
           <Link
             to="/signup"
-            className="text-(--accent) font-bold no-underline cursor-pointer hover:text-(--accent-hover)"
+            className="pl-1 cursor-pointer focus-ring mx-auto text-sm font-semibold text-(--accent) underline underline-offset-2 transition-colors hover:text-(--text)"
           >
             Create an account
           </Link>

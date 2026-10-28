@@ -3,14 +3,21 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { renderHook } from '@testing-library/react';
 import { AuthProvider } from '../AuthProvider';
 import { useAuthContext } from '../useAuthContext';
-import type { AuthService, AuthSession } from '@mez/types';
+import type { AuthService, AuthSession } from '../types';
 
 function createFakeAuthService(overrides: Partial<AuthService> = {}): AuthService {
   return {
     getSession: vi.fn().mockResolvedValue({ status: 'guest', user: null } satisfies AuthSession),
     onAuthStateChange: vi.fn().mockReturnValue(vi.fn()),
     signInWithEmail: vi.fn().mockResolvedValue(undefined),
-    signUpWithEmail: vi.fn().mockResolvedValue(undefined),
+    signUpWithEmail: vi
+      .fn()
+      .mockResolvedValue({ id: 'u1', email: 'a@b.com', emailVerifiedAt: null }),
+    verifyOtp: vi.fn().mockResolvedValue(undefined),
+    resendSignupOtp: vi.fn().mockResolvedValue(undefined),
+    requestPasswordReset: vi.fn().mockResolvedValue(undefined),
+    updatePassword: vi.fn().mockResolvedValue(undefined),
+    signOut: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }

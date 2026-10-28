@@ -190,9 +190,9 @@ another, the owner exposes a narrow port:
 | `customers` | `CustomersService` | `features/customers/api/customersService.ts` | Customer picker in the sale flow                            |
 | `members`   | `MembersService`   | `features/members/api/membersService.ts`     | Member pickers and member-facing reads                      |
 
-`AuthProvider` consumes the `AuthService` contract from `@mez/types` and the
-Supabase adapter from the auth feature. `ThemeProvider` is app chrome and has no
-domain port.
+`AuthProvider` consumes the `AuthService` contract from
+`providers/auth-provider/types.ts` and the Supabase adapter from the auth
+feature. `ThemeProvider` is app chrome and has no domain port.
 
 This pattern keeps the dependency graph acyclic. A feature can be changed or
 removed without requiring edits inside unrelated features.

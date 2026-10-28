@@ -1,5 +1,9 @@
-export type { LoginFormValues, SignupFormValues } from './schema/auth.schema.js';
 export type { UpdateOwnerFormValues } from './schema/owner.schema.js';
+export {
+  changePasswordSchema,
+  forgotPasswordSchema,
+  newPasswordSchema,
+} from './schema/auth.schema.js';
 export * from './parser.js';
 export * from './types.js';
 export type {

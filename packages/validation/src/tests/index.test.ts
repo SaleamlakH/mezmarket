@@ -10,10 +10,10 @@ import type {
 } from '@mez/types';
 import {
   type FieldErrors,
+  validateForgotPasswordValues,
   validateLoginValues,
+  validateNewPasswordValues,
   validateSignupValues,
-  type LoginFormValues,
-  type SignupFormValues,
   validateCreateBusiness,
   type CreateBusinessFormValues,
   validateUpdateOwnerValues,
@@ -78,6 +78,11 @@ describe('index', () => {
     expect(validateSignupValues).toBeDefined();
   });
 
+  it('exports password reset validators', () => {
+    expect(validateForgotPasswordValues).toBeDefined();
+    expect(validateNewPasswordValues).toBeDefined();
+  });
+
   it('exports validateCreateBusiness', () => {
     expect(validateCreateBusiness).toBeDefined();
   });
@@ -92,14 +97,6 @@ describe('index', () => {
 
   it('exports validateCreateUpload', () => {
     expect(validateCreateUpload).toBeDefined();
-  });
-
-  it('exports LoginFormValues', () => {
-    expectTypeOf<LoginFormValues>().toBeObject();
-  });
-
-  it('exports SignupFormValues', () => {
-    expectTypeOf<SignupFormValues>().toBeObject();
   });
 
   it('exports CreateBusinessFormValues', () => {

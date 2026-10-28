@@ -6,6 +6,17 @@ export const LoginPage = lazy(() =>
 export const SignupPage = lazy(() =>
   import('@/features/auth/pages/SignupPage').then((module) => ({ default: module.SignupPage })),
 );
+export const VerifyEmailPage = lazy(() =>
+  import('@/features/auth/pages/VerifyEmailPage').then((module) => ({
+    default: module.VerifyEmailPage,
+  })),
+);
+export const ForgotPasswordPage = lazy(() =>
+  import('@/features/auth/pages/ForgotPasswordPage').then((module) => ({
+    default: module.ForgotPasswordPage,
+  })),
+);
+
 export const DashboardPage = lazy(() =>
   import('@/features/dashboard/pages/DashboardPage').then((module) => ({
     default: module.DashboardPage,
