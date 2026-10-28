@@ -25,6 +25,11 @@ export function createBusinessRepository(prisma: PrismaClient): BusinessReposito
 
     async createForOwner(ownerId: string, input: CreateBusinessInput) {
       return prisma.$transaction(async (tx) => {
+        const owner = await tx.owner.findUniqueOrThrow({
+          where: { id: ownerId },
+          select: { name: true },
+        });
+
         const business = await tx.business.create({
           data: {
             ownerId,
@@ -53,7 +58,7 @@ export function createBusinessRepository(prisma: PrismaClient): BusinessReposito
             businessId: business.id,
             branchId: branch.id,
             ownerId,
-            name: 'me',
+            name: owner.name,
             role: BusinessMemberRole.OWNER,
           },
         });

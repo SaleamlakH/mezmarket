@@ -143,7 +143,7 @@ describe('business.service', () => {
           businessId: 'b-1',
           branchId: 'br-1',
           ownerId: 'owner-1',
-          name: 'me',
+          name: 'Jane Doe',
           role: 'OWNER',
           active: true,
           createdAt: new Date('2026-01-01T00:00:00.000Z'),

@@ -49,10 +49,10 @@ describe('auth.service', () => {
       vi.mocked(repo.findIdentity).mockResolvedValue(null);
       vi.mocked(repo.createIdentity).mockResolvedValue(created);
 
-      const result = await service.resolve('sub-new', 'user@test.com');
+      const result = await service.resolve('sub-new', 'user@test.com', 'Jane Doe');
 
       expect(result).toEqual(created);
-      expect(repo.createIdentity).toHaveBeenCalledWith('sub-new', 'user@test.com');
+      expect(repo.createIdentity).toHaveBeenCalledWith('sub-new', 'user@test.com', 'Jane Doe');
     });
   });
 });

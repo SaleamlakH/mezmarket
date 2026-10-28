@@ -14,7 +14,7 @@ export function createAuthMiddleware(verifyJwt: VerifyJwt, authService: AuthServ
 
     const token = header.slice(7);
     const payload = await verifyJwt(token);
-    const identity = await authService.resolve(payload.sub, payload.email);
+    const identity = await authService.resolve(payload.sub, payload.email, payload.name);
 
     req.auth = { ownerId: identity.ownerId };
     next();

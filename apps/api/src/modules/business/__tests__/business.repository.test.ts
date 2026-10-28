@@ -4,6 +4,9 @@ import type { BusinessRepository, UpdateBusinessInput } from '../business.types.
 import type { PrismaClient } from '../../../../generated/prisma/client.js';
 
 type MockTx = {
+  owner: {
+    findUniqueOrThrow: ReturnType<typeof vi.fn>;
+  };
   business: {
     create: ReturnType<typeof vi.fn>;
   };
@@ -17,6 +20,7 @@ type MockTx = {
 
 function createPrismaStub() {
   const tx: MockTx = {
+    owner: { findUniqueOrThrow: vi.fn() },
     business: { create: vi.fn() },
     branch: { create: vi.fn() },
     businessMember: { create: vi.fn() },
@@ -32,6 +36,7 @@ function createPrismaStub() {
 }
 
 function registerSuccess(tx: MockTx) {
+  tx.owner.findUniqueOrThrow.mockResolvedValue({ name: 'Jane Doe' });
   tx.business.create.mockResolvedValue({ id: 'b-1' });
   tx.branch.create.mockResolvedValue({ id: 'br-1' });
   tx.businessMember.create.mockResolvedValue({ id: 'm-1' });
@@ -191,19 +196,23 @@ describe('business.repository', () => {
       });
     });
 
-    it('creates the owner member with name "me", OWNER role and linked ids', async () => {
+    it("creates the owner member with the owner's name, OWNER role and linked ids", async () => {
       const { prisma, tx } = createPrismaStub();
       const repo = createBusinessRepository(prisma);
       registerSuccess(tx);
 
       await repo.createForOwner('owner-1', { name: 'Test', currencyCode: 'USD' });
 
+      expect(tx.owner.findUniqueOrThrow).toHaveBeenCalledWith({
+        where: { id: 'owner-1' },
+        select: { name: true },
+      });
       expect(tx.businessMember.create).toHaveBeenCalledWith({
         data: {
           businessId: 'b-1',
           branchId: 'br-1',
           ownerId: 'owner-1',
-          name: 'me',
+          name: 'Jane Doe',
           role: 'OWNER',
         },
       });

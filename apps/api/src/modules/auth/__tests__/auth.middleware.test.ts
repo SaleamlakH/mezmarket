@@ -67,7 +67,11 @@ describe('auth.middleware', () => {
   });
 
   it('calls next and attaches ownerId on success', async () => {
-    vi.mocked(verifyJwt).mockResolvedValue({ sub: 'user-1', email: 'a@b.com' });
+    vi.mocked(verifyJwt).mockResolvedValue({
+      sub: 'user-1',
+      email: 'a@b.com',
+      name: 'Jane Doe',
+    });
     vi.mocked(authService.resolve).mockResolvedValue({
       id: 'id-1',
       ownerId: 'owner-1',
@@ -79,6 +83,6 @@ describe('auth.middleware', () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ ownerId: 'owner-1' });
-    expect(authService.resolve).toHaveBeenCalledWith('user-1', 'a@b.com');
+    expect(authService.resolve).toHaveBeenCalledWith('user-1', 'a@b.com', 'Jane Doe');
   });
 });

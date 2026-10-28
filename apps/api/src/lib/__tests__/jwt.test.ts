@@ -22,9 +22,28 @@ describe('verifyJwt', () => {
     process.env.SUPABASE_JWKS_URL = original;
   });
 
-  it('returns the payload on success', async () => {
+  it('returns the payload with the signup name on success', async () => {
     vi.mocked(jwtVerify).mockResolvedValue({
-      payload: { sub: 'user-1', email: 'a@b.com' },
+      payload: {
+        sub: 'user-1',
+        email: 'a@b.com',
+        user_metadata: { full_name: '  Jane Doe  ' },
+      },
+      protectedHeader: {},
+    } as never);
+
+    const result = await verifyJwt('token');
+
+    expect(result).toEqual({ sub: 'user-1', email: 'a@b.com', name: 'Jane Doe' });
+  });
+
+  it('omits name when user metadata has no usable name', async () => {
+    vi.mocked(jwtVerify).mockResolvedValue({
+      payload: {
+        sub: 'user-1',
+        email: 'a@b.com',
+        user_metadata: { full_name: '   ' },
+      },
       protectedHeader: {},
     } as never);
 

@@ -9,10 +9,10 @@ export function createAuthRepository(prisma: PrismaClient): AuthRepository {
       });
     },
 
-    async createIdentity(providerUserId: string, email?: string) {
+    async createIdentity(providerUserId: string, email?: string, name?: string) {
       return prisma.$transaction(async (tx) => {
         const owner = await tx.owner.create({
-          data: { name: 'New User', contactEmail: email ?? null },
+          data: { name: name?.trim() || 'New User', contactEmail: email ?? null },
         });
 
         return await tx.accountIdentity.create({
