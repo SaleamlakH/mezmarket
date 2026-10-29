@@ -25,6 +25,6 @@ export function useSignupForm() {
     initialValues: { name: '', email: '', password: '', confirmPassword: '' },
     validate: validateSignupValues,
     onSubmit: handleSubmit,
-    onSuccess: () => {},
+    onSuccess: () => navigate('/dashboard'),
   });
 }
