@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useCallback, useMemo } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, type FieldErrors as FormFieldErrors } from 'react-hook-form';
 import type {
   BusinessMemberSummaryResponse,
   CreateSaleInput,
@@ -12,6 +12,7 @@ import type {
 } from '@mez/types';
 import type { FieldErrors } from '@mez/validation';
 import { createSaleSchema } from '@mez/validation';
+import { ApiError } from '@/lib/apiClient';
 import { paymentPayload } from '../lib/paymentPayload';
 import type { SaleDraftCatalog } from '../lib/saleDraftView';
 import { isCommitted, type SaleDraftLine, type SalePaymentDraft } from '../state/saleDraft';
@@ -62,6 +63,63 @@ function rootMessage(error: unknown): string | undefined {
   return nested.root?.message ?? nested.message;
 }
 
+/** The message a single field error carries, when it has one. */
+function fieldMessage(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null) return undefined;
+  const field = error as { message?: unknown };
+  return typeof field.message === 'string' ? field.message : undefined;
+}
+
+/** The client-side line errors, keyed by the draft line they belong to. */
+function validationLineErrors(
+  errors: FormFieldErrors<SaleFormValues>,
+  lines: SaleDraftLine[],
+): Record<string, string> {
+  const fieldErrors = Array.isArray(errors.lines) ? errors.lines : [];
+  const lineErrors: Record<string, string> = {};
+
+  lines.filter(isCommitted).forEach((line, index) => {
+    const entry = fieldErrors[index] as Record<string, unknown> | undefined;
+    const message =
+      fieldMessage(entry?.productUnitId) ??
+      fieldMessage(entry?.productId) ??
+      fieldMessage(entry?.quantity);
+
+    if (message) lineErrors[line.id] = message;
+  });
+
+  return lineErrors;
+}
+
+/**
+ * Splits the API's field-path details back onto the draft: a line's
+ * `productUnitId` path points at that line, while its `productId` path points
+ * at the cart item.
+ */
+function apiDetailErrors(
+  error: unknown,
+  lines: SaleDraftLine[],
+): { lineErrors: Record<string, string>; productErrors: Record<string, string> } {
+  const lineErrors: Record<string, string> = {};
+  const productErrors: Record<string, string> = {};
+
+  if (!(error instanceof ApiError) || !error.details) {
+    return { lineErrors, productErrors };
+  }
+
+  const details = error.details;
+
+  lines.filter(isCommitted).forEach((line, index) => {
+    const unitMessage = details[`lines.${index}.productUnitId`];
+    if (unitMessage) lineErrors[line.id] = unitMessage;
+
+    const productMessage = details[`lines.${index}.productId`];
+    if (productMessage) productErrors[line.productId] = productMessage;
+  });
+
+  return { lineErrors, productErrors };
+}
+
 /** The checkout the sale panel drives: validate the draft, then record it. */
 export interface SaleCheckout {
   /** Validates the draft and, when it passes, records the sale. */
@@ -76,6 +134,10 @@ export interface SaleCheckout {
   error: string | null;
   /** The payment's per-field errors, for the payment fields to point at. */
   paymentErrors: FieldErrors<PaymentFormValues>;
+  /** Per-line errors, keyed by the draft line they point at. */
+  lineErrors: Record<string, string>;
+  /** Per-product stock errors, keyed by the product they point at. */
+  productErrors: Record<string, string>;
   /** Clears the draft and the checkout — the success step's Done. */
   finish: () => void;
 }
@@ -129,6 +191,8 @@ export function useSaleCheckout(): SaleCheckout {
       : 'Could not record the sale'
     : undefined;
 
+  const apiErrors = apiDetailErrors(error, lines);
+
   return {
     confirm,
     isSubmitting: isPending,
@@ -136,6 +200,8 @@ export function useSaleCheckout(): SaleCheckout {
     sale: data,
     error: validationError ?? requestError ?? null,
     paymentErrors,
+    lineErrors: { ...validationLineErrors(errors, lines), ...apiErrors.lineErrors },
+    productErrors: apiErrors.productErrors,
     finish,
   };
 }

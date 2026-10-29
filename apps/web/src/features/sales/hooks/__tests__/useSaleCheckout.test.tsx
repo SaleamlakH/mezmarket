@@ -14,6 +14,7 @@ import type { CatalogService } from '@/providers/catalog/types';
 import { useBusinessContext } from '@/providers/business/useBusinessContext';
 import { useCatalogService } from '@/providers/catalog/useCatalogService';
 import { catalogKeys } from '@/hooks/useCatalogApi';
+import { ApiError } from '@/lib/apiClient';
 import { salesService } from '../../api/salesService';
 import { products, sale, sellableUnitsByProductId } from '../../__tests__/fixtures';
 import type { SaleDraftCatalog } from '../../lib/saleDraftView';
@@ -237,6 +238,68 @@ describe('useSaleCheckout', () => {
     act(() => result.current.checkout.confirm());
 
     await waitFor(() => expect(result.current.checkout.error).toEqual(expect.any(String)));
+    expect(salesService.createSale).not.toHaveBeenCalled();
+  });
+
+  it('maps an API stock error to the cart item it belongs to', async () => {
+    vi.mocked(salesService.createSale).mockRejectedValue(
+      new ApiError({
+        code: 'BAD_REQUEST',
+        message: 'Some items in the sale cannot be sold',
+        status: 400,
+        details: {
+          'lines.0.productId': 'mocked stock error',
+        },
+      }),
+    );
+    const { result } = render();
+
+    act(() => result.current.draft.setQuantityForProduct('prod_tequila', 'unit_tequila_bottle', 2));
+    act(() => result.current.checkout.confirm());
+
+    await waitFor(() =>
+      expect(result.current.checkout.productErrors.prod_tequila).toEqual(expect.any(String)),
+    );
+  });
+
+  it('maps an API unit error to the draft line it belongs to', async () => {
+    vi.mocked(salesService.createSale).mockRejectedValue(
+      new ApiError({
+        code: 'BAD_REQUEST',
+        message: 'Some items in the sale cannot be sold',
+        status: 400,
+        details: { 'lines.0.productUnitId': 'mocked unit error' },
+      }),
+    );
+    const { result } = render();
+
+    act(() => result.current.draft.setQuantityForProduct('prod_tequila', 'unit_tequila_bottle', 2));
+    act(() => result.current.checkout.confirm());
+
+    await waitFor(() =>
+      expect(result.current.checkout.lineErrors).toHaveProperty(
+        result.current.draft.lines[0]?.id ?? '',
+        expect.any(String),
+      ),
+    );
+  });
+
+  it('maps a client-side non-sellable unit error to its draft line without recording', async () => {
+    const units = (sellableUnitsByProductId['prod_tequila'] ?? []).map((unit) =>
+      unit.id === 'unit_tequila_bottle' ? { ...unit, sellCapable: false } : unit,
+    );
+    queryClient.setQueryData(catalogKeys.productUnits('b1', 'prod_tequila'), units);
+    const { result } = render();
+
+    act(() => result.current.draft.setQuantityForProduct('prod_tequila', 'unit_tequila_bottle', 2));
+    act(() => result.current.checkout.confirm());
+
+    await waitFor(() =>
+      expect(result.current.checkout.lineErrors).toHaveProperty(
+        result.current.draft.lines[0]?.id ?? '',
+        expect.any(String),
+      ),
+    );
     expect(salesService.createSale).not.toHaveBeenCalled();
   });
 });

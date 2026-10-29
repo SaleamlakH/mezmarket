@@ -4,6 +4,7 @@ import { Button } from '@/components/Button';
 import { Stepper } from '@/components/Stepper';
 import { formatMoney } from '@/lib/format';
 import { lineAmount } from '@/lib/lineTotal';
+import { formatLineError } from '../lib/lineErrors';
 import { isCommitted, type SaleDraftLine } from '../state/saleDraft';
 
 export interface CartItemLinesProps {
@@ -14,6 +15,8 @@ export interface CartItemLinesProps {
   onQuantityChange?: ((lineId: string, quantity: number) => void) | undefined;
   /** When given, each line gets a control to drop it from the sale. */
   onRemove?: ((lineId: string) => void) | undefined;
+  /** Per-line errors, keyed by the draft line they point at. */
+  lineErrors?: Record<string, string> | undefined;
 }
 
 /** A product's committed lines with per-line totals and a grand total. */
@@ -23,6 +26,7 @@ export function CartItemLines({
   currency,
   onQuantityChange,
   onRemove,
+  lineErrors,
 }: CartItemLinesProps) {
   const unitOf = (line: SaleDraftLine) => units.find((entry) => entry.id === line.productUnitId);
   const committed = lines.filter(isCommitted);
@@ -43,6 +47,7 @@ export function CartItemLines({
             {committed.map((line) => {
               const unit = unitOf(line);
               const amount = lineAmount(line.quantity, unit?.price ?? null);
+              const error = lineErrors?.[line.id];
 
               return (
                 <li key={line.id} className="flex items-center gap-3 py-1">
@@ -53,6 +58,11 @@ export function CartItemLines({
                     <p className="m-0 font-mono text-xs tabular-nums text-(--text)">
                       {amount == null ? 'No price' : formatMoney(amount, currency)}
                     </p>
+                    {error && (
+                      <p role="alert" className="m-0 text-[11px] font-semibold text-(--danger)">
+                        {formatLineError(unit?.name, error)}
+                      </p>
+                    )}
                   </div>
 
                   {onQuantityChange && (

@@ -3,6 +3,7 @@ import { Trash2 } from 'lucide-react';
 import { ProductThumb } from '@/components/ProductThumb';
 import { useCurrency } from '@/hooks/useCurrency';
 import { formatMoney, formatQuantity } from '@/lib/format';
+import { formatLineError } from '../lib/lineErrors';
 import type { CartItem as CartItemModel } from '../lib/saleDraftView';
 
 export interface CartItemProps {
@@ -15,6 +16,10 @@ export interface CartItemProps {
   onRemove: (productId: string) => void;
   /** The product whose editor is open, kept highlighted in the list. */
   isEditing: boolean;
+  /** A product-level error, such as a blocked stock draw. */
+  error?: string | undefined;
+  /** Per-line errors, keyed by the draft line they point at. */
+  lineErrors?: Record<string, string> | undefined;
 }
 
 /**
@@ -29,6 +34,8 @@ export function CartItem({
   onEdit,
   onRemove,
   isEditing,
+  error,
+  lineErrors,
 }: CartItemProps) {
   const currency = useCurrency();
   const productName = cartItem.product?.name ?? 'Unknown product';
@@ -70,6 +77,23 @@ export function CartItem({
                 </span>
               ))}
             </span>
+            {cartItem.lines.map(({ line, unit }) => {
+              const lineError = lineErrors?.[line.id];
+              return lineError ? (
+                <span
+                  key={line.id}
+                  role="alert"
+                  className="mt-0.5 text-[11px] font-semibold text-(--danger)"
+                >
+                  {formatLineError(unit?.name, lineError)}
+                </span>
+              ) : null;
+            })}
+            {error && (
+              <span role="alert" className="mt-0.5 text-[11px] font-semibold text-(--danger)">
+                {error}
+              </span>
+            )}
           </span>
         </button>
 
