@@ -100,7 +100,7 @@ describe('LoginPage', () => {
     );
   });
 
-  it('navigates to home after a successful login', async () => {
+  it('navigates to the dashboard after a successful login', async () => {
     mockSignIn.mockResolvedValue(undefined);
     const user = userEvent.setup();
     renderLoginPage();
@@ -109,7 +109,7 @@ describe('LoginPage', () => {
     await user.type(screen.getByLabelText(/password/i), 'secret123');
     await user.click(screen.getByRole('button', { name: /log in/i }));
 
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/'));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/dashboard'));
   });
 
   it('shows a form-level error when signInWithEmail throws, and does not navigate', async () => {

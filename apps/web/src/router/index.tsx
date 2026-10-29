@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate } from 'react-router';
+import { createBrowserRouter } from 'react-router';
 import { ProtectedRoute } from '@/layouts/ProtectedRoute';
 import { BusinessGate } from '@/layouts/BusinessGate';
 import { RegistrationLayout } from '@/layouts/RegistrationLayout';
@@ -16,6 +16,7 @@ import {
   DesignSystemPage,
   ErrorPage,
   ForgotPasswordPage,
+  HomePage,
   InventoryPage,
   LoginPage,
   NotFoundPage,
@@ -32,6 +33,7 @@ import {
 } from './lazy-pages';
 import { withSuspense } from './withSuspense';
 
+const SuspendedHomePage = withSuspense(HomePage);
 const SuspendedLoginPage = withSuspense(LoginPage);
 const SuspendedSignupPage = withSuspense(SignupPage);
 const SuspendedVerifyEmailPage = withSuspense(VerifyEmailPage);
@@ -71,6 +73,10 @@ function AppShellProviders() {
 export const router = createBrowserRouter([
   {
     path: '/',
+    element: <SuspendedHomePage />,
+    errorElement: <SuspendedErrorPage />,
+  },
+  {
     element: <ProtectedRoute />,
     errorElement: <SuspendedErrorPage />,
     children: [
@@ -80,7 +86,6 @@ export const router = createBrowserRouter([
           {
             element: <AppShellProviders />,
             children: [
-              { index: true, element: <Navigate to="dashboard" replace /> },
               {
                 path: 'dashboard',
                 element: <SuspendedDashboardPage />,
