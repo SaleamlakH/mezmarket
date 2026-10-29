@@ -92,6 +92,41 @@ describe('allocateStock', () => {
     ]);
   });
 
+  it('keeps the oldest lot for a later line it can cover', () => {
+    const [first, second] = allocateStock(
+      [product()],
+      [
+        lot({ id: 'lot-old', quantityRemaining: decimal(2) }),
+        lot({ id: 'lot-new', quantityRemaining: decimal(10), purchaseUnitCost: decimal(700) }),
+      ],
+      [line({ quantity: 3, quantityInBaseUnit: 3 }), line({ quantity: 2, quantityInBaseUnit: 2 })],
+      true,
+    );
+
+    expect(first?.allocations).toEqual([
+      { stockBatchLineId: 'lot-new', quantityPulled: 3, unitCost: 700 },
+    ]);
+    expect(second?.allocations).toEqual([
+      { stockBatchLineId: 'lot-old', quantityPulled: 2, unitCost: 600 },
+    ]);
+  });
+
+  it('leaves a fractional oldest lot intact when a newer lot covers the line', () => {
+    const [allocated] = allocateStock(
+      [product()],
+      [
+        lot({ id: 'lot-old', quantityRemaining: decimal(0.5) }),
+        lot({ id: 'lot-new', quantityRemaining: decimal(10), purchaseUnitCost: decimal(700) }),
+      ],
+      [line({ quantity: 1.5, quantityInBaseUnit: 1.5 })],
+      true,
+    );
+
+    expect(allocated?.allocations).toEqual([
+      { stockBatchLineId: 'lot-new', quantityPulled: 1.5, unitCost: 700 },
+    ]);
+  });
+
   it('splits across lots when no single lot can cover the line', () => {
     const [allocated] = allocateStock(
       [product()],
