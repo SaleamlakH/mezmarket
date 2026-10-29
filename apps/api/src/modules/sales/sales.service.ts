@@ -10,6 +10,7 @@ import { AppError, ERROR_CODES } from '../../shared/errors/app-error.js';
 import { amountToRecord, resolveInitialPayment, toResolvedPayment } from './utils/payment.js';
 import { snapshotSaleLines } from './utils/snapshot.js';
 import { allocateStock, sumBaseByProduct, sumDrawsByLot } from './utils/stock.js';
+import { assertSaleLines } from './utils/validation.js';
 import { computeSaleTotals } from './utils/totals.js';
 import { toSaleDetail, toSaleSummary } from './utils/mappers.js';
 import { toSaleListQuery } from './utils/filters.js';
@@ -57,6 +58,8 @@ export function createSaleService(repository: SaleRepository): SaleService {
           serverMemberId: 'Select a valid server',
         });
       }
+
+      assertSaleLines(products, actor.businessId, input.lines, saleConfig.allowNegativeStock);
 
       const lines = snapshotSaleLines(products, actor.businessId, input.lines);
       const allocated = allocateStock(products, lots, lines, saleConfig.allowNegativeStock);

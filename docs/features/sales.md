@@ -14,7 +14,7 @@ Recording what the business sells. A sale is built from one or more lines (produ
 
 - Payment is a separate record: a sale is `PENDING`, `PARTIALLY_PAID` or `PAID`, always derived from the payments actually recorded against it. `voidStatus` is `NONE` or `VOIDED`; a void is a full reversal, while a refund is recorded per line.
 
-- Confirming a sale draws stock per line, oldest purchase lot first (FIFO), splitting a line across lots and freezing each lot's cost at that moment.
+- Confirming a sale draws stock per line from the oldest purchase lot that can cover the whole line (FIFO), so a small fractional remnant is not consumed in pieces. Only when no single lot can cover the line does the draw split across the oldest lots, freezing each lot's cost at that moment.
 
 - Totals are derived: the line subtotal, minus an optional whole-sale discount, plus the business's tax rate (snapshotted onto the sale), rounded to two places.
 
@@ -71,15 +71,19 @@ Client -> Authorization: Bearer <jwt> + CreateSaleInput body
    -> business middleware resolves the business and default branch
    -> role middleware requires Owner, Manager or Cashier
    -> validation middleware applies the shared create-sale rules
-   -> service loads each named product's sell-capable units, then per line:
+   -> service loads each named product's sell-capable units, then checks
+      every line before writing:
           - rejects a product the business does not have
-          - rejects a unit that is not that product's
-          - rejects a unit the product cannot be sold in
-          - rejects a sell-capable unit that carries no price
+          - collects every unit that is not that product's, cannot be sold,
+            or carries no price, keyed by lines.<index>.productUnitId
+          - collects every product whose draw would take sealed stock below
+            zero (when disallowed), keyed by lines.<index>.productId
+          - answers all collected errors together instead of the first one
+      then per line:
           - snapshots the sold unit, the standard unit it resolves to,
             the quantity in that unit, and the unit price
-          - allocates the line against stock FIFO, oldest purchase lot
-            first, splitting the line across lots when the oldest runs out
+          - allocates the line against stock FIFO, from the oldest lot that
+            can cover the whole line, splitting only when no single lot can
    -> repository runs one transaction:
            1. generate the branch-unique invoice number
            2. insert the sale, confirmed, against the acting member,
@@ -106,7 +110,7 @@ The optional body fields:
 | `customerId`     | attributes the sale to an active customer of the business, without affecting totals or payment status.                                                                                                                                                   |
 | `serverMemberId` | attributes the sale to the active member with role `SERVER` who took the order; reads back as `servedBy`, separate from `processedBy`.                                                                                                                   |
 
-When a draw would take sealed stock below zero the sale is still recorded unless the business disallows negative stock, in which case the whole request is refused; the warning is surfaced by the client, which already holds each product's current stock.
+When a draw would take sealed stock below zero the sale is still recorded unless the business disallows negative stock, in which case the whole request is refused. The refusal carries short messages under the same dotted field paths as validation: `lines.<index>.productId` for stock and `lines.<index>.productUnitId` for unit problems. The client shows each message on the matching cart item or line.
 
 ### GET /api/businesses/:businessId/sales
 
@@ -293,9 +297,9 @@ Client -> Authorization: Bearer <jwt>
 - Forbidden: the acting member's role is not allowed for the action — cashier on void/refund.
 - Invalid payload: fails the shared validation rules, reported with per-field detail.
 - Product not found: a line names a product the business does not have.
-- Unit not on product: the chosen unit is not one of that product's units.
-- Unit not sellable: the chosen unit cannot be sold, or carries no price.
-- Negative stock blocked: the draw would take sealed stock below zero and the business disallows it.
+- Unit not on product: the chosen unit is not one of that product's units, reported under that line's `productUnitId` path.
+- Unit not sellable: the chosen unit cannot be sold or carries no price, reported under that line's `productUnitId` path.
+- Negative stock blocked: the draw would take sealed stock below zero and the business disallows it, reported under that product's first line `productId` path. All bad lines and products are reported together.
 - Not found: the sale does not exist within the resolved scope.
 - Already voided: a void or payment names a sale that is already voided.
 
@@ -307,7 +311,7 @@ Every failure is delivered as a structured error envelope by the global error ha
 - **A sale is one unit of work.** The header, lines, payments, cost allocations and stock decrements are written in a single transaction, so a sale is never half-recorded.
 - **Nothing about a line is read live.** The product name, units, quantity and price are snapshotted at sale time, so later catalog changes never rewrite history.
 - **Payments are re-summed, not trusted.** A recorded payment appends a row, and the sale's amount paid, balance and status are recomputed from all its rows.
-- **Stock is drawn oldest-lot-first.** Each line consumes the oldest purchase lots first, splitting across lots and freezing each lot's cost at the draw.
+- **Stock is drawn from the oldest lot that can cover the line.** A fractional remnant smaller than the line is left for a smaller sale; only when no single lot can cover the line does the draw split across the oldest lots, freezing each lot's cost at the draw.
 
 ## Cross-references
 

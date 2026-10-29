@@ -15,7 +15,7 @@ export function snapshotLines<
   products: TProduct[],
   businessId: string,
   lines: TLine[],
-  resolveLine: (product: TProduct, line: TLine) => TResult,
+  resolveLine: (product: TProduct, line: TLine, index: number) => TResult,
 ): TResult[] {
   const catalog = new Map(
     products
@@ -23,14 +23,14 @@ export function snapshotLines<
       .map((product) => [product.id, product]),
   );
 
-  return lines.map((line) => {
+  return lines.map((line, index) => {
     const product = catalog.get(line.productId);
 
     if (!product) {
       throw new AppError(ERROR_CODES.NOT_FOUND, 'Product not found', 404);
     }
 
-    return resolveLine(product, line);
+    return resolveLine(product, line, index);
   });
 }
 

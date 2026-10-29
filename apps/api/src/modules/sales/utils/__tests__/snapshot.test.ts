@@ -70,10 +70,6 @@ function line(overrides: Partial<CreateSaleInput['lines'][number]> = {}) {
   };
 }
 
-function appError(code: string, statusCode: number) {
-  return expect.objectContaining({ code, statusCode, message: expect.any(String) });
-}
-
 describe('snapshotSaleLines', () => {
   it('snapshots the sold unit, its standard unit and the price of the chosen unit', () => {
     const [resolved] = snapshotSaleLines([TEQUILA], 'b-1', [line()]);
@@ -99,27 +95,45 @@ describe('snapshotSaleLines', () => {
     });
   });
 
-  it('rejects a unit that does not belong to the product', () => {
+  it('rejects a unit that does not belong to the product under its field path', () => {
     expect(() =>
       snapshotSaleLines([TEQUILA], 'b-1', [line({ productUnitId: 'pu-elsewhere' })]),
-    ).toThrow(appError(ERROR_CODES.BAD_REQUEST, 400));
+    ).toThrow(
+      expect.objectContaining({
+        code: ERROR_CODES.BAD_REQUEST,
+        statusCode: 400,
+        details: { 'lines.0.productUnitId': expect.any(String) },
+      }),
+    );
   });
 
-  it('rejects a unit the product cannot be sold in', () => {
+  it('rejects a unit the product cannot be sold in under its field path', () => {
     expect(() =>
       snapshotSaleLines([TEQUILA], 'b-1', [line({ productUnitId: 'pu-notsellable' })]),
-    ).toThrow(appError(ERROR_CODES.BAD_REQUEST, 400));
+    ).toThrow(
+      expect.objectContaining({
+        code: ERROR_CODES.BAD_REQUEST,
+        statusCode: 400,
+        details: { 'lines.0.productUnitId': expect.any(String) },
+      }),
+    );
   });
 
-  it('rejects a sellable unit that carries no price', () => {
+  it('rejects a sellable unit that carries no price under its field path', () => {
     expect(() =>
       snapshotSaleLines([TEQUILA], 'b-1', [line({ productUnitId: 'pu-noprice' })]),
-    ).toThrow(appError(ERROR_CODES.BAD_REQUEST, 400));
+    ).toThrow(
+      expect.objectContaining({
+        code: ERROR_CODES.BAD_REQUEST,
+        statusCode: 400,
+        details: { 'lines.0.productUnitId': expect.any(String) },
+      }),
+    );
   });
 
   it('rejects a product the business does not have', () => {
     expect(() => snapshotSaleLines([TEQUILA], 'b-1', [line({ productId: 'p-unknown' })])).toThrow(
-      appError(ERROR_CODES.NOT_FOUND, 404),
+      expect.objectContaining({ code: ERROR_CODES.NOT_FOUND, statusCode: 404 }),
     );
   });
 });
