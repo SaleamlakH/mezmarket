@@ -1,5 +1,28 @@
 # web
 
+## 0.4.0
+
+### Minor Changes
+
+- b572e1e: Add account onboarding and security improvements
+
+  - Sign up with a full name.
+  - Verify email with a 6-digit code, with resend support.
+  - Reset a forgotten password using an emailed code
+  - Change password from Profile; successful changes sign out all devices.
+  - Log out from Settings or the sidebar.
+  - Unverified accounts are guided to email verification before continuing.
+  - Improve navigation and confirmation messages across sign-in, sign-up, email
+    verification, and password screens.
+
+- 7d88c9d: Add a public home page
+
+### Patch Changes
+
+- be493b3: Show sale errors on the matching cart item or line
+- Updated dependencies [b572e1e]
+  - @mez/validation@0.3.0
+
 ## 0.3.0
 
 ### Minor Changes

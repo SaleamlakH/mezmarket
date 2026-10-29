@@ -1,5 +1,32 @@
 # api
 
+## 0.4.0
+
+### Minor Changes
+
+- b572e1e: Use the authenticated user's name when provisioning owners and members
+
+  - JWT verification now reads `user_metadata.full_name` and passes it through
+    auth resolution.
+  - New owners are created with the provided name, falling back to `"New User"`
+    when it is absent.
+  - The OWNER business member now uses the owner's name instead of the literal
+    `"me"`.
+
+### Patch Changes
+
+- be493b3: Fix sale lot draws and report blocked sale lines
+
+  - Draw each sale line from the oldest lot that can cover the whole line, so a
+    fractional remnant is left for a smaller sale instead of being consumed in
+    pieces. Split across lots only when no single lot can cover the line.
+  - Report all blocked stock draws and unusable units in one response, keyed by
+    the line's `productId` or `productUnitId` field path, naming the unit where
+    the server can resolve it.
+
+- Updated dependencies [b572e1e]
+  - @mez/validation@0.3.0
+
 ## 0.3.0
 
 ### Minor Changes
