@@ -1,5 +1,19 @@
 # @mez/types
 
+## 0.3.0
+
+### Minor Changes
+
+- b572e1e: Refine shared auth contracts for signup and password flows
+
+  - Added `name` to `SignupCredentials`.
+  - Added shared form types: `LoginFormValues`, `SignupFormValues`,
+    `ForgotPasswordFormValues`, `NewPasswordFormValues`, and
+    `ChangePasswordFormValues`.
+  - Moved web-only auth service, user, and session contracts out of the shared
+    package.
+  - Removed the shared `AuthService`, `User`, and `AuthSession` exports.
+
 ## 0.2.0
 
 ### Minor Changes

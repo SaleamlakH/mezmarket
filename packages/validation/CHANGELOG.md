@@ -1,5 +1,23 @@
 # @mez/validation
 
+## 0.3.0
+
+### Minor Changes
+
+- b572e1e: Add signup name and password lifecycle validation
+
+  - Signup now requires a name
+  - Added `forgotPasswordSchema`, `newPasswordSchema`, and `changePasswordSchema`.
+  - Exported the new schemas and added `validateForgotPasswordValues` and
+    `validateNewPasswordValues` parsers.
+  - `LoginFormValues` and `SignupFormValues` are now sourced from `@mez/types`
+    instead of being re-exported by this package.
+
+### Patch Changes
+
+- Updated dependencies [b572e1e]
+  - @mez/types@0.3.0
+
 ## 0.2.0
 
 ### Minor Changes
