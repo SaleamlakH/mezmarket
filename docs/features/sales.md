@@ -14,7 +14,7 @@ Recording what the business sells. A sale is built from one or more lines (produ
 
 - Payment is a separate record: a sale is `PENDING`, `PARTIALLY_PAID` or `PAID`, always derived from the payments actually recorded against it. `voidStatus` is `NONE` or `VOIDED`; a void is a full reversal, while a refund is recorded per line.
 
-- Confirming a sale draws stock per line from the oldest purchase lot that can cover the whole line (FIFO), so a small fractional remnant is not consumed in pieces. Only when no single lot can cover the line does the draw split across the oldest lots, freezing each lot's cost at that moment.
+- Confirming a sale draws stock per line from the oldest purchase lot that can cover the whole line (FIFO), so a small fractional remnant is not consumed in pieces. A lot smaller than the line is skipped even when it holds a fractional remnant, as long as a later lot can cover the line; only when no single lot can cover the line does the draw split across the oldest lots, freezing each lot's cost at that moment. Lines for the same product draw in order from the same remaining lot quantities, so a lot skipped by one line remains available to a later line it can cover.
 
 - Totals are derived: the line subtotal, minus an optional whole-sale discount, plus the business's tax rate (snapshotted onto the sale), rounded to two places.
 
@@ -289,6 +289,7 @@ Client -> Authorization: Bearer <jwt>
 - **The list is unpaginated.** The status, date-range, payment-range, product, unpaid, and overdue filters are applied, but the endpoint returns every matching row.
 - **Stock is business-scoped while sales are branch-scoped.** A sale is scoped to one branch but draws from the business's lots, so stock can move across branches.
 - **The payment status is caller-asserted.** A sale can read `PAID` and still carry a balance, and an overpayment is kept while the balance floors at zero.
+- **A fractional lot smaller than the line is skipped.** When an older lot cannot cover the whole line but a newer lot can, the whole line is drawn from the newer lot and the older fractional remnant stays untouched. This deliberately preserves small remnants for smaller sales, but means a fractional line is not drained from the oldest lot first and the draw is not strict FIFO by lot age.
 
 ## Error concepts
 
@@ -311,7 +312,7 @@ Every failure is delivered as a structured error envelope by the global error ha
 - **A sale is one unit of work.** The header, lines, payments, cost allocations and stock decrements are written in a single transaction, so a sale is never half-recorded.
 - **Nothing about a line is read live.** The product name, units, quantity and price are snapshotted at sale time, so later catalog changes never rewrite history.
 - **Payments are re-summed, not trusted.** A recorded payment appends a row, and the sale's amount paid, balance and status are recomputed from all its rows.
-- **Stock is drawn from the oldest lot that can cover the line.** A fractional remnant smaller than the line is left for a smaller sale; only when no single lot can cover the line does the draw split across the oldest lots, freezing each lot's cost at the draw.
+- **Stock is drawn from the oldest lot that can cover the line.** A fractional remnant smaller than the line is left for a smaller sale and is not drained into a larger line; only when no single lot can cover the line does the draw split across the oldest lots, freezing each lot's cost at the draw.
 
 ## Cross-references
 

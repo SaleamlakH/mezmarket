@@ -11,8 +11,10 @@ import { roundQuantity } from '../../../shared/utils/rounding.js';
 
 /**
  * Draws every line against the lots of its product, preferring the oldest lot
- * that can cover the line and splitting only when none can. The negative-stock
- * rule is applied before anything is drawn, so a blocked sale is rejected whole.
+ * that can cover the line and splitting only when none can. Lines are drawn in
+ * order against the same remaining quantities, so a lot skipped by one line
+ * remains available to a later line it can cover. The negative-stock rule is
+ * applied before anything is drawn, so a blocked sale is rejected whole.
  */
 export function allocateStock(
   products: ProductSellContext[],
@@ -93,8 +95,10 @@ export function enforceStockPolicy(
 /**
  * Allocates one line's base quantity against its product's lots. The oldest lot
  * that can cover the whole line is drawn first, so a small fractional remnant is
- * left for a smaller sale instead of being consumed in pieces. Only when no
- * single lot can cover the line does it split across the oldest lots.
+ * left for a smaller sale instead of being consumed in pieces. A lot smaller than
+ * the line is skipped even when it holds a fractional remnant, as long as a later
+ * lot can cover the line. Only when no single lot can cover the line does it
+ * split across the oldest lots.
  */
 export function drawLine(
   line: ResolvedSaleLine,
