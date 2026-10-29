@@ -73,6 +73,8 @@ const PRODUCT = {
   ],
 };
 
+const BASE_UNIT = PRODUCT.productUnits[0] as (typeof PRODUCT.productUnits)[number];
+
 const SALE_RECORD = {
   id: 'sale-1',
   businessId: 'b-1',
@@ -352,7 +354,7 @@ describe('sales.integration', () => {
       expect(salesRepository.createSale).not.toHaveBeenCalled();
     });
 
-    it('draws the sold quantity from the oldest lot first, splitting when it runs out', async () => {
+    it('skips a lot too small for the line and draws from the oldest lot that covers it', async () => {
       await authenticate();
       salesRepository.getProductSellContext.mockResolvedValue([
         { ...PRODUCT, currentSealedStock: decimal(100) },
@@ -381,13 +383,101 @@ describe('sales.integration', () => {
       expect(salesRepository.createSale).toHaveBeenCalledWith(
         expect.objectContaining({
           stockDecrements: [{ productId: 'p-tequila', amount: 2 }],
+          lotDecrements: [{ stockBatchLineId: 'lot-new', quantity: 2 }],
+          lines: [
+            expect.objectContaining({
+              quantityInBaseUnit: 2,
+              allocations: [{ stockBatchLineId: 'lot-new', quantityPulled: 2, unitCost: 700 }],
+            }),
+          ],
+        }),
+      );
+    });
+
+    it('walks past several fractional lots to the newest lot that covers the line', async () => {
+      await authenticate();
+      salesRepository.getProductSellContext.mockResolvedValue([
+        { ...PRODUCT, currentSealedStock: decimal(100) },
+      ]);
+      salesRepository.getStockLots.mockResolvedValue([
+        {
+          id: 'lot-a',
+          productId: 'p-tequila',
+          purchaseUnitCost: decimal(600),
+          quantityRemaining: decimal(0.25),
+        },
+        {
+          id: 'lot-b',
+          productId: 'p-tequila',
+          purchaseUnitCost: decimal(610),
+          quantityRemaining: decimal(0.5),
+        },
+        {
+          id: 'lot-c',
+          productId: 'p-tequila',
+          purchaseUnitCost: decimal(620),
+          quantityRemaining: decimal(0.75),
+        },
+        {
+          id: 'lot-d',
+          productId: 'p-tequila',
+          purchaseUnitCost: decimal(700),
+          quantityRemaining: decimal(10),
+        },
+      ]);
+
+      const res = await request(app)
+        .post('/api/businesses/b-1/sales')
+        .set('Authorization', 'Bearer token')
+        .send(BODY);
+
+      expect(res.status).toBe(201);
+      expect(salesRepository.createSale).toHaveBeenCalledWith(
+        expect.objectContaining({
+          lotDecrements: [{ stockBatchLineId: 'lot-d', quantity: 2 }],
+          lines: [
+            expect.objectContaining({
+              allocations: [{ stockBatchLineId: 'lot-d', quantityPulled: 2, unitCost: 700 }],
+            }),
+          ],
+        }),
+      );
+    });
+
+    it('splits across lots when no single lot can cover the line', async () => {
+      await authenticate();
+      salesRepository.getProductSellContext.mockResolvedValue([
+        { ...PRODUCT, currentSealedStock: decimal(100) },
+      ]);
+      salesRepository.getStockLots.mockResolvedValue([
+        {
+          id: 'lot-old',
+          productId: 'p-tequila',
+          purchaseUnitCost: decimal(600),
+          quantityRemaining: decimal(1),
+        },
+        {
+          id: 'lot-new',
+          productId: 'p-tequila',
+          purchaseUnitCost: decimal(700),
+          quantityRemaining: decimal(1),
+        },
+      ]);
+
+      const res = await request(app)
+        .post('/api/businesses/b-1/sales')
+        .set('Authorization', 'Bearer token')
+        .send(BODY);
+
+      expect(res.status).toBe(201);
+      expect(salesRepository.createSale).toHaveBeenCalledWith(
+        expect.objectContaining({
           lotDecrements: [
             { stockBatchLineId: 'lot-old', quantity: 1 },
             { stockBatchLineId: 'lot-new', quantity: 1 },
           ],
           lines: [
             expect.objectContaining({
-              quantityInBaseUnit: 2,
               allocations: [
                 { stockBatchLineId: 'lot-old', quantityPulled: 1, unitCost: 600 },
                 { stockBatchLineId: 'lot-new', quantityPulled: 1, unitCost: 700 },
@@ -434,6 +524,141 @@ describe('sales.integration', () => {
       expect(salesRepository.createSale).toHaveBeenCalledWith(
         expect.objectContaining({ stockDecrements: [{ productId: 'p-tequila', amount: 2 }] }),
       );
+    });
+
+    it('reports every non-sellable unit under its own field path', async () => {
+      await authenticate();
+      const otherProduct = {
+        ...PRODUCT,
+        id: 'p-other',
+        name: 'Other product',
+        productUnits: [
+          {
+            ...BASE_UNIT,
+            id: 'pu-other-nosell',
+            productId: 'p-other',
+            name: 'Other unit',
+            sellCapable: false,
+          },
+        ],
+      };
+      salesRepository.getProductSellContext.mockResolvedValue([
+        {
+          ...PRODUCT,
+          productUnits: [
+            ...PRODUCT.productUnits,
+            {
+              ...BASE_UNIT,
+              id: 'pu-nosell',
+              name: 'Not sellable',
+              sellCapable: false,
+            },
+          ],
+        },
+        otherProduct,
+      ]);
+
+      const res = await request(app)
+        .post('/api/businesses/b-1/sales')
+        .set('Authorization', 'Bearer token')
+        .send({
+          lines: [
+            { productId: 'p-tequila', productUnitId: 'pu-nosell', quantity: '1' },
+            { productId: 'p-other', productUnitId: 'pu-other-nosell', quantity: '1' },
+          ],
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.details).toEqual({
+        'lines.0.productUnitId': expect.any(String),
+        'lines.1.productUnitId': expect.any(String),
+      });
+      expect(salesRepository.createSale).not.toHaveBeenCalled();
+    });
+
+    it('reports every over-stocked product under its own field path', async () => {
+      await authenticate();
+      salesRepository.getBusinessSaleConfig.mockResolvedValue({
+        defaultTaxRate: decimal(15),
+        taxOnSales: true,
+        allowNegativeStock: false,
+      });
+      const otherProduct = {
+        ...PRODUCT,
+        id: 'p-other',
+        name: 'Other product',
+        currentSealedStock: decimal(0),
+        productUnits: [
+          {
+            ...BASE_UNIT,
+            id: 'pu-other',
+            productId: 'p-other',
+            name: 'Other unit',
+          },
+        ],
+      };
+      salesRepository.getProductSellContext.mockResolvedValue([
+        { ...PRODUCT, currentSealedStock: decimal(1) },
+        otherProduct,
+      ]);
+
+      const res = await request(app)
+        .post('/api/businesses/b-1/sales')
+        .set('Authorization', 'Bearer token')
+        .send({
+          lines: [
+            { productId: 'p-tequila', productUnitId: 'pu-bottle', quantity: '2' },
+            { productId: 'p-other', productUnitId: 'pu-other', quantity: '1' },
+          ],
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.details).toEqual({
+        'lines.0.productId': expect.any(String),
+        'lines.1.productId': expect.any(String),
+      });
+      expect(salesRepository.createSale).not.toHaveBeenCalled();
+    });
+
+    it('reports stock and unit errors together', async () => {
+      await authenticate();
+      salesRepository.getBusinessSaleConfig.mockResolvedValue({
+        defaultTaxRate: decimal(15),
+        taxOnSales: true,
+        allowNegativeStock: false,
+      });
+      salesRepository.getProductSellContext.mockResolvedValue([
+        {
+          ...PRODUCT,
+          currentSealedStock: decimal(1),
+          productUnits: [
+            ...PRODUCT.productUnits,
+            {
+              ...BASE_UNIT,
+              id: 'pu-nosell',
+              name: 'Not sellable',
+              sellCapable: false,
+            },
+          ],
+        },
+      ]);
+
+      const res = await request(app)
+        .post('/api/businesses/b-1/sales')
+        .set('Authorization', 'Bearer token')
+        .send({
+          lines: [
+            { productId: 'p-tequila', productUnitId: 'pu-bottle', quantity: '2' },
+            { productId: 'p-tequila', productUnitId: 'pu-nosell', quantity: '1' },
+          ],
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.details).toEqual({
+        'lines.1.productUnitId': expect.any(String),
+        'lines.0.productId': expect.any(String),
+      });
+      expect(salesRepository.createSale).not.toHaveBeenCalled();
     });
   });
 

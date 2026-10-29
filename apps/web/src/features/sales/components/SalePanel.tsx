@@ -200,6 +200,8 @@ function SalePanelContent({ businessId, uploadUrls, className, onClose }: SalePa
                   onEdit={handleEdit}
                   onRemove={handleRemove}
                   isEditing={editingProductId === cartItem.productId}
+                  error={checkout.productErrors[cartItem.productId]}
+                  lineErrors={checkout.lineErrors}
                 />
               </li>
             ))}
@@ -239,6 +241,7 @@ function SalePanelContent({ businessId, uploadUrls, className, onClose }: SalePa
             }
             onLineQuantityChange={(lineId, quantity) => setQuantity(lineId, quantity)}
             onLineRemove={removeLine}
+            lineErrors={checkout.lineErrors}
             onClose={handleEditorClose}
           />
         </Dialog>

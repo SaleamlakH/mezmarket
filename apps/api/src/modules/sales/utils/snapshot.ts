@@ -25,10 +25,12 @@ export function snapshotSaleLines(
 export function snapshotSaleLine(
   product: ProductSellContext,
   line: CreateSaleInput['lines'][number],
+  index: number,
 ): ResolvedSaleLine {
   const units = conversionUnitsOf(product.productUnits, line.productUnitId);
-  const unit = requireSellableUnit(units);
-  const unitPrice = requireSellingPrice(unit);
+  const unitPath = `lines.${index}.productUnitId`;
+  const unit = requireSellableUnit(units, unitPath);
+  const unitPrice = requireSellingPrice(unit, unitPath);
   const standard = resolveToStandard(line.quantity, units);
   const quantityInBaseUnit = convertToStandardQuantity(units, 'BASE', line.quantity);
 
@@ -49,19 +51,19 @@ export function snapshotSaleLine(
   };
 }
 
-export function requireSellableUnit(units: ConversionUnits): ProductUnitContext {
+export function requireSellableUnit(units: ConversionUnits, unitPath: string): ProductUnitContext {
   if (!units.sourceUnit) {
     throw new AppError(
       ERROR_CODES.BAD_REQUEST,
       'The selected unit does not belong to this product',
       400,
-      { productUnitId: 'This unit does not belong to the product' },
+      { [unitPath]: 'This unit does not belong to the product' },
     );
   }
 
   if (!units.sourceUnit.sellCapable) {
     throw new AppError(ERROR_CODES.BAD_REQUEST, 'The selected unit cannot be sold', 400, {
-      productUnitId: 'This unit cannot be sold',
+      [unitPath]: `The unit "${units.sourceUnit.name}" cannot be sold`,
     });
   }
 
@@ -69,12 +71,12 @@ export function requireSellableUnit(units: ConversionUnits): ProductUnitContext 
 }
 
 /** The price a unit sells at, snapshotted onto the line. A unit without one cannot be sold. */
-export function requireSellingPrice(unit: ProductUnitContext): number {
+export function requireSellingPrice(unit: ProductUnitContext, unitPath: string): number {
   const unitPrice = unit.price?.toNumber();
 
   if (unitPrice == null) {
     throw new AppError(ERROR_CODES.BAD_REQUEST, 'The selected unit carries no price', 400, {
-      productUnitId: 'This unit has no price',
+      [unitPath]: `The unit "${unit.name}" has no price`,
     });
   }
 

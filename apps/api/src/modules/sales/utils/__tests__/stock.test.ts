@@ -47,10 +47,6 @@ function line(overrides: Partial<ResolvedSaleLine> = {}): ResolvedSaleLine {
   };
 }
 
-function appError(code: string, statusCode: number) {
-  return expect.objectContaining({ code, statusCode, message: expect.any(String) });
-}
-
 describe('allocateStock', () => {
   it('allocates a line against the oldest lot first', () => {
     const [allocated] = allocateStock(
@@ -65,10 +61,79 @@ describe('allocateStock', () => {
     ]);
   });
 
-  it('splits a line across lots when the oldest runs out', () => {
+  it('skips a lot too small for the line and draws from the next lot that covers it', () => {
     const [allocated] = allocateStock(
       [product()],
       [lot({ id: 'lot-old', quantityRemaining: decimal(1) }), lot({ id: 'lot-new' })],
+      [line({ quantity: 3, quantityInBaseUnit: 3 })],
+      true,
+    );
+
+    expect(allocated?.allocations).toEqual([
+      { stockBatchLineId: 'lot-new', quantityPulled: 3, unitCost: 600 },
+    ]);
+  });
+
+  it('walks past every fractional lot to the newest lot that can cover the line', () => {
+    const [allocated] = allocateStock(
+      [product()],
+      [
+        lot({ id: 'lot-a', quantityRemaining: decimal(0.25) }),
+        lot({ id: 'lot-b', quantityRemaining: decimal(0.5) }),
+        lot({ id: 'lot-c', quantityRemaining: decimal(0.75) }),
+        lot({ id: 'lot-d', quantityRemaining: decimal(5) }),
+      ],
+      [line({ quantity: 2, quantityInBaseUnit: 2 })],
+      true,
+    );
+
+    expect(allocated?.allocations).toEqual([
+      { stockBatchLineId: 'lot-d', quantityPulled: 2, unitCost: 600 },
+    ]);
+  });
+
+  it('keeps the oldest lot for a later line it can cover', () => {
+    const [first, second] = allocateStock(
+      [product()],
+      [
+        lot({ id: 'lot-old', quantityRemaining: decimal(2) }),
+        lot({ id: 'lot-new', quantityRemaining: decimal(10), purchaseUnitCost: decimal(700) }),
+      ],
+      [line({ quantity: 3, quantityInBaseUnit: 3 }), line({ quantity: 2, quantityInBaseUnit: 2 })],
+      true,
+    );
+
+    expect(first?.allocations).toEqual([
+      { stockBatchLineId: 'lot-new', quantityPulled: 3, unitCost: 700 },
+    ]);
+    expect(second?.allocations).toEqual([
+      { stockBatchLineId: 'lot-old', quantityPulled: 2, unitCost: 600 },
+    ]);
+  });
+
+  it('leaves a fractional oldest lot intact when a newer lot covers the line', () => {
+    const [allocated] = allocateStock(
+      [product()],
+      [
+        lot({ id: 'lot-old', quantityRemaining: decimal(0.5) }),
+        lot({ id: 'lot-new', quantityRemaining: decimal(10), purchaseUnitCost: decimal(700) }),
+      ],
+      [line({ quantity: 1.5, quantityInBaseUnit: 1.5 })],
+      true,
+    );
+
+    expect(allocated?.allocations).toEqual([
+      { stockBatchLineId: 'lot-new', quantityPulled: 1.5, unitCost: 700 },
+    ]);
+  });
+
+  it('splits across lots when no single lot can cover the line', () => {
+    const [allocated] = allocateStock(
+      [product()],
+      [
+        lot({ id: 'lot-old', quantityRemaining: decimal(1) }),
+        lot({ id: 'lot-new', quantityRemaining: decimal(2) }),
+      ],
       [line({ quantity: 3, quantityInBaseUnit: 3 })],
       true,
     );
@@ -98,7 +163,32 @@ describe('enforceStockPolicy', () => {
   it('rejects a sale that would take stock below zero when disallowed', () => {
     expect(() =>
       enforceStockPolicy([product({ currentSealedStock: decimal(1) })], [line()], false),
-    ).toThrow(appError(ERROR_CODES.BAD_REQUEST, 400));
+    ).toThrow(
+      expect.objectContaining({
+        code: ERROR_CODES.BAD_REQUEST,
+        statusCode: 400,
+        details: { 'lines.0.productId': expect.any(String) },
+      }),
+    );
+  });
+
+  it('reports every over-stocked line under its own field path', () => {
+    const other = product({ id: 'p-tshirt', name: 'T-shirt', currentSealedStock: decimal(0) });
+    const lines = [
+      line({ productId: 'p-tequila', quantityInBaseUnit: 2 }),
+      line({ productId: 'p-tshirt', quantityInBaseUnit: 1 }),
+    ];
+
+    expect(() =>
+      enforceStockPolicy([product({ currentSealedStock: decimal(1) }), other], lines, false),
+    ).toThrow(
+      expect.objectContaining({
+        details: {
+          'lines.0.productId': expect.any(String),
+          'lines.1.productId': expect.any(String),
+        },
+      }),
+    );
   });
 
   it('allows a sale to run stock negative when permitted', () => {

@@ -32,6 +32,8 @@ export interface CartItemEditorProps {
   onQuantityChange: (quantity: number) => void;
   onLineQuantityChange?: ((lineId: string, quantity: number) => void) | undefined;
   onLineRemove?: ((lineId: string) => void) | undefined;
+  /** Per-line errors, keyed by the draft line they point at. */
+  lineErrors?: Record<string, string> | undefined;
   onClose: () => void;
 }
 
@@ -51,6 +53,7 @@ export function CartItemEditor({
   onQuantityChange,
   onLineQuantityChange,
   onLineRemove,
+  lineErrors,
   onClose,
 }: CartItemEditorProps) {
   const selectId = useId();
@@ -109,6 +112,7 @@ export function CartItemEditor({
           currency={currency}
           onQuantityChange={onLineQuantityChange}
           onRemove={onLineRemove}
+          lineErrors={lineErrors}
         />
       </div>
     </>

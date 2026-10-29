@@ -29,9 +29,12 @@ and anywhere an unknown error needs narrowing.
 
 ## The details field
 
-`details` is an optional `Record<string, string>` that carries per-field
-error messages. It is currently produced by the Zod-based validation layer
-in `@mez/validation`:
+`details` is an optional `Record<string, string>` that carries per-field error
+messages. Path-based keys come from the Zod-based validation layer in
+`@mez/validation`; services that inspect list items reuse the same dotted paths
+(for example, `lines.0.productId` for sale stock and
+`lines.0.productUnitId` for unit sellability), so clients handle every error
+with one shape.
 
 1. `validateInput()` calls Zod's `safeParse()` and, on failure, builds a
    record mapping each field path to a human-readable message (e.g.
