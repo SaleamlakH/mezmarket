@@ -1,5 +1,11 @@
 # web
 
+## 0.4.2
+
+### Patch Changes
+
+- 0384825: fix: update brand link to '/home' in mobile layout
+
 ## 0.4.1
 
 ### Patch Changes
