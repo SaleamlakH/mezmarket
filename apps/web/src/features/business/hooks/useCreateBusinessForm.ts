@@ -36,7 +36,6 @@ export function useCreateBusinessForm() {
     initialValues: INITIAL_VALUES,
     validate: validateCreateBusiness,
     onSubmit: handleSubmit,
-    onSuccess: () => {},
   });
 
   return {

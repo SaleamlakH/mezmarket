@@ -1,4 +1,4 @@
-import { useRef, useMemo } from 'react';
+import { useMemo } from 'react';
 import type { OwnerResponse, UpdateOwnerInput } from '@mez/types';
 import { validateUpdateOwnerValues, type UpdateOwnerFormValues } from '@mez/validation';
 import { useForm } from '@/hooks/useForm';
@@ -17,8 +17,6 @@ export function useOwnerProfileForm(
   profile: OwnerResponse,
   onSaved: (updated: OwnerResponse) => void,
 ) {
-  const updatedRef = useRef<OwnerResponse | null>(null);
-
   const initialValues = useMemo<UpdateOwnerFormValues>(
     () => ({
       name: profile.name,
@@ -34,12 +32,7 @@ export function useOwnerProfileForm(
       validate: validateUpdateOwnerValues,
       onSubmit: async (data) => {
         const updated = await ownerApi.updateOwnerProfile(toUpdateInput(data));
-        updatedRef.current = updated;
-      },
-      onSuccess: () => {
-        if (updatedRef.current) {
-          onSaved(updatedRef.current);
-        }
+        onSaved(updated);
       },
     });
 
