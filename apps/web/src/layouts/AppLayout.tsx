@@ -45,7 +45,7 @@ export function AppLayout() {
         {!isSubPage && (
           <header className="flex shrink-0 items-center justify-between gap-3 px-4 py-3 lg:hidden">
             <div className="flex min-w-0 flex-col items-start gap-1">
-              <Brand />
+              <Brand to="/home" />
               {currentBusiness && (
                 <span className="inline-flex max-w-full items-center gap-1.5 rounded-md bg-(--surface-secondary) px-2 py-1 text-xs font-semibold text-(--text)">
                   <Store aria-hidden size={13} className="shrink-0 text-(--accent)" />
