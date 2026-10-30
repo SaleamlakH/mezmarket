@@ -45,7 +45,7 @@ describe('useLoginForm logic', () => {
     act(() => result.current.reset(values));
   }
 
-  it('navigates home after a successful login', async () => {
+  it('navigates to the dashboard after a successful login', async () => {
     mockSignIn.mockResolvedValue(undefined);
     const { result } = renderForm();
     fillForm(result);
@@ -55,7 +55,7 @@ describe('useLoginForm logic', () => {
     });
 
     expect(mockSignIn).toHaveBeenCalledWith(values);
-    expect(mockNavigate).toHaveBeenCalledWith('/');
+    expect(mockNavigate).toHaveBeenCalledWith('/dashboard', { replace: true });
     expect(mockResend).not.toHaveBeenCalled();
   });
 

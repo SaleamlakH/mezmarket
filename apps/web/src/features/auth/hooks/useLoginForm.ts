@@ -13,7 +13,7 @@ export function useLoginForm() {
   async function handleSubmit({ email, password }: LoginFormValues) {
     try {
       await signInWithEmail({ email, password });
-      navigate('/');
+      navigate('/dashboard', { replace: true });
     } catch (error) {
       if (!isAuthFlowError(error, 'email_not_confirmed')) throw error;
 

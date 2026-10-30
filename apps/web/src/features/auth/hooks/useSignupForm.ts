@@ -18,7 +18,7 @@ export function useSignupForm() {
       return;
     }
 
-    navigate('/', { replace: true });
+    navigate('/dashboard', { replace: true });
   }
 
   return useForm<SignupFormValues>({

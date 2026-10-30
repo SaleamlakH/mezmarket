@@ -68,7 +68,7 @@ describe('useSignupForm logic', () => {
     });
   });
 
-  it('navigates home when signup auto-confirms the email', async () => {
+  it('navigates to the dashboard when signup auto-confirms the email', async () => {
     mockSignUp.mockResolvedValue({
       id: 'u1',
       email: 'a@b.com',
@@ -82,7 +82,7 @@ describe('useSignupForm logic', () => {
     });
 
     expect(pendingVerification.get()).toBeNull();
-    expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true });
+    expect(mockNavigate).toHaveBeenCalledWith('/dashboard', { replace: true });
   });
 
   it('shows the signup error and does not navigate', async () => {
