@@ -76,6 +76,7 @@ export const router = createBrowserRouter([
     element: <SuspendedHomePage />,
     errorElement: <SuspendedErrorPage />,
   },
+  { path: '/home', element: <SuspendedHomePage />, errorElement: <SuspendedErrorPage /> },
   {
     element: <ProtectedRoute />,
     errorElement: <SuspendedErrorPage />,
