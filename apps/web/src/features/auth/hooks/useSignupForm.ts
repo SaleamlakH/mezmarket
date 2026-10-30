@@ -18,13 +18,12 @@ export function useSignupForm() {
       return;
     }
 
-    navigate('/', { replace: true });
+    navigate('/dashboard', { replace: true });
   }
 
   return useForm<SignupFormValues>({
     initialValues: { name: '', email: '', password: '', confirmPassword: '' },
     validate: validateSignupValues,
     onSubmit: handleSubmit,
-    onSuccess: () => navigate('/dashboard'),
   });
 }

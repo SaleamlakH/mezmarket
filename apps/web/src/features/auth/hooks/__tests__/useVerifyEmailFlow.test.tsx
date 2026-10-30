@@ -57,7 +57,7 @@ describe('useVerifyEmailFlow logic', () => {
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/signup', { replace: true }));
   });
 
-  it('redirects home when the current user is already verified', async () => {
+  it('redirects to the dashboard when the current user is already verified', async () => {
     mockAuthSession({
       status: 'authenticated',
       user: { id: 'u1', email: 'a@b.com', emailVerifiedAt: '2026-01-01T00:00:00Z' },
@@ -65,7 +65,7 @@ describe('useVerifyEmailFlow logic', () => {
 
     renderHook(() => useVerifyEmailFlow());
 
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true }));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/dashboard', { replace: true }));
     expect(mockNavigate).not.toHaveBeenCalledWith('/signup', { replace: true });
   });
 
@@ -91,11 +91,11 @@ describe('useVerifyEmailFlow logic', () => {
     expect(mockVerify).not.toHaveBeenCalled();
   });
 
-  it('verifies the code, clears pending state, and navigates home', async () => {
+  it('verifies the code, clears pending state, and redirects to the dashboard once verified', async () => {
     pendingVerification.start('a@b.com');
     mockVerify.mockResolvedValue(undefined);
 
-    const { result } = renderHook(() => useVerifyEmailFlow());
+    const { result, rerender } = renderHook(() => useVerifyEmailFlow());
     act(() => result.current.setCode('123456'));
 
     await act(async () => {
@@ -104,8 +104,16 @@ describe('useVerifyEmailFlow logic', () => {
 
     expect(mockVerify).toHaveBeenCalledWith({ email: 'a@b.com', token: '123456', type: 'email' });
     expect(pendingVerification.get()).toBeNull();
-    expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true });
+    expect(mockNavigate).not.toHaveBeenCalledWith('/signup', { replace: true });
     expect(result.current.isSubmitting).toBe(false);
+
+    mockAuthSession({
+      status: 'authenticated',
+      user: { id: 'u1', email: 'a@b.com', emailVerifiedAt: '2026-01-01T00:00:00Z' },
+    });
+    rerender();
+
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/dashboard', { replace: true }));
   });
 
   it('exposes the provider error when verification fails', async () => {
@@ -120,7 +128,7 @@ describe('useVerifyEmailFlow logic', () => {
     });
 
     expect(result.current.error).toBe('User not found');
-    expect(mockNavigate).not.toHaveBeenCalledWith('/', { replace: true });
+    expect(mockNavigate).not.toHaveBeenCalledWith('/dashboard', { replace: true });
     expect(result.current.isSubmitting).toBe(false);
   });
 

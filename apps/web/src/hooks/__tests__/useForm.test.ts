@@ -17,9 +17,8 @@ describe('useForm', () => {
   it('initializes with initial values, no errors, idle status', () => {
     const validate = vi.fn().mockReturnValue({ data: initialValues, errors: null });
     const onSubmit = vi.fn();
-    const onSuccess = vi.fn();
 
-    const { result } = renderHook(() => useForm({ initialValues, validate, onSubmit, onSuccess }));
+    const { result } = renderHook(() => useForm({ initialValues, validate, onSubmit }));
 
     expect(result.current.values).toEqual(initialValues);
     expect(result.current.errors).toEqual({});
@@ -29,9 +28,7 @@ describe('useForm', () => {
 
   it('updates a field value on handleChange', () => {
     const validate = vi.fn().mockReturnValue({ data: initialValues, errors: null });
-    const { result } = renderHook(() =>
-      useForm({ initialValues, validate, onSubmit: vi.fn(), onSuccess: vi.fn() }),
-    );
+    const { result } = renderHook(() => useForm({ initialValues, validate, onSubmit: vi.fn() }));
 
     act(() => result.current.handleChange('email', 'a@b.com'));
 
@@ -44,9 +41,7 @@ describe('useForm', () => {
       errors: { email: 'Invalid email' },
     });
 
-    const { result } = renderHook(() =>
-      useForm({ initialValues, validate, onSubmit: vi.fn(), onSuccess: vi.fn() }),
-    );
+    const { result } = renderHook(() => useForm({ initialValues, validate, onSubmit: vi.fn() }));
 
     act(() => result.current.handleBlur('email')); // validation happen after first touch
     act(() => result.current.handleChange('email', 'not-an-email'));
@@ -61,9 +56,7 @@ describe('useForm', () => {
       data: null,
       errors: { password: 'Too short' },
     });
-    const { result } = renderHook(() =>
-      useForm({ initialValues, validate, onSubmit: vi.fn(), onSuccess: vi.fn() }),
-    );
+    const { result } = renderHook(() => useForm({ initialValues, validate, onSubmit: vi.fn() }));
 
     act(() => result.current.handleBlur('password'));
 
@@ -74,9 +67,7 @@ describe('useForm', () => {
   it('calls preventDefault on the submit event', async () => {
     const validate = vi.fn().mockReturnValue({ data: initialValues, errors: null });
     const onSubmit = vi.fn().mockResolvedValue(undefined);
-    const { result } = renderHook(() =>
-      useForm({ initialValues, validate, onSubmit, onSuccess: vi.fn() }),
-    );
+    const { result } = renderHook(() => useForm({ initialValues, validate, onSubmit }));
 
     const event = fakeEvent();
     await act(async () => {
@@ -92,9 +83,7 @@ describe('useForm', () => {
       errors: { email: 'Invalid email' },
     });
     const onSubmit = vi.fn();
-    const { result } = renderHook(() =>
-      useForm({ initialValues, validate, onSubmit, onSuccess: vi.fn() }),
-    );
+    const { result } = renderHook(() => useForm({ initialValues, validate, onSubmit }));
 
     await act(async () => {
       result.current.handleSubmit(fakeEvent());
@@ -108,9 +97,7 @@ describe('useForm', () => {
     const values = { email: 'a@b.com', password: 'secret123' };
     const validate = vi.fn().mockReturnValue({ data: values, errors: null });
     const onSubmit = vi.fn().mockResolvedValue(undefined);
-    const { result } = renderHook(() =>
-      useForm({ initialValues: values, validate, onSubmit, onSuccess: vi.fn() }),
-    );
+    const { result } = renderHook(() => useForm({ initialValues: values, validate, onSubmit }));
 
     await act(async () => {
       result.current.handleSubmit(fakeEvent());
@@ -119,17 +106,16 @@ describe('useForm', () => {
     expect(onSubmit).toHaveBeenCalledWith(values);
   });
 
-  it('calls onSuccess after onSubmit resolves successfully', async () => {
+  it('sets status to success after onSubmit resolves successfully', async () => {
     const validate = vi.fn().mockReturnValue({ data: initialValues, errors: null });
     const onSubmit = vi.fn().mockResolvedValue(undefined);
-    const onSuccess = vi.fn();
-    const { result } = renderHook(() => useForm({ initialValues, validate, onSubmit, onSuccess }));
+    const { result } = renderHook(() => useForm({ initialValues, validate, onSubmit }));
 
     await act(async () => {
       await result.current.handleSubmit(fakeEvent());
     });
 
-    expect(onSuccess).toHaveBeenCalledTimes(1);
+    expect(onSubmit).toHaveBeenCalledTimes(1);
     expect(result.current.status).toBe('success');
   });
 
@@ -140,9 +126,7 @@ describe('useForm', () => {
       resolveSubmit = resolve;
     });
     const onSubmit = vi.fn().mockReturnValue(pending);
-    const { result } = renderHook(() =>
-      useForm({ initialValues, validate, onSubmit, onSuccess: vi.fn() }),
-    );
+    const { result } = renderHook(() => useForm({ initialValues, validate, onSubmit }));
 
     act(() => {
       result.current.handleSubmit(fakeEvent());
@@ -159,9 +143,7 @@ describe('useForm', () => {
   it('sets status to error and fills formError when onSubmit throws', async () => {
     const validate = vi.fn().mockReturnValue({ data: initialValues, errors: null });
     const onSubmit = vi.fn().mockRejectedValue(new Error('Invalid login credentials'));
-    const { result } = renderHook(() =>
-      useForm({ initialValues, validate, onSubmit, onSuccess: vi.fn() }),
-    );
+    const { result } = renderHook(() => useForm({ initialValues, validate, onSubmit }));
 
     await act(async () => {
       await result.current.handleSubmit(fakeEvent());
@@ -178,9 +160,7 @@ describe('useForm', () => {
       resolveSubmit = resolve;
     });
     const onSubmit = vi.fn().mockReturnValue(pending);
-    const { result } = renderHook(() =>
-      useForm({ initialValues, validate, onSubmit, onSuccess: vi.fn() }),
-    );
+    const { result } = renderHook(() => useForm({ initialValues, validate, onSubmit }));
 
     act(() => {
       result.current.handleSubmit(fakeEvent());
@@ -207,9 +187,7 @@ describe('useForm', () => {
       resolveSubmit = resolve;
     });
     const onSubmit = vi.fn().mockReturnValue(pending);
-    const { result } = renderHook(() =>
-      useForm({ initialValues, validate, onSubmit, onSuccess: vi.fn() }),
-    );
+    const { result } = renderHook(() => useForm({ initialValues, validate, onSubmit }));
 
     act(() => {
       result.current.handleSubmit(fakeEvent());
@@ -235,9 +213,7 @@ describe('useForm', () => {
       errors: { email: 'Invalid email' },
     });
     const onSubmit = vi.fn();
-    const { result } = renderHook(() =>
-      useForm({ initialValues, validate, onSubmit, onSuccess: vi.fn() }),
-    );
+    const { result } = renderHook(() => useForm({ initialValues, validate, onSubmit }));
 
     await act(async () => {
       result.current.handleSubmit(fakeEvent());
@@ -261,9 +237,8 @@ describe('useForm', () => {
       .fn()
       .mockRejectedValueOnce(new Error('Invalid login credentials'))
       .mockResolvedValueOnce(undefined);
-    const onSuccess = vi.fn();
 
-    const { result } = renderHook(() => useForm({ initialValues, validate, onSubmit, onSuccess }));
+    const { result } = renderHook(() => useForm({ initialValues, validate, onSubmit }));
 
     await act(async () => {
       result.current.handleSubmit(fakeEvent());
@@ -293,7 +268,6 @@ describe('useForm', () => {
         initialValues,
         validate,
         onSubmit,
-        onSuccess: vi.fn(),
       }),
     );
 

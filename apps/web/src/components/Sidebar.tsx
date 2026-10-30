@@ -41,7 +41,7 @@ export function Sidebar({ tabs, settingsPath, businessPath, sidebarWidthStyle }:
       )}
 
       <div className="px-2">
-        <Brand />
+        <Brand to="/home" />
       </div>
 
       {currentBusiness && (

@@ -113,7 +113,7 @@ describe('LoginPage', () => {
     );
   });
 
-  it('navigates home when the provider confirms the email during signup', async () => {
+  it('navigates to the dashboard when the provider confirms the email during signup', async () => {
     mockSignUp.mockResolvedValue({
       id: 'u1',
       email: 'a@b.com',
@@ -128,7 +128,7 @@ describe('LoginPage', () => {
     await user.type(screen.getByLabelText(/^confirm password/i), 'Secret123');
     await user.click(screen.getByRole('button', { name: /create account/i }));
 
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true }));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/dashboard', { replace: true }));
   });
 
   it('shows a form-level error when signUpWithEmail throws, and does not navigate', async () => {

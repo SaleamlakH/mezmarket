@@ -60,7 +60,6 @@ export function useBusinessEditForm(
       void queryClient.invalidateQueries({ queryKey: ['businesses'] });
       onSaved?.(updated);
     },
-    onSuccess: () => {},
   });
 
   const isDirty = useMemo(() => !valuesEqual(form.values, saved), [form.values, saved]);

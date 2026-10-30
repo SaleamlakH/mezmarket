@@ -5,14 +5,12 @@ export interface UseFormOptions<TValues, TData> {
   initialValues: TValues;
   validate: (values: TValues) => ValidationResult<TData>;
   onSubmit: (data: TData) => Promise<void>;
-  onSuccess: () => void;
 }
 
 export function useForm<TValues, TData = TValues>({
   initialValues,
   validate,
   onSubmit,
-  onSuccess,
 }: UseFormOptions<TValues, TData>) {
   const [values, setValues] = useState<TValues>(initialValues);
   const [status, setStatus] = useState<'idle' | 'submitting' | 'error' | 'success'>('idle');
@@ -92,7 +90,6 @@ export function useForm<TValues, TData = TValues>({
       try {
         await onSubmit(result.data as TData);
         setStatus('success');
-        onSuccess();
       } catch (error) {
         setStatus('error');
 
@@ -100,7 +97,7 @@ export function useForm<TValues, TData = TValues>({
         setFormError(submitError.message);
       }
     },
-    [status, values, validate, onSubmit, onSuccess],
+    [status, values, validate, onSubmit],
   );
 
   return {

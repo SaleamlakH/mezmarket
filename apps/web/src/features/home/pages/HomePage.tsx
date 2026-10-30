@@ -16,7 +16,7 @@ import {
   Warehouse,
   Zap,
 } from 'lucide-react';
-import { Link } from 'react-router';
+import { Link, Navigate, useLocation } from 'react-router';
 import { Brand } from '@/components/Brand';
 import { Chip } from '@/components/Chip';
 import { LedgerLine } from '@/components/LedgerLine';
@@ -564,10 +564,16 @@ function Footer() {
 }
 
 export function HomePage() {
+  const location = useLocation();
   const {
     session: { status },
   } = useAuthContext();
   const isAuthenticated = status === 'authenticated';
+
+  // authed user only see the this page at /home
+  // otherwise will be redirect to dashboard
+  const isHome = location.pathname === '/home';
+  if (isAuthenticated && !isHome) return <Navigate to="/dashboard" />;
 
   return (
     <div className="flex w-full self-start flex-col bg-(--bg)">
