@@ -4,7 +4,6 @@ import {
   ArrowUpRight,
   Calculator,
   Check,
-  CodeXml,
   Copy,
   LayoutDashboard,
   Mail,
@@ -18,10 +17,8 @@ import {
 } from 'lucide-react';
 import { Link, Navigate, useLocation } from 'react-router';
 import { Brand } from '@/components/Brand';
-import { Chip } from '@/components/Chip';
 import { LedgerLine } from '@/components/LedgerLine';
 import { useAuthContext } from '@/providers/auth-provider/useAuthContext';
-import { GithubMark } from '../components/GithubMark';
 import {
   CostsIllustration,
   InventoryIllustration,
@@ -34,7 +31,6 @@ import { HomeHeader } from '../components/HomeHeader';
 import { Reveal } from '../components/Reveal';
 
 const CONTACT_EMAIL = 'saleamlak.7h@gmail.com';
-const GITHUB_REPO_URL = 'https://github.com/SaleamlakH/mezmarket';
 const TELEGRAM_URL = 'https://t.me/saleamlak_h';
 
 const FOOTER_LINKS = [
@@ -43,12 +39,10 @@ const FOOTER_LINKS = [
   { label: 'Inventory', href: '#inventory' },
   { label: 'Costs', href: '#costs' },
   { label: 'Overview', href: '#overview' },
-  { label: 'Open source', href: '#open-source' },
 ];
 
 const FOOTER_CONTACTS = [
   { label: 'Contact', href: '#contact', external: false },
-  { label: 'GitHub', href: GITHUB_REPO_URL, external: true },
   { label: 'Email', href: `mailto:${CONTACT_EMAIL}`, external: false },
   { label: 'Telegram', href: TELEGRAM_URL, external: true },
 ];
@@ -78,22 +72,9 @@ const FEATURE_GRID = [
   },
   {
     title: 'Customers',
-    body: 'Attach a regular to a sale and track what they still owe. A full customer list and history are still being built.',
+    body: 'Attach a customer to a sale and track what they still owe.',
     icon: Users,
   },
-];
-
-const PLANNED_ITEMS = [
-  'Open containers',
-  'Loss records',
-  'Audit trail',
-  'Voids and refunds',
-  'Printable invoices',
-  'Staff accounts',
-  'Multiple branches',
-  'Product categories',
-  'Customer list & history',
-  'Search and filters',
 ];
 
 function Eyebrow({ children }: { children: ReactNode }) {
@@ -133,7 +114,7 @@ function HeroSection({ isAuthenticated }: { isAuthenticated: boolean }) {
       <Reveal>
         <span className="inline-flex items-center gap-2 rounded-lg border border-(--border) bg-(--surface-secondary) px-3 py-1.5 font-mono text-[10px] font-bold tracking-[0.08em] uppercase text-(--text-muted)">
           <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-(--accent)" />
-          Open source · Built for small shops
+          Built for small shops
         </span>
 
         <h1 className="mt-5 text-[clamp(2.25rem,5vw,4rem)] font-extrabold leading-[1.05] tracking-[-0.03em] text-(--text)">
@@ -168,16 +149,6 @@ function HeroSection({ isAuthenticated }: { isAuthenticated: boolean }) {
               Start selling
             </Link>
           )}
-          <a
-            href={GITHUB_REPO_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-(--border) bg-(--surface-primary) px-4 py-2.5 text-sm font-semibold text-(--text) transition-colors hover:border-(--border-strong) hover:bg-(--surface-secondary)"
-          >
-            <GithubMark className="h-4 w-4" />
-            GitHub
-            <ArrowUpRight size={15} aria-hidden />
-          </a>
         </div>
       </Reveal>
 
@@ -310,43 +281,6 @@ function FeaturesSection() {
   );
 }
 
-function OpenSourceSection() {
-  return (
-    <section id="open-source" className="scroll-mt-24 border-t border-(--border)">
-      <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
-        <Reveal>
-          <SectionHeading
-            eyebrow="What’s next"
-            title="Built in the open."
-            body="MezMarket is in active development. These are planned, not live yet. Follow progress on GitHub."
-          />
-          <a
-            href={GITHUB_REPO_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="focus-ring mt-6 inline-flex items-center justify-center gap-2 rounded-lg border border-(--border) bg-(--surface-primary) px-4 py-2.5 text-sm font-semibold text-(--text) transition-colors hover:border-(--border-strong) hover:bg-(--surface-secondary)"
-          >
-            <GithubMark className="h-4 w-4" />
-            GitHub
-            <ArrowUpRight size={15} aria-hidden />
-          </a>
-        </Reveal>
-
-        <Reveal
-          className="rounded-2xl border border-(--border) bg-(--surface-primary) p-5"
-          delay={120}
-        >
-          <div className="flex flex-wrap gap-2">
-            {PLANNED_ITEMS.map((item) => (
-              <Chip key={item}>{item}</Chip>
-            ))}
-          </div>
-        </Reveal>
-      </div>
-    </section>
-  );
-}
-
 type IconComponent = ComponentType<{ className?: string }>;
 
 interface ContactMethod {
@@ -452,7 +386,7 @@ function ContactSection() {
           <SectionHeading
             eyebrow="Talk to me"
             title="Questions about the app?"
-            body="Ask about the app, what is being built, or share any comments you have."
+            body="Ask about the app or share any comments you have."
           />
         </Reveal>
 
@@ -461,17 +395,6 @@ function ContactSection() {
             <ContactCard key={contact.label} {...contact} />
           ))}
         </Reveal>
-
-        <a
-          href={GITHUB_REPO_URL}
-          target="_blank"
-          rel="noreferrer"
-          className="focus-ring mt-5 inline-flex items-center gap-2 rounded-lg text-[12px] font-semibold text-(--text-muted) transition-colors hover:text-(--accent)"
-        >
-          <CodeXml size={14} aria-hidden />
-          Or follow the code on GitHub
-          <ArrowUpRight size={13} aria-hidden />
-        </a>
       </div>
     </section>
   );
@@ -651,7 +574,6 @@ export function HomePage() {
           visual={<OverviewIllustration />}
         />
         <FeaturesSection />
-        <OpenSourceSection />
         <ContactSection />
         <ClosingCta isAuthenticated={isAuthenticated} />
       </main>
