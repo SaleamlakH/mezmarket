@@ -1,5 +1,11 @@
 # web
 
+## 0.4.3
+
+### Patch Changes
+
+- 10aad8c: Remove GitHub and open-source content from the home page
+
 ## 0.4.2
 
 ### Patch Changes
